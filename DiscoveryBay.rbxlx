@@ -1067,6 +1067,63 @@ for line in string.gmatch(DATA.cartpaths, "[^\n]+") do
 	if #pts >= 2 then cartpaths[#cartpaths + 1] = pts end
 end
 
+-- ROAD GAP FILLER: some OSM streets end a few feet short of the road they actually
+-- meet. Bridge every dead endpoint that has another road just ahead of it (forward-
+-- facing only, so cul-de-sacs never grow bogus bridges to parallel back streets).
+local function segClosest(px, pz, ax, az, bx, bz)
+	local abx, abz = bx - ax, bz - az
+	local l2 = abx * abx + abz * abz
+	local t = 0
+	if l2 > 1e-9 then
+		t = math.clamp(((px - ax) * abx + (pz - az) * abz) / l2, 0, 1)
+	end
+	local cx, cz = ax + abx * t, az + abz * t
+	local dx, dz = px - cx, pz - cz
+	return math.sqrt(dx * dx + dz * dz), cx, cz
+end
+
+do
+	local MAXGAP = 45
+	local connectors = {}
+	for ri, rd in ipairs(roads) do
+		for _, endIdx in ipairs({ 1, #rd.pts }) do
+			local p = rd.pts[endIdx]
+			local nxt = (endIdx == 1) and rd.pts[2] or rd.pts[#rd.pts - 1]
+			local ox, oz = p[1] - nxt[1], p[2] - nxt[2]
+			local ol = math.max(math.sqrt(ox * ox + oz * oz), 1e-6)
+			ox, oz = ox / ol, oz / ol -- outgoing direction at the dead end
+			local bestD, bestX, bestZ = math.huge, nil, nil
+			for rj, other in ipairs(roads) do
+				if rj ~= ri then
+					local opts = other.pts
+					for i = 1, #opts - 1 do
+						local a, b = opts[i], opts[i + 1]
+						if math.min(math.abs(a[1] - p[1]), math.abs(b[1] - p[1])) < MAXGAP + 60
+							and math.min(math.abs(a[2] - p[2]), math.abs(b[2] - p[2])) < MAXGAP + 60 then
+							local d, cx, cz = segClosest(p[1], p[2], a[1], a[2], b[1], b[2])
+							if d < bestD then
+								bestD, bestX, bestZ = d, cx, cz
+							end
+						end
+					end
+				end
+			end
+			if bestD > 4 and bestD < MAXGAP then
+				local vx, vz = bestX - p[1], bestZ - p[2]
+				local vl = math.max(math.sqrt(vx * vx + vz * vz), 1e-6)
+				if (vx * ox + vz * oz) / vl > 0.57 then -- continues roughly straight ahead
+					connectors[#connectors + 1] = { name = "", cls = rd.cls, width = rd.width,
+						pts = { { p[1], p[2] }, { bestX, bestZ } } }
+				end
+			end
+		end
+	end
+	for _, c in ipairs(connectors) do
+		roads[#roads + 1] = c
+	end
+	print("[DiscoveryBay] road gap filler: " .. #connectors .. " connectors added")
+end
+
 -- buildings: fixed 15-char records: x(3) zn(3) w(2) d(2) yaw(2) class(1) dockYaw(2 or '--')
 local buildings = {}
 do
@@ -2332,6 +2389,35 @@ local function buildBigSchool(parent, lm)
 		cf * CFrame.new(0, (h - 3.5) * S, (-d / 2 - 0.5) * S), Color3.fromRGB(30, 60, 110))
 	makeSign(schoolSign, Enum.NormalId.Front, "DISCOVERY BAY ELEMENTARY",
 		Color3.fromRGB(30, 60, 110), Color3.new(1, 1, 1))
+	-- paved driveway from the front doors to the nearest road, so you can ride
+	-- straight up to school without crossing grass
+	do
+		local fdx, fdz = lm.x - cxF, lm.z - czF -- front direction (toward the campus sign)
+		local fl = math.max(math.sqrt(fdx * fdx + fdz * fdz), 1e-6)
+		fdx, fdz = fdx / fl, fdz / fl
+		local doorX = cxF + fdx * (d / 2 + 2)
+		local doorZ = czF + fdz * (d / 2 + 2)
+		local bestD, bestX, bestZ = math.huge, nil, nil
+		for _, rd in ipairs(roads) do
+			local rpts = rd.pts
+			for i = 1, #rpts - 1 do
+				local a, b = rpts[i], rpts[i + 1]
+				if math.min(math.abs(a[1] - doorX), math.abs(b[1] - doorX)) < 500
+					and math.min(math.abs(a[2] - doorZ), math.abs(b[2] - doorZ)) < 500 then
+					local dd, cx2, cz2 = segClosest(doorX, doorZ, a[1], a[2], b[1], b[2])
+					if dd < bestD then
+						bestD, bestX, bestZ = dd, cx2, cz2
+					end
+				end
+			end
+		end
+		if bestX and bestD > 6 and bestD < 600 then
+			local mid = toWorld((doorX + bestX) / 2, (doorZ + bestZ) / 2, 2.2 * S - 0.15 * S)
+			local dir = dirToWorld(bestX - doorX, bestZ - doorZ)
+			newPart(m, "SchoolDriveway", Vector3.new(14 * S, 0.3 * S, (bestD + 10) * S),
+				CFrame.lookAt(mid, mid + dir), Color3.fromRGB(168, 164, 156), Enum.Material.Concrete)
+		end
+	end
 	-- corridor walls (z = ±6 local) with a centered door gap into each classroom
 	local ROOMS = {
 		{ "Room 101 · MATH", "MATH: 2 + 2 = FAST" },
@@ -2846,7 +2932,7 @@ end)
 local START_CASH = 100
 local WALK_SPEED = 16
 local SCOOTER_SPEED = 30
-local VERSION = "v24"
+local VERSION = "v25"
 local TRICK_COOLDOWN = 1.2
 local TRAFFIC_CARS = 130
 local CAR_SPEED = 38
@@ -4054,7 +4140,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 
-local VERSION = "v24"
+local VERSION = "v25"
 local SPEED_PASS_ID = 0 -- paste the real Game Pass ID here (same one as in DiscoveryBayShop)
 local RunService = game:GetService("RunService")
 local plr = Players.LocalPlayer
