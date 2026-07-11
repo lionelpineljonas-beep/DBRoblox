@@ -11,7 +11,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 
-local VERSION = "v38"
+local VERSION = "v39"
 local SPEED_PASS_ID = 0 -- paste the real Game Pass ID here (same one as in DiscoveryBayShop)
 local RunService = game:GetService("RunService")
 local plr = Players.LocalPlayer
@@ -1137,7 +1137,7 @@ FishGame.OnClientEvent:Connect(function()
 	local pos = 0.5
 	local t0 = os.clock()
 	local moveConn = RunService.RenderStepped:Connect(function()
-		pos = 0.5 + 0.5 * math.sin((os.clock() - t0) * 4.2)
+		pos = 0.5 + 0.5 * math.sin((os.clock() - t0) * 2.4)
 		marker.Position = UDim2.fromScale(pos, -0.15)
 	end)
 	local keyConn = nil
@@ -1161,7 +1161,7 @@ FishGame.OnClientEvent:Connect(function()
 			attempt()
 		end
 	end)
-	task.delay(5, function()
+	task.delay(8, function()
 		if not done and frame.Parent then
 			finish(false)
 		end

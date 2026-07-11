@@ -43,7 +43,7 @@ end)
 local START_CASH = 100
 local WALK_SPEED = 16
 local SCOOTER_SPEED = 30
-local VERSION = "v38"
+local VERSION = "v39"
 local TRICK_COOLDOWN = 1.2
 local TRAFFIC_CARS = 130
 local CAR_SPEED = 38
@@ -1563,7 +1563,7 @@ local function hookRod(plr, tool)
 				st.bobber.Material = Enum.Material.Neon -- the bobber lights up: FISH ON
 			end
 			FishGame:FireClient(plr)
-			task.delay(6, function()
+			task.delay(9, function()
 				local st2 = castState[uid]
 				if st2 and st2.stage == "bite" then
 					clearCast(uid)

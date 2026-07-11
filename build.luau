@@ -654,6 +654,11 @@ local function buildKit()
 		local handle = productPart(tool, "Handle", pr.kind, pr.color, CFrame.new())
 		handle.Anchored = false
 		handle.CanCollide = false
+		if pr.name == "Fishing Rod" then
+			-- held like a real rod: butt in the hand, tip pointing forward and up
+			tool.Grip = CFrame.new(0, 1.1, -1.7)
+				* CFrame.Angles(math.rad(35), 0, 0) * CFrame.Angles(0, math.rad(90), 0)
+		end
 		tool.Parent = prodFolder
 	end
 end
@@ -1529,7 +1534,8 @@ local function buildPlaza()
 	-- Fish N Bait: a walk-in bait shop with sliding doors; Captain Finn works the
 	-- counter, rods and live bait inside, and the sell counter buys your catch
 	do
-		local fSh = rowCf * CFrame.new(36 * S, 0, 18 * S) -- local -Z = storefront
+		-- west end of the row, past the dojo (the east end runs into ShellBlox)
+		local fSh = rowCf * CFrame.new(-106 * S, 0, 18 * S) -- local -Z = storefront
 		local mF = newModel(m, "Fish N Bait")
 		local w, d, h = 30, 24, 12
 		local wallF = Color3.fromRGB(200, 214, 224)
