@@ -43,7 +43,7 @@ end)
 local START_CASH = 100
 local WALK_SPEED = 16
 local SCOOTER_SPEED = 30
-local VERSION = "v33"
+local VERSION = "v34"
 local TRICK_COOLDOWN = 1.2
 local TRAFFIC_CARS = 130
 local CAR_SPEED = 38
@@ -105,12 +105,14 @@ local function updateSpeed(plr)
 	if plr:GetAttribute("Mounted") then
 		local speed = SCOOTER_SPEED + (plr:GetAttribute("SodaBoost") or 0)
 			+ (plr:GetAttribute("VanillaBoost") or 0) + (plr:GetAttribute("EduBoost") or 0)
+			+ (plr:GetAttribute("WeatherBoost") or 0)
 		if plr:GetAttribute("SpeedPass") then
 			speed = speed * 2 -- 2X Scooter Speed gamepass
 		end
-		humanoid.WalkSpeed = speed
+		humanoid.WalkSpeed = math.max(speed, 8)
 	else
-		humanoid.WalkSpeed = WALK_SPEED + (plr:GetAttribute("WalkBoost") or 0)
+		humanoid.WalkSpeed = math.max(WALK_SPEED + (plr:GetAttribute("WalkBoost") or 0)
+			+ (plr:GetAttribute("WeatherWalk") or 0), 6)
 	end
 end
 
@@ -639,18 +641,31 @@ end)
 --==============================================================================================
 -- TRICKS
 --==============================================================================================
-local function spinDeck(rig, axis, dur)
+local function spinDeck(rig, axis, dur, kick)
 	if not rig or not rig.deckMount or rig.spinning then return end
 	rig.spinning = true
 	task.spawn(function()
-		-- tuck the knees up while the deck whips underneath (real tailwhip form)
+		-- tuck the knees up while the deck whips underneath (real tailwhip form);
+		-- on a kickflip one leg snaps out sideways: that's the flick
 		local tucked = {}
 		if rig.hips and not rig.posing then
-			for _, hh in ipairs(rig.hips) do
+			for idx, hh in ipairs(rig.hips) do
 				if hh.motor.Parent then
-					hh.motor.C0 = hh.rest * CFrame.Angles(math.rad(-55), 0, 0)
+					if kick and idx == 2 then
+						hh.motor.C0 = hh.rest * CFrame.Angles(math.rad(-20), 0, math.rad(-55))
+					else
+						hh.motor.C0 = hh.rest * CFrame.Angles(math.rad(kick and -62 or -55), 0, 0)
+					end
 					tucked[#tucked + 1] = hh
 				end
+			end
+		end
+		-- the arms ride the trick too; IK would fight the pose, so pause it
+		local armsOn = false
+		if rig.shoulders and #rig.shoulders > 0 and not rig.posing then
+			armsOn = true
+			for _, ik in ipairs(rig.iks) do
+				if ik.Parent then ik.Enabled = false end
 			end
 		end
 		local steps = 16
@@ -664,12 +679,21 @@ local function spinDeck(rig, axis, dur)
 			local rot = axis == "y" and CFrame.Angles(0, a, 0) or CFrame.Angles(0, 0, a)
 			mount.C0 = rig.deckBase * pivot * rot * pivot:Inverse()
 			-- the RIDER moves too: dip into the tailwhip, lean through the kickflip
+			local wave = math.sin((i / steps) * math.pi)
 			if waistOK then
-				local wave = math.sin((i / steps) * math.pi)
 				if axis == "y" then
 					rig.waist.motor.C0 = rig.waist.rest * CFrame.Angles(math.rad(-24 * wave), 0, 0)
 				else
 					rig.waist.motor.C0 = rig.waist.rest * CFrame.Angles(0, 0, math.rad(26 * wave))
+				end
+			end
+			if armsOn then
+				for idx, sh in ipairs(rig.shoulders) do
+					if sh.motor.Parent then
+						local side = (idx == 1) and 1 or -1
+						sh.motor.C0 = sh.rest *
+							CFrame.Angles(math.rad(-38 * wave), 0, math.rad(10 * wave * side))
+					end
 				end
 			end
 			task.wait(dur / steps)
@@ -682,6 +706,14 @@ local function spinDeck(rig, axis, dur)
 		end
 		for _, hh in ipairs(tucked) do
 			if hh.motor.Parent then hh.motor.C0 = hh.rest end
+		end
+		if armsOn then
+			for _, sh in ipairs(rig.shoulders) do
+				if sh.motor.Parent then sh.motor.C0 = sh.rest end
+			end
+			for _, ik in ipairs(rig.iks) do
+				if ik.Parent then ik.Enabled = true end
+			end
 		end
 		rig.spinning = false
 	end)
@@ -698,6 +730,15 @@ local function legsBack(rig, dur)
 			h.motor.C0 = h.rest * CFrame.Angles(math.rad(pitch), math.rad(yaw), 0)
 		end
 	end
+	-- arms punch straight ahead (IK paused): the full flying-superman silhouette
+	for _, ik in ipairs(rig.iks) do
+		if ik.Parent then ik.Enabled = false end
+	end
+	for idx, s in ipairs(rig.shoulders or {}) do
+		if s.motor.Parent then
+			s.motor.C0 = s.rest * CFrame.Angles(math.rad(85), 0, math.rad((idx == 1) and 8 or -8))
+		end
+	end
 	-- arch the chest up for the full superman silhouette
 	if rig.waist and rig.waist.motor.Parent then
 		rig.waist.motor.C0 = rig.waist.rest * CFrame.Angles(math.rad(20), 0, 0)
@@ -706,8 +747,14 @@ local function legsBack(rig, dur)
 		for _, h in ipairs(rig.hips) do
 			if h.motor.Parent then h.motor.C0 = h.rest end
 		end
+		for _, s in ipairs(rig.shoulders or {}) do
+			if s.motor.Parent then s.motor.C0 = s.rest end
+		end
 		if rig.waist and rig.waist.motor.Parent then
 			rig.waist.motor.C0 = rig.waist.rest
+		end
+		for _, ik in ipairs(rig.iks) do
+			if ik.Parent then ik.Enabled = true end
 		end
 		rig.posing = false
 	end)
@@ -744,22 +791,45 @@ end
 
 local TRICKS = {
 	{ name = "Tailwhip", pay = 4, fn = function(rig, hrp) spinDeck(rig, "y", 0.45) end },
-	{ name = "Kickflip", pay = 3, fn = function(rig, hrp) spinDeck(rig, "z", 0.5) end },
+	{ name = "Kickflip", pay = 3, fn = function(rig, hrp) spinDeck(rig, "z", 0.5, true) end },
 	{ name = "360 Spin", pay = 6, fn = function(rig, hrp)
 		local dirSign = (rng:NextInteger(0, 1) == 0 and 1 or -1)
-		-- wind the shoulders up, then whip the whole rider around
+		hrp.AssemblyAngularVelocity = Vector3.new(0, dirSign * 10, 0)
+		-- crouch + wind the waist up, then whip the whole rider a guaranteed full turn
 		task.spawn(function()
-			if rig and rig.waist and rig.waist.motor.Parent and not rig.posing and not rig.spinning then
-				rig.waist.motor.C0 = rig.waist.rest * CFrame.Angles(0, math.rad(-30 * dirSign), 0)
-				task.wait(0.12)
-				rig.waist.motor.C0 = rig.waist.rest * CFrame.Angles(0, math.rad(14 * dirSign), 0)
-				task.wait(0.35)
-				if rig.waist.motor.Parent then
-					rig.waist.motor.C0 = rig.waist.rest
+			local crouched = {}
+			if rig and rig.hips and not rig.posing and not rig.spinning then
+				for _, h in ipairs(rig.hips) do
+					if h.motor.Parent then
+						h.motor.C0 = h.rest * CFrame.Angles(math.rad(-42), 0, 0)
+						crouched[#crouched + 1] = h
+					end
 				end
 			end
+			local waistOK = rig and rig.waist and rig.waist.motor.Parent
+				and not rig.posing and not rig.spinning
+			if waistOK then
+				rig.waist.motor.C0 = rig.waist.rest * CFrame.Angles(0, math.rad(-35 * dirSign), 0)
+			end
+			task.wait(0.1)
+			local steps = 14
+			for i = 1, steps do
+				if not hrp.Parent then break end
+				hrp.CFrame = hrp.CFrame * CFrame.Angles(0, dirSign * (2 * math.pi / steps), 0)
+				if waistOK and rig.waist.motor.Parent then
+					local wave = math.sin((i / steps) * math.pi)
+					rig.waist.motor.C0 = rig.waist.rest *
+						CFrame.Angles(0, math.rad(18 * dirSign * wave), 0)
+				end
+				task.wait(0.035)
+			end
+			if waistOK and rig.waist.motor.Parent then
+				rig.waist.motor.C0 = rig.waist.rest
+			end
+			for _, h in ipairs(crouched) do
+				if h.motor.Parent then h.motor.C0 = h.rest end
+			end
 		end)
-		hrp.AssemblyAngularVelocity = Vector3.new(0, dirSign * 22, 0)
 	end },
 	{ name = "Superman", pay = 8, fn = function(rig, hrp) legsBack(rig, 0.55) end },
 	{ name = "No-Hander", pay = 5, fn = function(rig, hrp) armsBack(rig, 0.5) end },
@@ -1312,6 +1382,267 @@ task.spawn(function()
 				if hum and hum.Health > 0 then
 					hum:TakeDamage(5)
 				end
+			end
+		end
+	end
+end)
+
+--==============================================================================================
+-- WEATHER: every 2 in-game days a random one of 50 weathers rolls in for 2 minutes.
+-- Disasters hurt (shelter indoors!), boosts speed you up, some just pay or look wild.
+--==============================================================================================
+local WEATHER_EVERY = 2 * DAY_LENGTH
+local WEATHER_TIME = 120
+
+-- fields: scooter/walk = speed delta while active · dmg = hp/s outdoors · cash = $/s
+-- fog/oa/clock = atmosphere · grav = gravity multiplier · jump = JumpPower
+-- hazard = meteor | lightning | tornado | quake | wind
+local WEATHERS = {
+	-- DISASTERS ------------------------------------------------------------------------------
+	{ name = "Meteor Shower", desc = "Flaming rocks incoming - RUN!", hazard = "meteor", fog = 1500, oa = Color3.fromRGB(255, 180, 120) },
+	{ name = "Lightning Storm", desc = "Bolts from above. Stay sharp!", hazard = "lightning", fog = 900, clock = 19 },
+	{ name = "Tornado Warning", desc = "A twister is roaming the bay!", hazard = "tornado", fog = 1100 },
+	{ name = "Earthquake", desc = "The ground won't sit still!", hazard = "quake" },
+	{ name = "Acid Rain", desc = "This rain STINGS. Get inside!", dmg = 4, fog = 600, oa = Color3.fromRGB(120, 160, 90) },
+	{ name = "Hailstorm", desc = "Ice chunks! Ouch! Take cover!", dmg = 3, walk = -4, fog = 800 },
+	{ name = "Blizzard", desc = "Freezing! Everything is slower.", scooter = -8, walk = -6, fog = 300, oa = Color3.fromRGB(200, 215, 235) },
+	{ name = "Sandstorm", desc = "Grit in your eyes and gears.", dmg = 1, walk = -4, fog = 200, oa = Color3.fromRGB(210, 180, 120) },
+	{ name = "Heatwave", desc = "Too hot to hustle on foot.", walk = -5, clock = 12, oa = Color3.fromRGB(255, 200, 150) },
+	{ name = "Firestorm", desc = "The sky is BURNING. Hide!", dmg = 6, fog = 500, clock = 18, oa = Color3.fromRGB(255, 120, 60) },
+	{ name = "Hurricane", desc = "Howling wind drags you around!", hazard = "wind", dmg = 2, fog = 700 },
+	{ name = "Thundersnow", desc = "Snow AND lightning?! Wild.", hazard = "lightning", walk = -5, fog = 400, oa = Color3.fromRGB(230, 235, 245) },
+	{ name = "Killer Fog", desc = "This fog... bites?", dmg = 2, fog = 90 },
+	{ name = "Frog Rain", desc = "Ribbits from above! Mildly painful.", dmg = 1, oa = Color3.fromRGB(170, 220, 140) },
+	-- SCOOTER BOOSTS -------------------------------------------------------------------------
+	{ name = "Tailwind", desc = "The wind is on your side! Scooter +10.", scooter = 10 },
+	{ name = "Jetstream", desc = "Surf the sky river! Scooter +14.", scooter = 14 },
+	{ name = "Perfect Sunshine", desc = "Ideal riding weather. Scooter +6.", scooter = 6, clock = 12 },
+	{ name = "Cool Breeze", desc = "Crisp and quick. Scooter +5.", scooter = 5 },
+	{ name = "Adrenaline Front", desc = "You feel UNSTOPPABLE. Scooter +12.", scooter = 12, walk = 4 },
+	{ name = "Golden Hour", desc = "Sunset cruising. Scooter +8.", scooter = 8, clock = 17, oa = Color3.fromRGB(255, 205, 140) },
+	{ name = "Static Charge", desc = "Hair up, speed up! Scooter +9.", scooter = 9 },
+	{ name = "Spring Bloom", desc = "Fresh air, fresh legs. Scooter +6.", scooter = 6, walk = 2, oa = Color3.fromRGB(220, 255, 210) },
+	{ name = "Crisp Autumn Air", desc = "Leaves crunch, wheels fly. Scooter +7.", scooter = 7, oa = Color3.fromRGB(255, 225, 180) },
+	{ name = "Morning Dew", desc = "Early bird gets the speed. Scooter +5.", scooter = 5, clock = 7 },
+	{ name = "Nitro Clouds", desc = "The air itself is FAST. Scooter +15!", scooter = 15 },
+	{ name = "Lucky Rainbow", desc = "Speed AND pocket money!", scooter = 8, cash = 1 },
+	-- FUN & STRANGE --------------------------------------------------------------------------
+	{ name = "Money Rain", desc = "IT'S RAINING CASH! +$2 every second!", cash = 2 },
+	{ name = "Cash Drizzle", desc = "A light sprinkle of dollars.", cash = 1 },
+	{ name = "Low Gravity", desc = "Everything floats. Jump around!", grav = 0.4 },
+	{ name = "Moon Gravity", desc = "One small step for Discovery Bay...", grav = 0.17 },
+	{ name = "Super Jump Storm", desc = "Your legs are springs now!", jump = 120 },
+	{ name = "Bouncy Clouds", desc = "Boing. Boing. BOING.", jump = 90, grav = 0.6 },
+	{ name = "Blood Moon", desc = "The moon is watching...", clock = 0, oa = Color3.fromRGB(200, 60, 60), fog = 800 },
+	{ name = "Aurora Borealis", desc = "Ribbons of light over the bay.", clock = 1, oa = Color3.fromRGB(90, 220, 190) },
+	{ name = "Neon Night", desc = "The town glows purple tonight.", clock = 2, oa = Color3.fromRGB(190, 90, 255) },
+	{ name = "Pink Sky", desc = "Cotton candy heavens.", oa = Color3.fromRGB(255, 170, 210) },
+	{ name = "Candy Clouds", desc = "Sweet skies pay sweet money.", oa = Color3.fromRGB(255, 190, 220), cash = 1 },
+	{ name = "Glitter Storm", desc = "Everything sparkles!", oa = Color3.fromRGB(255, 235, 150), fog = 1200 },
+	{ name = "Starfall", desc = "Wishes falling everywhere. +$1/s!", clock = 0, cash = 1 },
+	{ name = "Misty Morning", desc = "Soft fog rolls off the water.", fog = 350, clock = 7 },
+	{ name = "Sun Shower", desc = "Rain AND sun. Scooter +4.", scooter = 4, fog = 1500 },
+	{ name = "Double Rainbow", desc = "All the way! Speed and cash!", scooter = 6, cash = 1 },
+	{ name = "Petal Storm", desc = "Flower petals everywhere.", oa = Color3.fromRGB(255, 200, 220), walk = 3 },
+	{ name = "Snow Flurries", desc = "Gentle snow. Cozy town.", fog = 900, oa = Color3.fromRGB(225, 235, 250) },
+	{ name = "Pumpkin Sky", desc = "Spooky orange evening.", clock = 18, oa = Color3.fromRGB(255, 150, 60) },
+	{ name = "Silver Lining", desc = "Shiny clouds drop shiny coins.", cash = 1, oa = Color3.fromRGB(220, 220, 230) },
+	{ name = "Firefly Night", desc = "Tiny lights over the water.", clock = 22, oa = Color3.fromRGB(255, 235, 170) },
+	{ name = "Disco Sky", desc = "The sky wants to DANCE.", oa = Color3.fromRGB(255, 90, 200), jump = 70 },
+	{ name = "Dog Days", desc = "Dogs love it. Walkers +5.", walk = 5 },
+	{ name = "Windy Kites", desc = "Gusty but great for riding.", hazard = "wind", scooter = 3 },
+}
+
+local function weatherAnnounce(text)
+	for _, p in ipairs(Players:GetPlayers()) do
+		TrickResult:FireClient(p, "WX|" .. text, 0)
+	end
+end
+
+-- roof over your head = safe from ambient weather damage
+local function isSheltered(char)
+	local hrp = char:FindFirstChild("HumanoidRootPart")
+	if not hrp then return true end
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	params.FilterDescendantsInstances = { char }
+	return workspace:Raycast(hrp.Position, Vector3.new(0, 180, 0), params) ~= nil
+end
+
+local function spawnMeteor()
+	local ps = Players:GetPlayers()
+	if #ps == 0 then return end
+	local target = ps[rng:NextInteger(1, #ps)]
+	local hrp = target.Character and target.Character:FindFirstChild("HumanoidRootPart")
+	if not hrp then return end
+	local meteor = Instance.new("Part")
+	meteor.Name = "Meteor"
+	meteor.Shape = Enum.PartType.Ball
+	meteor.Size = Vector3.new(4, 4, 4)
+	meteor.Color = Color3.fromRGB(255, 120, 30)
+	meteor.Material = Enum.Material.Neon
+	meteor.CFrame = CFrame.new(hrp.Position
+		+ Vector3.new(rng:NextNumber(-70, 70), 150, rng:NextNumber(-70, 70)))
+	local fire = Instance.new("Fire")
+	fire.Size = 8
+	fire.Parent = meteor
+	meteor.Touched:Connect(function(hit)
+		local hum = hit.Parent and hit.Parent:FindFirstChildOfClass("Humanoid")
+		if hum then hum:TakeDamage(45) end
+	end)
+	meteor.Parent = workspace
+	task.delay(8, function()
+		if meteor.Parent then meteor:Destroy() end
+	end)
+end
+
+local function strikeLightning()
+	local ps = Players:GetPlayers()
+	if #ps == 0 then return end
+	local target = ps[rng:NextInteger(1, #ps)]
+	local hrp = target.Character and target.Character:FindFirstChild("HumanoidRootPart")
+	if not hrp then return end
+	local pos = hrp.Position + Vector3.new(rng:NextNumber(-30, 30), 0, rng:NextNumber(-30, 30))
+	local bolt = Instance.new("Part")
+	bolt.Name = "Lightning"
+	bolt.Size = Vector3.new(1.2, 90, 1.2)
+	bolt.CFrame = CFrame.new(pos + Vector3.new(0, 45, 0))
+	bolt.Color = Color3.fromRGB(200, 230, 255)
+	bolt.Material = Enum.Material.Neon
+	bolt.Anchored = true
+	bolt.CanCollide = false
+	bolt.Parent = workspace
+	task.delay(0.25, function()
+		if bolt.Parent then bolt:Destroy() end
+	end)
+	for _, p in ipairs(ps) do
+		local h = p.Character and p.Character:FindFirstChild("HumanoidRootPart")
+		local hum = p.Character and p.Character:FindFirstChildOfClass("Humanoid")
+		if h and hum then
+			local d = h.Position - pos
+			if math.sqrt(d.X * d.X + d.Z * d.Z) < 10 then
+				hum:TakeDamage(35)
+			end
+		end
+	end
+end
+
+local function makeFunnel()
+	local ps = Players:GetPlayers()
+	local anchor = Vector3.new(11000, 0, 9300)
+	local first = ps[1] and ps[1].Character and ps[1].Character:FindFirstChild("HumanoidRootPart")
+	if first then
+		anchor = first.Position + Vector3.new(rng:NextNumber(-120, 120), 0, rng:NextNumber(-120, 120))
+	end
+	local funnel = Instance.new("Model")
+	funnel.Name = "Tornado"
+	for i = 1, 5 do
+		local disc = Instance.new("Part")
+		disc.Name = "Funnel" .. i
+		disc.Shape = Enum.PartType.Cylinder
+		local dia = 6 + i * 5
+		disc.Size = Vector3.new(9, dia, dia)
+		disc.CFrame = CFrame.new(anchor + Vector3.new(0, i * 9 - 4, 0))
+			* CFrame.Angles(0, 0, math.rad(90))
+		disc.Color = Color3.fromRGB(120, 120, 130)
+		disc.Material = Enum.Material.SmoothPlastic
+		disc.Transparency = 0.35
+		disc.Anchored = true
+		disc.CanCollide = false
+		disc.Parent = funnel
+	end
+	funnel.Parent = workspace
+	return funnel
+end
+
+local function tickFunnel(funnel)
+	if not funnel.Parent then return end
+	-- spin on the spot and wander; fling anyone who gets close
+	funnel:PivotTo(funnel:GetPivot() * CFrame.Angles(0, math.rad(40), 0) * CFrame.new(0, 0, -8))
+	local center = funnel:GetPivot().Position
+	for _, p in ipairs(Players:GetPlayers()) do
+		local hrp = p.Character and p.Character:FindFirstChild("HumanoidRootPart")
+		if hrp then
+			local d = hrp.Position - center
+			if math.sqrt(d.X * d.X + d.Z * d.Z) < 20 and math.abs(d.Y) < 45 then
+				hrp.AssemblyLinearVelocity = Vector3.new(
+					rng:NextNumber(-30, 30), 80, rng:NextNumber(-30, 30))
+			end
+		end
+	end
+end
+
+local function runWeather(w)
+	weatherAnnounce("WEATHER: " .. w.name .. "! " .. w.desc)
+	if w.fog then Lighting.FogEnd = w.fog end
+	if w.oa then Lighting.OutdoorAmbient = w.oa end
+	if w.clock then Lighting.ClockTime = w.clock end
+	workspace.Gravity = 196.2 * (w.grav or 1)
+	local funnel = w.hazard == "tornado" and makeFunnel() or nil
+	local windAngle = rng:NextNumber(0, 2 * math.pi)
+	local windDir = Vector3.new(math.cos(windAngle), 0, math.sin(windAngle))
+	for _ = 1, WEATHER_TIME do
+		for _, p in ipairs(Players:GetPlayers()) do
+			p:SetAttribute("WeatherBoost", w.scooter or 0)
+			p:SetAttribute("WeatherWalk", w.walk or 0)
+			updateSpeed(p)
+			local char = p.Character
+			local hum = char and char:FindFirstChildOfClass("Humanoid")
+			local hrp = char and char:FindFirstChild("HumanoidRootPart")
+			if hum and hrp and hum.Health > 0 then
+				if w.jump then
+					hum.UseJumpPower = true
+					hum.JumpPower = w.jump
+				end
+				if w.dmg and not isSheltered(char) then
+					hum:TakeDamage(w.dmg)
+				end
+				if w.cash then
+					local cash = getCash(p)
+					if cash then cash.Value = cash.Value + w.cash end
+				end
+				if w.hazard == "quake" then
+					hrp.AssemblyLinearVelocity = hrp.AssemblyLinearVelocity
+						+ Vector3.new(rng:NextNumber(-14, 14), rng:NextNumber(2, 6), rng:NextNumber(-14, 14))
+				elseif w.hazard == "wind" then
+					hrp.AssemblyLinearVelocity = hrp.AssemblyLinearVelocity + windDir * 10
+				end
+			end
+		end
+		if w.hazard == "meteor" then spawnMeteor() end
+		if w.hazard == "lightning" and rng:NextNumber() < 0.45 then strikeLightning() end
+		if funnel then tickFunnel(funnel) end
+		task.wait(1)
+	end
+	if funnel then funnel:Destroy() end
+	Lighting.FogEnd = 100000
+	Lighting.OutdoorAmbient = Color3.fromRGB(128, 128, 128)
+	workspace.Gravity = 196.2
+	for _, p in ipairs(Players:GetPlayers()) do
+		p:SetAttribute("WeatherBoost", 0)
+		p:SetAttribute("WeatherWalk", 0)
+		updateSpeed(p)
+		if w.jump then
+			local hum = p.Character and p.Character:FindFirstChildOfClass("Humanoid")
+			if hum then
+				hum.UseJumpPower = false
+				hum.JumpPower = 50
+			end
+		end
+	end
+	weatherAnnounce("The " .. w.name .. " has passed. Clear skies over Discovery Bay!")
+end
+
+task.spawn(function()
+	local sinceWeather = 0
+	while true do
+		task.wait(1)
+		sinceWeather = sinceWeather + 1
+		if sinceWeather >= WEATHER_EVERY then
+			sinceWeather = 0
+			local ok, err = pcall(runWeather, WEATHERS[rng:NextInteger(1, #WEATHERS)])
+			if not ok then
+				warn("[DiscoveryBayShop] weather error: " .. tostring(err))
 			end
 		end
 	end

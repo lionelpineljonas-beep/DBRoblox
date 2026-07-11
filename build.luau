@@ -612,6 +612,17 @@ local function addProductDisplay(parent, pr, cf)
 	prompt.MaxActivationDistance = 8
 	prompt.RequiresLineOfSight = false
 	prompt.Parent = disp
+	-- the classic Bloxy Cola look: white label band, silver lid + tab, red script label
+	if pr.name == "Bloxy Cola" then
+		newColumn(parent, "BloxyBand", 0.5, 0.94, cf, Color3.fromRGB(245, 245, 245))
+		newColumn(parent, "BloxyLid", 0.1, 0.86, cf * CFrame.new(0, 0.7, 0), Color3.fromRGB(190, 195, 200))
+		newPart(parent, "BloxyTab", Vector3.new(0.3, 0.05, 0.14), cf * CFrame.new(0, 0.77, 0),
+			Color3.fromRGB(190, 195, 200))
+		local lbl = newPart(parent, "BloxyLabel", Vector3.new(0.62, 0.44, 0.04),
+			cf * CFrame.new(0, 0, -0.47), Color3.fromRGB(245, 245, 245))
+		makeSign(lbl, Enum.NormalId.Front, "Bloxy Cola", Color3.fromRGB(245, 245, 245),
+			Color3.fromRGB(200, 30, 30))
+	end
 	return disp
 end
 
@@ -1339,6 +1350,23 @@ local function buildPlaza()
 	local ks = newPart(shell, "KioskSign", Vector3.new(17, 2.4, 0.4) * S, cf * CFrame.new(0, 8.6 * S, 4.9 * S),
 		Color3.fromRGB(250, 205, 30))
 	makeSign(ks, Enum.NormalId.Front, "ShellBlox", Color3.fromRGB(250, 205, 30), Color3.fromRGB(200, 30, 30))
+	-- landmark: a giant classic Bloxy Cola can standing beside the kiosk
+	local canBase = K * CFrame.new(15.5 * S, 0.3 * S, -5 * S)
+	newColumn(shell, "GiantColaBody", 7 * S, 3.6 * S, canBase * CFrame.new(0, 3.8 * S, 0),
+		Color3.fromRGB(200, 60, 50))
+	newColumn(shell, "GiantColaBand", 2.6 * S, 3.72 * S, canBase * CFrame.new(0, 3.8 * S, 0),
+		Color3.fromRGB(245, 245, 245))
+	newColumn(shell, "GiantColaLid", 0.25 * S, 3.4 * S, canBase * CFrame.new(0, 7.4 * S, 0),
+		Color3.fromRGB(190, 195, 200), Enum.Material.Metal)
+	newPart(shell, "GiantColaTab", Vector3.new(1.2, 0.18, 0.6) * S, canBase * CFrame.new(0, 7.6 * S, 0),
+		Color3.fromRGB(190, 195, 200), Enum.Material.Metal)
+	for _, ang in ipairs({ 0, 180 }) do
+		local clbl = newPart(shell, "GiantColaLabel", Vector3.new(2.9, 1.7, 0.08) * S,
+			canBase * CFrame.Angles(0, math.rad(ang), 0) * CFrame.new(0, 3.8 * S, -1.9 * S),
+			Color3.fromRGB(245, 245, 245))
+		makeSign(clbl, Enum.NormalId.Front, "Bloxy Cola", Color3.fromRGB(245, 245, 245),
+			Color3.fromRGB(200, 30, 30))
+	end
 	-- interior: light, counter, shelves, products with Buy prompts
 	local lightPanel = newPart(shell, "KioskLight", Vector3.new(6, 0.2, 6) * S, K * CFrame.new(0, 9.7 * S, 0),
 		Color3.fromRGB(255, 250, 235), Enum.Material.Neon)
