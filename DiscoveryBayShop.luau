@@ -43,7 +43,7 @@ end)
 local START_CASH = 100
 local WALK_SPEED = 16
 local SCOOTER_SPEED = 30
-local VERSION = "v29"
+local VERSION = "v30"
 local TRICK_COOLDOWN = 1.2
 local TRAFFIC_CARS = 130
 local CAR_SPEED = 38
@@ -1019,6 +1019,35 @@ local function hookStudy(part)
 end
 
 --==============================================================================================
+-- AUTO-SLIDING DOORS (shops, and rented houses' front doors)
+--==============================================================================================
+local function hookDoor(part)
+	local closedCf = part.CFrame
+	local dist = part:GetAttribute("SlideDist") or 3.5
+	local openCf = closedCf * CFrame.new(dist, 0, 0)
+	local isOpen = false
+	task.spawn(function()
+		while part.Parent do
+			local near = false
+			for _, plr in ipairs(Players:GetPlayers()) do
+				local ch = plr.Character
+				local hrp = ch and ch:FindFirstChild("HumanoidRootPart")
+				if hrp and (hrp.Position - closedCf.Position).Magnitude < 10 then
+					near = true
+					break
+				end
+			end
+			if near ~= isOpen then
+				isOpen = near
+				TweenService:Create(part, TweenInfo.new(0.4, Enum.EasingStyle.Quad,
+					Enum.EasingDirection.Out), { CFrame = isOpen and openCf or closedCf }):Play()
+			end
+			task.wait(0.25)
+		end
+	end)
+end
+
+--==============================================================================================
 -- HOUSES FOR RENT + EGG SHOP DOGS
 --==============================================================================================
 local EGG_PRICE = 30
@@ -1085,7 +1114,9 @@ local function hollowHouse(house)
 	if door then
 		local rel = cfB:PointToObjectSpace(door.Position)
 		doorX = math.clamp(rel.X, -w / 2 + 5, w / 2 - 5)
-		door.CanCollide = false -- walk right through your own front door
+		-- a REAL front door: slides open when you walk up, like the shop doors
+		door:SetAttribute("SlideDist", 3.8)
+		hookDoor(door)
 	end
 	local gapW = 5.5
 	local leftW = (doorX - gapW / 2) - (-w / 2)
@@ -1285,35 +1316,6 @@ task.spawn(function()
 		end
 	end
 end)
-
---==============================================================================================
--- AUTO-SLIDING DOORS
---==============================================================================================
-local function hookDoor(part)
-	local closedCf = part.CFrame
-	local dist = part:GetAttribute("SlideDist") or 3.5
-	local openCf = closedCf * CFrame.new(dist, 0, 0)
-	local isOpen = false
-	task.spawn(function()
-		while part.Parent do
-			local near = false
-			for _, plr in ipairs(Players:GetPlayers()) do
-				local ch = plr.Character
-				local hrp = ch and ch:FindFirstChild("HumanoidRootPart")
-				if hrp and (hrp.Position - closedCf.Position).Magnitude < 10 then
-					near = true
-					break
-				end
-			end
-			if near ~= isOpen then
-				isOpen = near
-				TweenService:Create(part, TweenInfo.new(0.4, Enum.EasingStyle.Quad,
-					Enum.EasingDirection.Out), { CFrame = isOpen and openCf or closedCf }):Play()
-			end
-			task.wait(0.25)
-		end
-	end)
-end
 
 --==============================================================================================
 -- NPC TRAFFIC

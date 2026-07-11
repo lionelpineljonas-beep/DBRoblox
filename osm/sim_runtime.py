@@ -679,7 +679,7 @@ print("hollowed:", tostring(HOUSE:GetAttribute("Hollowed")),
 	"| body gone:", tostring(HOUSE:FindFirstChild("Body") == nil),
 	"| has floor/back/sofa:", tostring(HOUSE:FindFirstChild("Floor") ~= nil),
 	tostring(HOUSE:FindFirstChild("BackWall") ~= nil), tostring(HOUSE:FindFirstChild("Sofa") ~= nil),
-	"| door walkthrough:", tostring(HOUSE:FindFirstChild("Door").CanCollide == false),
+	"| door slides:", tostring(HOUSE:FindFirstChild("Door"):GetAttribute("SlideDist") ~= nil),
 	"| inside dog spot:", tostring(HOUSE:GetAttribute("DogSpotInside") ~= nil))
 EGG.ProximityPrompt.Triggered:Fire(PLAYER)
 PUMP(0.5)

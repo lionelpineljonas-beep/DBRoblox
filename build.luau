@@ -374,6 +374,49 @@ local function newModel(parent, name)
 	return m
 end
 
+-- shopkeeper NPC with a name tag and Roblox's native Dialog "talk" feature.
+-- cf = base at floor level, facing local -Z. Sizes are absolute studs (person-sized).
+local function buildNPC(parent, npcName, cf, shirt, promptText, choices)
+	local n = newModel(parent, npcName)
+	local pants = Color3.fromRGB(50, 60, 80)
+	local skin = Color3.fromRGB(255, 204, 153)
+	newPart(n, "LegL", Vector3.new(0.9, 2.8, 0.9), cf * CFrame.new(-0.55, 1.4, 0), pants)
+	newPart(n, "LegR", Vector3.new(0.9, 2.8, 0.9), cf * CFrame.new(0.55, 1.4, 0), pants)
+	newPart(n, "Torso", Vector3.new(2.2, 2.6, 1.1), cf * CFrame.new(0, 4.1, 0), shirt)
+	newPart(n, "ArmL", Vector3.new(0.8, 2.4, 0.8), cf * CFrame.new(-1.55, 4.1, 0), shirt)
+	newPart(n, "ArmR", Vector3.new(0.8, 2.4, 0.8), cf * CFrame.new(1.55, 4.1, 0), shirt)
+	local head = newBall(n, "Head", 1.7, cf * CFrame.new(0, 6.3, 0), skin)
+	for _, p in ipairs(n:GetChildren()) do
+		if p:IsA("BasePart") then p.CanCollide = false end
+	end
+	local bb = Instance.new("BillboardGui")
+	bb.Size = UDim2.new(0, 130, 0, 26)
+	bb.StudsOffset = Vector3.new(0, 2.1, 0)
+	bb.MaxDistance = 60
+	bb.Parent = head
+	local nm = Instance.new("TextLabel")
+	nm.Size = UDim2.fromScale(1, 1)
+	nm.BackgroundTransparency = 1
+	nm.Font = Enum.Font.FredokaOne
+	nm.TextSize = 18
+	nm.TextColor3 = Color3.new(1, 1, 1)
+	nm.TextStrokeTransparency = 0.3
+	nm.Text = npcName
+	nm.Parent = bb
+	local dlg = Instance.new("Dialog")
+	dlg.InitialPrompt = promptText
+	dlg.ConversationDistance = 20
+	dlg.Tone = Enum.DialogTone.Friendly
+	dlg.Parent = head
+	for _, c in ipairs(choices or {}) do
+		local ch = Instance.new("DialogChoice")
+		ch.UserDialog = c[1]
+		ch.ResponseDialog = c[2]
+		ch.Parent = dlg
+	end
+	return n
+end
+
 --==============================================================================================
 -- 5. SCAFFOLD (idempotent)
 --==============================================================================================
@@ -993,12 +1036,22 @@ local function buildResidential(m, cf, b)
 	newPart(m, "Door", Vector3.new(3.4, 6.6, 0.3) * S,
 		cf * CFrame.new(doorX * S, (0.5 + 3.3) * S, (frontZ - 0.12) * S),
 		Color3.fromRGB(70, 50, 40), Enum.Material.Wood)
+	-- quality details: a proper door frame and an entry step
+	newPart(m, "DoorFrame", Vector3.new(4.6, 7.4, 0.18) * S,
+		cf * CFrame.new(doorX * S, (0.5 + 3.6) * S, (frontZ - 0.08) * S),
+		Color3.fromRGB(245, 242, 235))
+	newPart(m, "DoorStep", Vector3.new(5, 0.6, 2.6) * S,
+		cf * CFrame.new(doorX * S, 0.55 * S, (frontZ - 1.6) * S),
+		Color3.fromRGB(190, 185, 175), Enum.Material.Concrete)
 
 	if style ~= "lshape" then
 		for _, off in ipairs({ -0.28, 0.32 }) do
 			local wx = w * off
 			newPart(m, "Window", Vector3.new(5, 3.4, 0.25) * S,
 				cf * CFrame.new(wx * S, (0.5 + 5) * S, (frontZ - 0.1) * S), glass, Enum.Material.Glass)
+			newPart(m, "Sill", Vector3.new(5.8, 0.35, 0.8) * S,
+				cf * CFrame.new(wx * S, (0.5 + 3.15) * S, (frontZ - 0.35) * S),
+				trim, Enum.Material.Concrete)
 			if style == "gable" and rng:NextNumber() < 0.4 then
 				for _, sxo in ipairs({ -3.1, 3.1 }) do
 					newPart(m, "Shutter", Vector3.new(1, 3.4, 0.2) * S,
@@ -1283,6 +1336,11 @@ local function buildPlaza()
 		Color3.fromRGB(120, 90, 70), Enum.Material.Wood)
 	newPart(shell, "Register", Vector3.new(1.4, 1.4, 1) * S, K * CFrame.new(-7 * S, 4.4 * S, -5 * S),
 		Color3.fromRGB(50, 50, 55))
+	buildNPC(shell, "Sal", K * CFrame.new(-7 * S, 0.4 * S, -2 * S),
+		Color3.fromRGB(250, 205, 30),
+		"Fuel for cars, soda for scooters! Every Soda makes that scooter a little quicker - stacks five times.",
+		{ { "Anything else?",
+			"Snacks, lots of snacks. And don't let Callahan tell you ice cream is fuel. It is delicious though." } })
 	for _, sy in ipairs({ 2.2, 4.8 }) do
 		newPart(shell, "Shelf", Vector3.new(1.8, 0.3, 12) * S, K * CFrame.new(10.4 * S, sy * S, 0),
 			Color3.fromRGB(170, 165, 155), Enum.Material.Metal)
@@ -1344,6 +1402,12 @@ local function buildPlaza()
 	eggPrompt.MaxActivationDistance = 10
 	eggPrompt.RequiresLineOfSight = false
 	eggPrompt.Parent = egg
+	buildNPC(m, "Eggbert",
+		CFrame.lookAt(eggBase + Vector3.new(-8 * S, 0, 3 * S), Vector3.new(eggBase.X, eggBase.Y, eggBase.Z)),
+		Color3.fromRGB(235, 200, 90),
+		"Psst! Mystery dogs in these eggs. Mostly Mary or Jolene... but one in a HUNDRED hatches Linus. Rent a house first - pups need a home!",
+		{ { "Who's Linus?",
+			"A golden legend. Pays $100 a pet. I saw him hatch once. Changed my whole life." } })
 
 	-- Callahan's Coffee and Cones (REQUIRED): a walk-in ice cream shop
 	do
@@ -1400,6 +1464,11 @@ local function buildPlaza()
 				addProductDisplay(mC, pr, cSh * CFrame.new(fx * S, 3.6 * S + 0.55, 4 * S))
 			end
 		end
+		buildNPC(mC, "Callahan", cSh * CFrame.new(-4 * S, 0.4 * S, 8 * S),
+			Color3.fromRGB(150, 75, 105),
+			"Welcome to Callahan's Coffee and Cones! Chocolate makes your legs faster, Vanilla feeds your scooter, and Mint... Mint DOUBLES your trick money!",
+			{ { "Which one should I get?",
+				"Mint, if you can afford it. I've watched kids earn it back in one lap around Willow Lake." } })
 	end
 
 	-- Discovery Bay Jiu Jitsu (REQUIRED): a walk-in dojo with the challenge mat
@@ -1453,6 +1522,11 @@ local function buildPlaza()
 			jSh * CFrame.new(0, 7.5 * S, (d / 2 - 0.7) * S), Color3.fromRGB(25, 30, 40))
 		makeSign(rules, Enum.NormalId.Front, "STEP ON THE MAT · CLICK 7 BUTTONS · WIN $50",
 			Color3.fromRGB(25, 30, 40), Color3.fromRGB(255, 235, 200))
+		buildNPC(mJ, "Sensei", jSh * CFrame.new(12 * S, 0.4 * S, 8 * S),
+			Color3.fromRGB(25, 30, 40),
+			"Step on the grey mat to begin your training. Seven buttons. Five seconds each. Miss and you PAY. Win, and you feast: $50.",
+			{ { "Any advice?",
+				"Never leave the mat mid-fight. And never, EVER, challenge me on a Monday." } })
 	end
 	-- giant ice-cream prop by Callahan's
 	local ic = (rowCf * CFrame.new(-24 * S, 0, 2 * S)).Position
@@ -1597,6 +1671,11 @@ local function buildBigSchool(parent, lm)
 	sp.MaxActivationDistance = 10
 	sp.RequiresLineOfSight = false
 	sp.Parent = button
+	buildNPC(m, "Ms. Wheeler", cf * CFrame.new(8 * S, 0.4 * S, (d / 2 - 6) * S),
+		Color3.fromRGB(90, 60, 120),
+		"Welcome to Room 103, History of Scooters. Hold the red button to study - smart riders are FAST riders.",
+		{ { "Is studying worth it?",
+			"Plus ten speed for fifteen whole minutes. Homework has never paid better." } })
 	-- lights: lobby + classroom
 	for _, lz in ipairs({ lobbyZ - 12, lobbyZ + 24, d / 2 - 16 }) do
 		local rl = newPart(m, "RoomLight", Vector3.new(5, 0.2, 5) * S,
@@ -1773,6 +1852,11 @@ local function buildBloxway()
 		newPart(m, "Register", Vector3.new(1.2, 1.3, 1) * S,
 			cf * CFrame.new(cx * S, 4.1 * S, (-d / 2 + 14) * S), Color3.fromRGB(50, 50, 55))
 	end
+	buildNPC(m, "Manager Bob", cf * CFrame.new(26 * S, 0.4 * S, (-d / 2 + 18) * S),
+		Color3.fromRGB(200, 60, 55),
+		"Welcome to BLOXWAY! Thirty aisles, and everything is edible. Even aisle 27 - that's watermelons.",
+		{ { "Where's the pizza?",
+			"Aisle 7, next to Pasta. Tell them Bob sent you. Changes nothing, but it feels nice." } })
 	-- 30 aisles in two banks of 15, each with a hanging sign and buyable food
 	local perBank = 15
 	local spacing = (w - 24) / perBank
