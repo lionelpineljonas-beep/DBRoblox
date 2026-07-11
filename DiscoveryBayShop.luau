@@ -43,7 +43,7 @@ end)
 local START_CASH = 100
 local WALK_SPEED = 16
 local SCOOTER_SPEED = 30
-local VERSION = "v32"
+local VERSION = "v33"
 local TRICK_COOLDOWN = 1.2
 local TRAFFIC_CARS = 130
 local CAR_SPEED = 38
@@ -830,10 +830,10 @@ local function bumpAttribute(plr, attr, step, cap)
 end
 
 local EFFECTS = {
-	["Soda"] = function(plr)
+	["Bloxy Cola"] = function(plr)
 		bumpAttribute(plr, "SodaBoost", 4, 20)
 		updateSpeed(plr)
-		return "Soda rush! Scooter speed +4"
+		return "Bloxy Cola rush! Scooter speed +4"
 	end,
 	["Vanilla Cone"] = function(plr)
 		bumpAttribute(plr, "VanillaBoost", 6, 18)
@@ -1512,5 +1512,5 @@ task.spawn(function()
 	end
 	startTraffic(town)
 	print("[DiscoveryBayShop] " .. VERSION .. " ready — " .. hooked ..
-		" products for sale (Shell mini-mart + Callahan's).")
+		" products for sale (ShellBlox mini-mart + Callahan's + Bloxway).")
 end)

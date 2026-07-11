@@ -544,7 +544,7 @@ end
 -- matching Tools live in ReplicatedStorage.DiscoveryBayKit.Products and are cloned into
 -- the buyer's Backpack by the DiscoveryBayShop runtime script.
 local PRODUCTS = {
-	{ name = "Soda",      price = 5, kind = "can",    color = Color3.fromRGB(60, 120, 200) },
+	{ name = "Bloxy Cola", price = 5, kind = "can",   color = Color3.fromRGB(200, 60, 50) },
 	{ name = "Water",     price = 2, kind = "bottle", color = Color3.fromRGB(180, 220, 240) },
 	{ name = "Chips",     price = 4, kind = "box",    color = Color3.fromRGB(240, 200, 60) },
 	{ name = "Donut",     price = 3, kind = "donut",  color = Color3.fromRGB(245, 170, 190) },
@@ -1308,7 +1308,7 @@ local function buildPlaza()
 	local right = cf.RightVector
 
 	-- Shell Gas Station (REQUIRED) at the real fuel-station site
-	local shell = newModel(m, "Shell Gas Station")
+	local shell = newModel(m, "ShellBlox Gas Station")
 	newPart(shell, "Forecourt", Vector3.new(46, 0.3, 34) * S, cf * CFrame.new(0, 0.15 * S, -6 * S),
 		Color3.fromRGB(120, 120, 120), Enum.Material.Concrete)
 	-- kiosk: a hollow, enterable mini-mart with auto-sliding doors and buyable products
@@ -1338,7 +1338,7 @@ local function buildPlaza()
 		Color3.fromRGB(180, 40, 35))
 	local ks = newPart(shell, "KioskSign", Vector3.new(17, 2.4, 0.4) * S, cf * CFrame.new(0, 8.6 * S, 4.9 * S),
 		Color3.fromRGB(250, 205, 30))
-	makeSign(ks, Enum.NormalId.Front, "Shell", Color3.fromRGB(250, 205, 30), Color3.fromRGB(200, 30, 30))
+	makeSign(ks, Enum.NormalId.Front, "ShellBlox", Color3.fromRGB(250, 205, 30), Color3.fromRGB(200, 30, 30))
 	-- interior: light, counter, shelves, products with Buy prompts
 	local lightPanel = newPart(shell, "KioskLight", Vector3.new(6, 0.2, 6) * S, K * CFrame.new(0, 9.7 * S, 0),
 		Color3.fromRGB(255, 250, 235), Enum.Material.Neon)
@@ -1352,7 +1352,7 @@ local function buildPlaza()
 		Color3.fromRGB(50, 50, 55))
 	buildNPC(shell, "Sal", K * CFrame.new(-7 * S, 0.4 * S, -2 * S),
 		Color3.fromRGB(250, 205, 30),
-		"Fuel for cars, soda for scooters! Every Soda makes that scooter a little quicker - stacks five times.",
+		"Welcome to ShellBlox! Fuel for cars, Bloxy Cola for scooters - every can makes that scooter a little quicker. Stacks five times!",
 		{ { "Anything else?",
 			"Snacks, lots of snacks. And don't let Callahan tell you ice cream is fuel. It is delicious though." } })
 	for _, sy in ipairs({ 2.2, 4.8 }) do
@@ -1392,8 +1392,8 @@ local function buildPlaza()
 		Color3.fromRGB(190, 190, 190), Enum.Material.Metal)
 	local rs = newPart(shell, "RoadSign", Vector3.new(8, 9, 0.8) * S, spole * CFrame.new(0, 26 * S, 0),
 		Color3.fromRGB(250, 205, 30))
-	makeSign(rs, Enum.NormalId.Front, "Shell", Color3.fromRGB(250, 205, 30), Color3.fromRGB(200, 30, 30))
-	makeSign(rs, Enum.NormalId.Back, "Shell", Color3.fromRGB(250, 205, 30), Color3.fromRGB(200, 30, 30))
+	makeSign(rs, Enum.NormalId.Front, "ShellBlox", Color3.fromRGB(250, 205, 30), Color3.fromRGB(200, 30, 30))
+	makeSign(rs, Enum.NormalId.Back, "ShellBlox", Color3.fromRGB(250, 205, 30), Color3.fromRGB(200, 30, 30))
 
 	-- storefront row beside the station, set back from the road
 	local rowBase = pos - right * 58 * S
@@ -1766,7 +1766,7 @@ local BLOXWAY_AISLES = {
 	{ "Pizza", "Pizza Slice" }, { "Pasta & Italian", "Pizza Slice" }, { "Chips & Snacks", "Chips" },
 	{ "Candy", "Cookie" }, { "Cookies", "Cookie" }, { "Bakery", "Donut" },
 	{ "Donuts", "Donut" }, { "Breakfast Cereal", "Cereal" }, { "Dairy", "Milk" },
-	{ "Milk & Eggs", "Milk" }, { "Sodas", "Soda" }, { "Energy Drinks", "Soda" },
+	{ "Milk & Eggs", "Milk" }, { "Sodas", "Bloxy Cola" }, { "Energy Drinks", "Bloxy Cola" },
 	{ "Water & Juice", "Water" }, { "Coffee & Tea", "Coffee" }, { "Ice Cream", "Ice Cream" },
 	{ "Frozen Meals", "Burrito" }, { "Fried Chicken", "Fried Chicken" }, { "Rotisserie", "Fried Chicken" },
 	{ "Fruits", "Watermelon" }, { "Vegetables", "Watermelon" }, { "Watermelons", "Watermelon" },
@@ -2086,7 +2086,7 @@ root:SetAttribute("BuildComplete", true) -- signals the DiscoveryBayShop runtime
 print(("[DiscoveryBay] DONE in %.1fs — %d parts. Homes %d, docks %d (every waterfront lot)."):format(
 	os.clock() - t0, partCount, counts.r, counts.docks))
 print("[DiscoveryBay] Businesses at the Discovery Bay Blvd plaza: Callahan's Coffee and Cones, " ..
-	"Discovery Bay Jiu Jitsu, Shell Gas Station.")
+	"Discovery Bay Jiu Jitsu, ShellBlox Gas Station, Egg Shop.")
 print("[DiscoveryBay] StreamingEnabled=" .. tostring(workspace.StreamingEnabled) .. ". All parts anchored.")
 
 if RunService:IsRunning() then

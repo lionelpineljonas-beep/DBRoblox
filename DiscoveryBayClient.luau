@@ -11,7 +11,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 
-local VERSION = "v32"
+local VERSION = "v33"
 local SPEED_PASS_ID = 0 -- paste the real Game Pass ID here (same one as in DiscoveryBayShop)
 local RunService = game:GetService("RunService")
 local plr = Players.LocalPlayer
@@ -493,7 +493,7 @@ mapLegend.Font = Enum.Font.FredokaOne
 mapLegend.TextSize = 15
 mapLegend.TextColor3 = Color3.new(1, 1, 1)
 mapLegend.TextStrokeTransparency = 0.5
-mapLegend.Text = "S Shell   C Callahan's   B Bloxway   J Jiu Jitsu   E School   ● stores   -   click to mark"
+mapLegend.Text = "S ShellBlox   C Callahan's   B Bloxway   J Jiu Jitsu   E School   ● stores   -   click to mark"
 mapLegend.ZIndex = 10
 mapLegend.Parent = mapFrame
 
@@ -621,7 +621,7 @@ local function buildMap()
 	end
 	if landmarks then
 		local plaza = landmarks:FindFirstChild("Discovery Bay Blvd Plaza")
-		dot(plaza and plaza:FindFirstChild("Shell Gas Station"), "S", Color3.fromRGB(230, 180, 30))
+		dot(plaza and plaza:FindFirstChild("ShellBlox Gas Station"), "S", Color3.fromRGB(230, 180, 30))
 		dot(plaza and plaza:FindFirstChild("Callahan's Coffee and Cones"), "C", Color3.fromRGB(200, 100, 140))
 		dot(plaza and plaza:FindFirstChild("Discovery Bay Jiu Jitsu"), "J", Color3.fromRGB(40, 45, 60))
 		dot(landmarks:FindFirstChild("BLOXWAY"), "B", Color3.fromRGB(200, 60, 55))
