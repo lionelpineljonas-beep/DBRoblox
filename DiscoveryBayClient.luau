@@ -11,7 +11,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 
-local VERSION = "v37"
+local VERSION = "v38"
 local SPEED_PASS_ID = 0 -- paste the real Game Pass ID here (same one as in DiscoveryBayShop)
 local RunService = game:GetService("RunService")
 local plr = Players.LocalPlayer

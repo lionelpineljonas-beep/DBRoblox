@@ -1526,38 +1526,94 @@ local function buildPlaza()
 		{ { "Who's Linus?",
 			"A golden legend. Pays $100 a pet. I saw him hatch once. Changed my whole life." } })
 
-	-- Fish N Bait: rods and bait out front, and a counter that buys your catch
+	-- Fish N Bait: a walk-in bait shop with sliding doors; Captain Finn works the
+	-- counter, rods and live bait inside, and the sell counter buys your catch
 	do
-		local fSh = rowCf * CFrame.new(36 * S, 0, 18 * S)
-		local mF = storefront(m, "Fish N Bait", fSh, 30, 24, 12,
-			Color3.fromRGB(50, 110, 160), Color3.new(1, 1, 1))
+		local fSh = rowCf * CFrame.new(36 * S, 0, 18 * S) -- local -Z = storefront
+		local mF = newModel(m, "Fish N Bait")
+		local w, d, h = 30, 24, 12
+		local wallF = Color3.fromRGB(200, 214, 224)
+		newPart(mF, "Floor", Vector3.new(w, 0.4, d) * S, fSh * CFrame.new(0, 0.2 * S, 0),
+			Color3.fromRGB(150, 130, 105), Enum.Material.WoodPlanks)
+		newPart(mF, "Back", Vector3.new(w, h, 0.6) * S, fSh * CFrame.new(0, h / 2 * S, (d / 2 - 0.3) * S),
+			wallF, Enum.Material.WoodPlanks)
+		for _, sx in ipairs({ -1, 1 }) do
+			newPart(mF, "Side", Vector3.new(0.6, h, d) * S,
+				fSh * CFrame.new(sx * (w / 2 - 0.3) * S, h / 2 * S, 0), wallF, Enum.Material.WoodPlanks)
+			-- front wall segments beside a central door opening
+			newPart(mF, "FrontWall", Vector3.new(12.5, h, 0.6) * S,
+				fSh * CFrame.new(sx * 8.75 * S, h / 2 * S, (-d / 2 + 0.3) * S), wallF, Enum.Material.WoodPlanks)
+			newPart(mF, "Window", Vector3.new(7, 4.5, 0.3) * S,
+				fSh * CFrame.new(sx * 8.75 * S, 5.6 * S, (-d / 2 + 0.15) * S),
+				Color3.fromRGB(140, 195, 215), Enum.Material.Glass, 0.3)
+		end
+		local fDoor = newPart(mF, "AutoDoor", Vector3.new(4.6, 8, 0.25) * S,
+			fSh * CFrame.new(0, 4 * S, (-d / 2 + 0.3) * S),
+			Color3.fromRGB(160, 205, 225), Enum.Material.Glass, 0.35)
+		fDoor:SetAttribute("AutoDoor", true)
+		fDoor:SetAttribute("SlideDist", 4.6 * S)
+		newPart(mF, "Header", Vector3.new(5, h - 8, 0.6) * S,
+			fSh * CFrame.new(0, (8 + (h - 8) / 2) * S, (-d / 2 + 0.3) * S), wallF, Enum.Material.WoodPlanks)
+		newPart(mF, "Roof", Vector3.new(w + 1.5, 1, d + 1.5) * S, fSh * CFrame.new(0, (h + 0.5) * S, 0),
+			Color3.fromRGB(40, 70, 100))
+		local fBoard = newPart(mF, "SignBoard", Vector3.new(w * 0.88, 2.8, 0.4) * S,
+			fSh * CFrame.new(0, (h - 1.4) * S, (-d / 2 - 0.25) * S), Color3.fromRGB(50, 110, 160))
+		makeSign(fBoard, Enum.NormalId.Front, "Fish N Bait", Color3.fromRGB(50, 110, 160), Color3.new(1, 1, 1))
+		-- interior light
+		local fLight = newPart(mF, "ShopLight", Vector3.new(5, 0.2, 5) * S,
+			fSh * CFrame.new(0, (h - 0.3) * S, 0), Color3.fromRGB(255, 250, 235), Enum.Material.Neon)
+		local fPoint = Instance.new("PointLight")
+		fPoint.Range = 22
+		fPoint.Brightness = 1.1
+		fPoint.Parent = fLight
 		local function productByName(nm)
 			for _, pr in ipairs(PRODUCTS) do
 				if pr.name == nm then return pr end
 			end
 		end
-		newPart(mF, "RodStand", Vector3.new(3, 3.2, 3) * S,
-			fSh * CFrame.new(-9 * S, 1.6 * S, -16 * S), Color3.fromRGB(140, 110, 80), Enum.Material.Wood)
-		addProductDisplay(mF, productByName("Fishing Rod"), fSh * CFrame.new(-9 * S, 4.1 * S, -16 * S))
-		newColumn(mF, "BaitBarrel", 3 * S, 3 * S,
-			fSh * CFrame.new(-3 * S, 1.5 * S, -16 * S), Color3.fromRGB(120, 90, 60), Enum.Material.Wood)
-		addProductDisplay(mF, productByName("Bait Pack"), fSh * CFrame.new(-3 * S, 3.6 * S, -16 * S))
-		local sellC = newPart(mF, "SellCounter", Vector3.new(7, 3.4, 2.5) * S,
-			fSh * CFrame.new(6.5 * S, 1.9 * S, -16 * S), Color3.fromRGB(90, 70, 50), Enum.Material.Wood)
+		-- rod rack against the west wall
+		newPart(mF, "RodRack", Vector3.new(3, 5.5, 1) * S,
+			fSh * CFrame.new(-11.5 * S, 2.95 * S, -4 * S), Color3.fromRGB(140, 110, 80), Enum.Material.Wood)
+		addProductDisplay(mF, productByName("Fishing Rod"), fSh * CFrame.new(-10.5 * S, 4.4 * S, -4 * S))
+		-- QUALITY live-bait station: barrel, soil, wriggling worms, LIVE BAIT sign
+		local bBase = fSh * CFrame.new(-9 * S, 0, 4.5 * S)
+		newColumn(mF, "BaitBarrel", 3.2 * S, 3.6 * S, bBase * CFrame.new(0, 1.6 * S, 0),
+			Color3.fromRGB(120, 90, 60), Enum.Material.Wood)
+		newColumn(mF, "BarrelRim", 0.35 * S, 3.9 * S, bBase * CFrame.new(0, 3.2 * S, 0),
+			Color3.fromRGB(90, 70, 50), Enum.Material.Wood)
+		newDisc(mF, "BaitSoil", 1.6 * S, 0.3 * S, bBase * CFrame.new(0, 3.25 * S, 0),
+			Color3.fromRGB(75, 55, 40), Enum.Material.Ground)
+		for wi, woff in ipairs({ { -0.7, 0.3, 20 }, { 0.5, -0.4, -35 }, { 0.1, 0.7, 70 } }) do
+			local worm = newPart(mF, "Worm" .. wi, Vector3.new(1.1, 0.22, 0.22) * S,
+				bBase * CFrame.new(woff[1] * S, 3.5 * S, woff[2] * S)
+					* CFrame.Angles(0, math.rad(woff[3]), 0),
+				Color3.fromRGB(225, 130, 130), Enum.Material.SmoothPlastic)
+			worm.Shape = Enum.PartType.Cylinder
+		end
+		local baitSign = newPart(mF, "BaitSign", Vector3.new(3.4, 1.2, 0.2) * S,
+			bBase * CFrame.new(0, 5.2 * S, 0), Color3.fromRGB(90, 70, 50))
+		makeSign(baitSign, Enum.NormalId.Front, "LIVE BAIT", Color3.fromRGB(90, 70, 50),
+			Color3.fromRGB(255, 230, 180))
+		addProductDisplay(mF, productByName("Bait Pack"), bBase * CFrame.new(0, 4.1 * S, -1.2 * S))
+		-- the big counter: Captain Finn behind it, SELL FISH prompt on it
+		local sellC = newPart(mF, "SellCounter", Vector3.new(11, 3.4, 2.5) * S,
+			fSh * CFrame.new(5.5 * S, 1.9 * S, 6 * S), Color3.fromRGB(90, 70, 50), Enum.Material.Wood)
 		sellC:SetAttribute("FishSell", true)
 		makeSign(sellC, Enum.NormalId.Front, "SELL FISH", Color3.fromRGB(90, 70, 50), Color3.new(1, 1, 1))
 		local sellPrompt = Instance.new("ProximityPrompt")
 		sellPrompt.ActionText = "Sell"
-		sellPrompt.ObjectText = "Sell your fish"
+		sellPrompt.ObjectText = "Sell every fish in your inventory"
 		sellPrompt.MaxActivationDistance = 10
 		sellPrompt.RequiresLineOfSight = false
 		sellPrompt.Parent = sellC
-		-- trophy over the door
+		-- mounted trophy on the back wall (the one that got away... from someone else)
+		newPart(mF, "TrophyBoard", Vector3.new(5.5, 3, 0.3) * S,
+			fSh * CFrame.new(5.5 * S, 8 * S, (d / 2 - 0.5) * S), Color3.fromRGB(110, 85, 60), Enum.Material.Wood)
 		newPart(mF, "TrophyFish", Vector3.new(4, 1.3, 0.5) * S,
-			fSh * CFrame.new(9 * S, 8 * S, -12.6 * S), Color3.fromRGB(70, 140, 190))
-		buildNPC(mF, "Captain Finn", fSh * CFrame.new(11 * S, 0, -18 * S),
+			fSh * CFrame.new(5.5 * S, 8 * S, (d / 2 - 0.95) * S), Color3.fromRGB(70, 140, 190))
+		buildNPC(mF, "Captain Finn", fSh * CFrame.new(5.5 * S, 0.4 * S, 9 * S),
 			Color3.fromRGB(50, 110, 160),
-			"Ahoy! Grab a rod, grab bait, and cast into ANY water in the bay. When the bobber glows - REEL! I buy every fish you land.",
+			"Ahoy! Grab a rod, grab bait, and cast into ANY water in the bay. When the bobber glows - REEL! I buy every fish in your inventory.",
 			{ { "Any secret fish?",
 				"They whisper of THE LIONEL. One cast in a hundred. Worth five hundred bucks. Never landed it myself... yet." } })
 	end
@@ -1698,8 +1754,9 @@ local function buildPlaza()
 		local cpos = (pk * CFrame.new((-38 + i * 12) * S, 0.3 * S, -5 * S)).Position
 		placeClone(TPL.car, m, cpos, (pk * CFrame.new((-38 + i * 12) * S, 0.3 * S, 10 * S)).Position)
 	end
-	-- open corner of the parking lot, in the plaza's own frame: always clear pavement
-	plazaSpawnPos = (pk * CFrame.new(30 * S, 0.6 * S, 8 * S)).Position
+	-- open corner of the parking lot, in the plaza's own frame: always clear pavement,
+	-- tucked on the shop side of the lot (as far from lethal Discovery Bay Blvd as it gets)
+	plazaSpawnPos = (pk * CFrame.new(26 * S, 0.6 * S, 14 * S)).Position
 end
 
 -- the big walk-in Discovery Bay Elementary: corridor, four classrooms, and the

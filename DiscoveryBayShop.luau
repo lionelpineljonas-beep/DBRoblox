@@ -43,7 +43,7 @@ end)
 local START_CASH = 100
 local WALK_SPEED = 16
 local SCOOTER_SPEED = 30
-local VERSION = "v37"
+local VERSION = "v38"
 local TRICK_COOLDOWN = 1.2
 local TRAFFIC_CARS = 130
 local CAR_SPEED = 38
@@ -1431,20 +1431,53 @@ end)
 -- FISHING (Fish N Bait): rod + bait -> cast into water -> reel minigame -> sell the catch
 --==============================================================================================
 local FISH = {
-	{ name = "Bluegill",      pay = 6,   weight = 40 },
-	{ name = "Bass",          pay = 14,  weight = 28 },
-	{ name = "Rainbow Trout", pay = 22,  weight = 16 },
-	{ name = "Catfish",       pay = 35,  weight = 10 },
-	{ name = "Golden Salmon", pay = 120, weight = 5 },
-	{ name = "THE LIONEL",    pay = 500, weight = 1 },
+	{ name = "Bluegill",      pay = 6,   weight = 40, color = Color3.fromRGB(90, 140, 160) },
+	{ name = "Bass",          pay = 14,  weight = 28, color = Color3.fromRGB(90, 130, 70) },
+	{ name = "Rainbow Trout", pay = 22,  weight = 16, color = Color3.fromRGB(200, 140, 150) },
+	{ name = "Catfish",       pay = 35,  weight = 10, color = Color3.fromRGB(110, 100, 85) },
+	{ name = "Golden Salmon", pay = 120, weight = 5,  color = Color3.fromRGB(235, 180, 60) },
+	{ name = "THE LIONEL",    pay = 500, weight = 1,  color = Color3.fromRGB(255, 200, 40) },
 }
 local FISH_BY_NAME = {}
 for _, f in ipairs(FISH) do
 	FISH_BY_NAME[f.name] = f
 end
 
-local fishBag = {}   -- uid -> { [fishName] = count }
 local castState = {} -- uid -> { stage = "wait"|"bite", bobber = Part }
+
+-- caught fish go into the INVENTORY as Tools; sell them at the Fish N Bait counter
+local function giveFishTool(plr, f)
+	local backpack = plr:FindFirstChildOfClass("Backpack")
+	if not backpack then return end
+	local tool = Instance.new("Tool")
+	tool.Name = f.name
+	tool.ToolTip = "Sells for $" .. f.pay .. " at Fish N Bait"
+	local handle = Instance.new("Part")
+	handle.Name = "Handle"
+	handle.Size = Vector3.new(2, 0.7, 0.45)
+	handle.Color = f.color
+	if f.name == "THE LIONEL" then
+		handle.Material = Enum.Material.Neon
+	end
+	handle.CanCollide = false
+	handle.Parent = tool
+	tool.Parent = backpack
+end
+
+local function collectFishTools(plr)
+	local found = {}
+	local function scan(container)
+		if not container then return end
+		for _, t in ipairs(container:GetChildren()) do
+			if FISH_BY_NAME[t.Name] then
+				found[#found + 1] = t
+			end
+		end
+	end
+	scan(plr:FindFirstChildOfClass("Backpack"))
+	scan(plr.Character)
+	return found
+end
 
 local function rollFish()
 	local total = 0
@@ -1551,16 +1584,11 @@ FishReel.OnServerEvent:Connect(function(plr, success)
 		return
 	end
 	local f = rollFish()
-	local bag = fishBag[uid]
-	if not bag then
-		bag = {}
-		fishBag[uid] = bag
-	end
-	bag[f.name] = (bag[f.name] or 0) + 1
+	giveFishTool(plr, f)
 	if f.name == "THE LIONEL" then
-		TrickResult:FireClient(plr, "THE LIONEL!!! The 1-in-100 legend - worth $500!", 0)
+		TrickResult:FireClient(plr, "THE LIONEL!!! The 1-in-100 legend is in your inventory - worth $500!", 0)
 	else
-		TrickResult:FireClient(plr, "Caught a " .. f.name .. "! (sells for $" .. f.pay .. ")", 0)
+		TrickResult:FireClient(plr, "Caught a " .. f.name .. "! It's in your inventory - sell it at Fish N Bait.", 0)
 	end
 end)
 
@@ -1568,27 +1596,23 @@ local function hookFishSell(part)
 	local prompt = part:FindFirstChildOfClass("ProximityPrompt")
 	if not prompt then return end
 	prompt.Triggered:Connect(function(plr)
-		local bag = fishBag[plr.UserId]
-		local total, n = 0, 0
-		if bag then
-			for nm, count in pairs(bag) do
-				local f = FISH_BY_NAME[nm]
-				if f then
-					total = total + f.pay * count
-					n = n + count
-				end
-			end
+		local tools = collectFishTools(plr)
+		local total = 0
+		for _, t in ipairs(tools) do
+			total = total + FISH_BY_NAME[t.Name].pay
 		end
-		if n == 0 then
-			TrickResult:FireClient(plr, "No fish yet! Cast a line anywhere in the bay.", 0)
+		if #tools == 0 then
+			TrickResult:FireClient(plr, "No fish in your inventory! Cast a line anywhere in the bay.", 0)
 			return
 		end
-		fishBag[plr.UserId] = nil
+		for _, t in ipairs(tools) do
+			t:Destroy()
+		end
 		local cash = getCash(plr)
 		if cash then
 			cash.Value = cash.Value + total
 		end
-		TrickResult:FireClient(plr, "Sold " .. n .. " fish for $" .. total .. "!", 0)
+		TrickResult:FireClient(plr, "Sold " .. #tools .. " fish for $" .. total .. "!", 0)
 	end)
 end
 
@@ -1619,7 +1643,6 @@ for _, plr in ipairs(Players:GetPlayers()) do
 end
 Players.PlayerRemoving:Connect(function(plr)
 	clearCast(plr.UserId)
-	fishBag[plr.UserId] = nil
 end)
 
 --==============================================================================================
@@ -1886,6 +1909,26 @@ end)
 --==============================================================================================
 -- NPC TRAFFIC
 --==============================================================================================
+-- spawn grace: a fresh spawn (or someone still on the PLAY screen) can't be mowed down
+-- while standing on the pad; cars ignore them for the first 10 seconds
+local function markSpawnGrace(char)
+	char:SetAttribute("SpawnGrace", true)
+	task.delay(10, function()
+		if char.Parent then
+			char:SetAttribute("SpawnGrace", nil)
+		end
+	end)
+end
+Players.PlayerAdded:Connect(function(plr)
+	plr.CharacterAdded:Connect(markSpawnGrace)
+end)
+for _, plr in ipairs(Players:GetPlayers()) do
+	plr.CharacterAdded:Connect(markSpawnGrace)
+	if plr.Character then
+		markSpawnGrace(plr.Character)
+	end
+end
+
 local flingCooldown = {}
 
 local function tryFling(carPos, carDir)
@@ -1893,7 +1936,7 @@ local function tryFling(carPos, carDir)
 		local ch = plr.Character
 		local hrp = ch and ch:FindFirstChild("HumanoidRootPart")
 		local humanoid = ch and ch:FindFirstChildOfClass("Humanoid")
-		if hrp and humanoid and humanoid.Health > 0 then
+		if hrp and humanoid and humanoid.Health > 0 and not ch:GetAttribute("SpawnGrace") then
 			local now = os.clock()
 			if not flingCooldown[plr.UserId] or now - flingCooldown[plr.UserId] > 3 then
 				local off = hrp.Position - carPos
