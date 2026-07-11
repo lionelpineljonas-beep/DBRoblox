@@ -1911,6 +1911,19 @@ local function buildResidential(m, cf, b)
 			cf * CFrame.new(-w * 0.3 * S, 0.15 * S, (frontZ - 6.5) * S),
 			Color3.fromRGB(165, 160, 152), Enum.Material.Concrete)
 	end
+	-- RENT sign out front: click it in-game to own this house
+	local signCf = cf * CFrame.new((doorX + 7) * S, 0, (frontZ - 5) * S)
+	newPart(m, "RentPost", Vector3.new(0.35, 4.2, 0.35) * S, signCf * CFrame.new(0, 2.1 * S, 0),
+		Color3.fromRGB(110, 90, 70), Enum.Material.Wood)
+	local rentBoard = newPart(m, "RentSign", Vector3.new(4.6, 2.4, 0.25) * S,
+		signCf * CFrame.new(0, 4.6 * S, 0), Color3.fromRGB(200, 60, 50))
+	rentBoard:SetAttribute("RentSign", true)
+	makeSign(rentBoard, Enum.NormalId.Front, "RENT", Color3.fromRGB(200, 60, 50), Color3.new(1, 1, 1))
+	local rentClick = Instance.new("ClickDetector")
+	rentClick.MaxActivationDistance = 32
+	rentClick.Parent = rentBoard
+	-- where a hatched dog appears (by the front door)
+	m:SetAttribute("DogSpot", (cf * CFrame.new(doorX * S, 1 * S, (frontZ - 10) * S)).Position)
 end
 
 local function buildCommercial(m, cf, b)
@@ -2206,6 +2219,24 @@ local function buildPlaza()
 	local rowBase = pos - right * 58 * S
 	local rowCf = CFrame.lookAt(rowBase, rowBase + front)
 
+	-- Egg Shop (in the old Convenience Mart slot, next to Callahan's): hatch a
+	-- mystery egg out front and a dog moves into your rented house
+	storefront(m, "Egg Shop", rowCf * CFrame.new(0, 0, 18 * S), 30, 24, 12,
+		Color3.fromRGB(235, 200, 90), Color3.fromRGB(80, 60, 30))
+	local eggBase = (rowCf * CFrame.new(9 * S, 0, 2 * S)).Position
+	newDisc(m, "EggPedestal", 6 * S, 1 * S, CFrame.new(eggBase + Vector3.new(0, 0.5 * S, 0)),
+		Color3.fromRGB(200, 195, 185), Enum.Material.Concrete)
+	local egg = newBall(m, "MysteryEgg", 4 * S, CFrame.new(eggBase + Vector3.new(0, 3 * S, 0)),
+		Color3.fromRGB(250, 245, 228))
+	egg:SetAttribute("EggShop", true)
+	local eggPrompt = Instance.new("ProximityPrompt")
+	eggPrompt.ActionText = "Hatch"
+	eggPrompt.ObjectText = "Mystery Egg - $30 (needs a rented house)"
+	eggPrompt.HoldDuration = 1
+	eggPrompt.MaxActivationDistance = 10
+	eggPrompt.RequiresLineOfSight = false
+	eggPrompt.Parent = egg
+
 	-- Callahan's Coffee and Cones (REQUIRED): a walk-in ice cream shop
 	do
 		local cSh = rowCf * CFrame.new(-36 * S, 0, 18 * S) -- shop base; local -Z = storefront
@@ -2418,74 +2449,54 @@ local function buildBigSchool(parent, lm)
 				CFrame.lookAt(mid, mid + dir), Color3.fromRGB(168, 164, 156), Enum.Material.Concrete)
 		end
 	end
-	-- corridor walls (z = ±6 local) with a centered door gap into each classroom
-	local ROOMS = {
-		{ "Room 101 · MATH", "MATH: 2 + 2 = FAST" },
-		{ "Room 102 · SCIENCE", "SCIENCE: SPEED = SMART" },
-		{ "Room 103 · HISTORY", "HISTORY OF SCOOTERS, VOL. 1" },
-		{ "Room 104 · ART", "ART: DRAW YOUR TAILWHIP" },
-	}
-	local roomIdx = 0
-	for _, sideZ in ipairs({ 1, -1 }) do
-		for _, sideX in ipairs({ -1, 1 }) do
-			roomIdx = roomIdx + 1
-			local room = ROOMS[roomIdx]
-			local rcx = sideX * w / 4                -- room center x
-			local rcz = sideZ * (d / 4 + 3)          -- room center z (beyond corridor)
-			-- corridor wall segments beside this room's 6-stud door gap
-			local wallLen = (w / 2 - 6) / 2
-			for _, seg in ipairs({ -1, 1 }) do
-				newPart(m, "CorridorWall", Vector3.new(wallLen, h - 2, 0.6) * S,
-					cf * CFrame.new((rcx + seg * (wallLen / 2 + 3)) * S, (h - 2) / 2 * S, sideZ * 6 * S),
-					Color3.fromRGB(235, 230, 218), Enum.Material.SmoothPlastic)
+	-- ONE classroom only: HISTORY OF SCOOTERS. The front is an open lobby; a wall
+	-- with a central gap leads into the big classroom that fills the rest.
+	local lobbyZ = -d / 2 + 26 -- lobby is 26 ft deep
+	for _, sxn in ipairs({ -1, 1 }) do
+		newPart(m, "LobbyWall", Vector3.new((w - 8) / 2, h - 2, 0.6) * S,
+			cf * CFrame.new(sxn * ((w - 8) / 4 + 2) * S, (h - 2) / 2 * S, lobbyZ * S),
+			Color3.fromRGB(235, 230, 218), Enum.Material.SmoothPlastic)
+	end
+	local rs = newPart(m, "RoomSign", Vector3.new(26, 2, 0.25) * S,
+		cf * CFrame.new(0, 10.5 * S, (lobbyZ - 0.4) * S), Color3.fromRGB(30, 60, 110))
+	makeSign(rs, Enum.NormalId.Front, "Room 103 · HISTORY OF SCOOTERS",
+		Color3.fromRGB(30, 60, 110), Color3.new(1, 1, 1))
+	-- blackboard across the back wall
+	local board = newPart(m, "Blackboard", Vector3.new(50, 7, 0.3) * S,
+		cf * CFrame.new(0, 7.5 * S, (d / 2 - 1.2) * S), Color3.fromRGB(30, 70, 45))
+	makeSign(board, Enum.NormalId.Front, "HISTORY OF SCOOTERS, VOL. 1",
+		Color3.fromRGB(30, 70, 45), Color3.fromRGB(235, 235, 225))
+	-- rows of desks
+	for row = 0, 2 do
+		for col = -2, 2 do
+			if not (row == 2 and col == 0) then -- leave an aisle to the teacher desk
+				newPart(m, "Desk", Vector3.new(5, 2.6, 3) * S,
+					cf * CFrame.new(col * 16 * S, 1.7 * S, (lobbyZ + 14 + row * 12) * S),
+					Color3.fromRGB(170, 130, 90), Enum.Material.WoodPlanks)
 			end
-			-- divider between the two rooms on this side
-			if sideX == -1 then
-				newPart(m, "Divider", Vector3.new(0.6, h - 2, d / 2 - 7) * S,
-					cf * CFrame.new(0, (h - 2) / 2 * S, sideZ * (d / 4 + 3) * S),
-					Color3.fromRGB(235, 230, 218), Enum.Material.SmoothPlastic)
-			end
-			-- blackboard on the far wall
-			local board = newPart(m, "Blackboard", Vector3.new(22, 6, 0.3) * S,
-				cf * CFrame.new(rcx * S, 7.5 * S, sideZ * (d / 2 - 1.2) * S), Color3.fromRGB(30, 70, 45))
-			makeSign(board, sideZ == 1 and Enum.NormalId.Front or Enum.NormalId.Back,
-				room[2], Color3.fromRGB(30, 70, 45), Color3.fromRGB(235, 235, 225))
-			-- room sign over the corridor door
-			local rs = newPart(m, "RoomSign", Vector3.new(9, 1.6, 0.25) * S,
-				cf * CFrame.new(rcx * S, 10 * S, sideZ * 5.6 * S), Color3.fromRGB(30, 60, 110))
-			makeSign(rs, sideZ == 1 and Enum.NormalId.Front or Enum.NormalId.Back,
-				room[1], Color3.fromRGB(30, 60, 110), Color3.new(1, 1, 1))
-			-- desks
-			for dxk = -1, 1, 2 do
-				for dzk = -1, 1, 2 do
-					newPart(m, "Desk", Vector3.new(4, 2.6, 2.5) * S,
-						cf * CFrame.new((rcx + dxk * 7) * S, 1.7 * S, (rcz + dzk * 6) * S),
-						Color3.fromRGB(170, 130, 90), Enum.Material.WoodPlanks)
-				end
-			end
-			-- teacher desk + THE STUDY BUTTON
-			local tdx = rcx * S
-			local tdz = (sideZ * (d / 2 - 8)) * S
-			newPart(m, "TeacherDesk", Vector3.new(7, 3, 3) * S,
-				cf * CFrame.new(tdx, 1.9 * S, tdz), Color3.fromRGB(120, 90, 60), Enum.Material.WoodPlanks)
-			local button = newDisc(m, "StudyButton", 2.2 * S, 0.8 * S,
-				cf * CFrame.new(tdx, 3.8 * S, tdz), Color3.fromRGB(220, 50, 50), Enum.Material.Neon)
-			button:SetAttribute("StudyButton", true)
-			local sp = Instance.new("ProximityPrompt")
-			sp.ActionText = "Study"
-			sp.ObjectText = "Hold to study (scooter +10 for 15 min)"
-			sp.HoldDuration = 3
-			sp.MaxActivationDistance = 10
-			sp.RequiresLineOfSight = false
-			sp.Parent = button
-			-- classroom light
-			local rl = newPart(m, "RoomLight", Vector3.new(4, 0.2, 4) * S,
-				cf * CFrame.new(rcx * S, (h - 0.5) * S, rcz * S), Color3.fromRGB(255, 250, 240), Enum.Material.Neon)
-			local rpt = Instance.new("PointLight")
-			rpt.Range = 26
-			rpt.Brightness = 1
-			rpt.Parent = rl
 		end
+	end
+	-- teacher desk + THE study button
+	newPart(m, "TeacherDesk", Vector3.new(9, 3, 3.5) * S,
+		cf * CFrame.new(0, 1.9 * S, (d / 2 - 8) * S), Color3.fromRGB(120, 90, 60), Enum.Material.WoodPlanks)
+	local button = newDisc(m, "StudyButton", 2.4 * S, 0.8 * S,
+		cf * CFrame.new(0, 3.85 * S, (d / 2 - 8) * S), Color3.fromRGB(220, 50, 50), Enum.Material.Neon)
+	button:SetAttribute("StudyButton", true)
+	local sp = Instance.new("ProximityPrompt")
+	sp.ActionText = "Study"
+	sp.ObjectText = "Hold to study (scooter +10 for 15 min)"
+	sp.HoldDuration = 3
+	sp.MaxActivationDistance = 10
+	sp.RequiresLineOfSight = false
+	sp.Parent = button
+	-- lights: lobby + classroom
+	for _, lz in ipairs({ lobbyZ - 12, lobbyZ + 24, d / 2 - 16 }) do
+		local rl = newPart(m, "RoomLight", Vector3.new(5, 0.2, 5) * S,
+			cf * CFrame.new(0, (h - 0.5) * S, lz * S), Color3.fromRGB(255, 250, 240), Enum.Material.Neon)
+		local rpt = Instance.new("PointLight")
+		rpt.Range = 30
+		rpt.Brightness = 1
+		rpt.Parent = rl
 	end
 end
 
@@ -2932,7 +2943,7 @@ end)
 local START_CASH = 100
 local WALK_SPEED = 16
 local SCOOTER_SPEED = 30
-local VERSION = "v25"
+local VERSION = "v26"
 local TRICK_COOLDOWN = 1.2
 local TRAFFIC_CARS = 130
 local CAR_SPEED = 38
@@ -3531,6 +3542,16 @@ local function spinDeck(rig, axis, dur)
 	if not rig or not rig.deckMount or rig.spinning then return end
 	rig.spinning = true
 	task.spawn(function()
+		-- tuck the knees up while the deck whips underneath (real tailwhip form)
+		local tucked = {}
+		if rig.hips and not rig.posing then
+			for _, hh in ipairs(rig.hips) do
+				if hh.motor.Parent then
+					hh.motor.C0 = hh.rest * CFrame.Angles(math.rad(-55), 0, 0)
+					tucked[#tucked + 1] = hh
+				end
+			end
+		end
 		local steps = 16
 		local dy = rig.deckY or -3.0
 		local pivot = axis == "y" and CFrame.new(0, dy, -2.2) or CFrame.new(0, dy, 0.2)
@@ -3545,28 +3566,38 @@ local function spinDeck(rig, axis, dur)
 		if rig.deckMount and rig.deckMount.Parent then
 			rig.deckMount.C0 = rig.deckBase
 		end
+		for _, hh in ipairs(tucked) do
+			if hh.motor.Parent then hh.motor.C0 = hh.rest end
+		end
 		rig.spinning = false
 	end)
 end
 
 local function legsBack(rig, dur)
-	if not rig or not rig.hips or #rig.hips == 0 or rig.posing then return end
+	if not rig or not rig.hips or #rig.hips == 0 or rig.posing or rig.spinning then return end
 	rig.posing = true
 	for _, h in ipairs(rig.hips) do
 		if h.motor.Parent then
 			h.motor.C0 = h.rest * CFrame.Angles(math.rad(-75), 0, 0)
 		end
 	end
+	-- arch the chest up for the full superman silhouette
+	if rig.waist and rig.waist.motor.Parent then
+		rig.waist.motor.C0 = rig.waist.rest * CFrame.Angles(math.rad(16), 0, 0)
+	end
 	task.delay(dur, function()
 		for _, h in ipairs(rig.hips) do
 			if h.motor.Parent then h.motor.C0 = h.rest end
+		end
+		if rig.waist and rig.waist.motor.Parent then
+			rig.waist.motor.C0 = rig.waist.rest
 		end
 		rig.posing = false
 	end)
 end
 
 local function armsBack(rig, dur)
-	if not rig or not rig.shoulders or #rig.shoulders == 0 or rig.posing then return end
+	if not rig or not rig.shoulders or #rig.shoulders == 0 or rig.posing or rig.spinning then return end
 	rig.posing = true
 	for _, ik in ipairs(rig.iks) do
 		if ik.Parent then ik.Enabled = false end
@@ -3850,6 +3881,166 @@ local function hookStudy(part)
 	end)
 end
 
+--==============================================================================================
+-- HOUSES FOR RENT + EGG SHOP DOGS
+--==============================================================================================
+local EGG_PRICE = 30
+local PET_COOLDOWN = 30
+local DOGS = {
+	{ name = "Mary",   pay = 10,  color = Color3.fromRGB(210, 170, 90) },  -- 49.5%
+	{ name = "Jolene", pay = 10,  color = Color3.fromRGB(150, 105, 70) },  -- 49.5%
+	{ name = "Linus",  pay = 100, color = Color3.fromRGB(255, 215, 80) },  -- 1% legendary
+}
+local ownedHouse = {} -- uid -> { house = Model, board = Part }
+local playerDog = {}  -- uid -> Model
+local petStamp = {}   -- dog Model -> last pet time
+
+local function setRentSign(board, text, color)
+	board.Color = color
+	local sgui = board:FindFirstChildOfClass("SurfaceGui")
+	local label = sgui and sgui:FindFirstChildOfClass("TextLabel")
+	if label then
+		label.Text = text
+		label.BackgroundColor3 = color
+	end
+end
+
+local function hookRent(board)
+	local click = board:FindFirstChildOfClass("ClickDetector")
+	if not click then return end
+	click.MouseClick:Connect(function(plr)
+		local house = board.Parent
+		if not house then return end
+		local owner = house:GetAttribute("OwnerUserId")
+		if owner == plr.UserId then
+			TrickResult:FireClient(plr, "That's already YOUR house!", 0)
+			return
+		elseif owner ~= nil then
+			TrickResult:FireClient(plr, "Someone already owns this one!", 0)
+			return
+		end
+		local prev = ownedHouse[plr.UserId] -- one home per player: release the old one
+		if prev and prev.house.Parent then
+			prev.house:SetAttribute("OwnerUserId", nil)
+			setRentSign(prev.board, "RENT", Color3.fromRGB(200, 60, 50))
+		end
+		house:SetAttribute("OwnerUserId", plr.UserId)
+		ownedHouse[plr.UserId] = { house = house, board = board }
+		setRentSign(board, plr.Name .. "'s house", Color3.fromRGB(60, 160, 80))
+		TrickResult:FireClient(plr, "Welcome home! This house is yours now.", 0)
+	end)
+end
+
+local function spawnDog(plr, dogDef, spot)
+	local old = playerDog[plr.UserId]
+	if old and old.Parent then old:Destroy() end
+	local town = workspace:FindFirstChild("DiscoveryBay") or workspace
+	local mdl = Instance.new("Model")
+	mdl.Name = dogDef.name
+	local mat = dogDef.pay >= 100 and Enum.Material.Neon or Enum.Material.SmoothPlastic
+	local base = Vector3.new(spot.X, spot.Y, spot.Z)
+	local function dp(name, size, off, color, shape)
+		local p = Instance.new("Part")
+		p.Name = name
+		p.Size = size
+		p.CFrame = CFrame.new(base + off)
+		p.Color = color
+		p.Material = mat
+		p.Anchored = true
+		p.CanCollide = false
+		p.Parent = mdl
+		if shape then p.Shape = shape end
+		return p
+	end
+	local c = dogDef.color
+	local body = dp("Body", Vector3.new(2.2, 1.8, 3.6), Vector3.new(0, 2.1, 0), c)
+	dp("Head", Vector3.new(1.7, 1.7, 1.7), Vector3.new(0, 3.4, -1.9), c, Enum.PartType.Ball)
+	dp("Snout", Vector3.new(0.8, 0.6, 0.9), Vector3.new(0, 3.1, -2.8), Color3.fromRGB(70, 50, 40))
+	dp("EarL", Vector3.new(0.4, 0.9, 0.4), Vector3.new(-0.6, 4.3, -1.9), c)
+	dp("EarR", Vector3.new(0.4, 0.9, 0.4), Vector3.new(0.6, 4.3, -1.9), c)
+	dp("Tail", Vector3.new(0.4, 0.4, 1.5), Vector3.new(0, 2.9, 2.2), c)
+	for _, lx in ipairs({ -0.7, 0.7 }) do
+		for _, lz in ipairs({ -1.2, 1.2 }) do
+			dp("Leg", Vector3.new(0.6, 1.4, 0.6), Vector3.new(lx, 0.7, lz), c)
+		end
+	end
+	if dogDef.pay >= 100 then
+		local glow = Instance.new("PointLight")
+		glow.Color = Color3.fromRGB(255, 220, 120)
+		glow.Range = 18
+		glow.Brightness = 2
+		glow.Parent = body
+	end
+	local prompt = Instance.new("ProximityPrompt")
+	prompt.ActionText = "Pet"
+	prompt.ObjectText = dogDef.name .. " - pet for $" .. dogDef.pay
+	prompt.MaxActivationDistance = 10
+	prompt.RequiresLineOfSight = false
+	prompt.Parent = body
+	prompt.Triggered:Connect(function(who)
+		if who ~= plr then
+			TrickResult:FireClient(who, "That's " .. plr.Name .. "'s dog!", 0)
+			return
+		end
+		local now = os.clock()
+		if petStamp[mdl] and now - petStamp[mdl] < PET_COOLDOWN then
+			TrickResult:FireClient(who, dogDef.name .. " needs a rest! Come back soon.", 0)
+			return
+		end
+		petStamp[mdl] = now
+		local cash = getCash(who)
+		if cash then
+			cash.Value = cash.Value + dogDef.pay
+			TrickResult:FireClient(who, dogDef.name .. " loves you!", dogDef.pay)
+		end
+	end)
+	mdl.Parent = town
+	playerDog[plr.UserId] = mdl
+end
+
+local function hookEgg(egg)
+	local prompt = egg:FindFirstChildOfClass("ProximityPrompt")
+	if not prompt then return end
+	prompt.Triggered:Connect(function(plr)
+		local home = ownedHouse[plr.UserId]
+		if not home or not home.house.Parent then
+			TrickResult:FireClient(plr, "Rent a house first (click a RENT sign) so your dog has a home!", 0)
+			return
+		end
+		local cash = getCash(plr)
+		if not cash or cash.Value < EGG_PRICE then
+			TrickResult:FireClient(plr, "Not enough cash! Eggs are $" .. EGG_PRICE, 0)
+			return
+		end
+		cash.Value = cash.Value - EGG_PRICE
+		local roll = rng:NextInteger(1, 200)
+		local dogDef
+		if roll <= 2 then
+			dogDef = DOGS[3] -- Linus, 1%
+		elseif roll <= 101 then
+			dogDef = DOGS[1] -- Mary
+		else
+			dogDef = DOGS[2] -- Jolene
+		end
+		local spot = home.house:GetAttribute("DogSpot") or home.house:GetPivot().Position
+		spawnDog(plr, dogDef, spot)
+		local rare = (dogDef.name == "Linus") and " (1% LEGENDARY!)" or ""
+		TrickResult:FireClient(plr, "It hatched... it's " .. dogDef.name .. rare .. "! They ran home to your house.", 0)
+	end)
+end
+
+Players.PlayerRemoving:Connect(function(plr)
+	local home = ownedHouse[plr.UserId]
+	if home and home.house.Parent then
+		home.house:SetAttribute("OwnerUserId", nil)
+		setRentSign(home.board, "RENT", Color3.fromRGB(200, 60, 50))
+	end
+	ownedHouse[plr.UserId] = nil
+	local dog = playerDog[plr.UserId]
+	if dog and dog.Parent then dog:Destroy() end
+	playerDog[plr.UserId] = nil
+end)
+
 -- DEBT: negative cash drains health every second, anywhere, until you're back to $0+
 task.spawn(function()
 	while true do
@@ -4082,6 +4273,10 @@ task.spawn(function()
 				hookMat(d)
 			elseif d:GetAttribute("StudyButton") then
 				hookStudy(d)
+			elseif d:GetAttribute("RentSign") then
+				hookRent(d)
+			elseif d:GetAttribute("EggShop") then
+				hookEgg(d)
 			end
 		end
 	end
@@ -4140,7 +4335,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 
-local VERSION = "v25"
+local VERSION = "v26"
 local SPEED_PASS_ID = 0 -- paste the real Game Pass ID here (same one as in DiscoveryBayShop)
 local RunService = game:GetService("RunService")
 local plr = Players.LocalPlayer

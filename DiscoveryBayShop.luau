@@ -43,7 +43,7 @@ end)
 local START_CASH = 100
 local WALK_SPEED = 16
 local SCOOTER_SPEED = 30
-local VERSION = "v25"
+local VERSION = "v26"
 local TRICK_COOLDOWN = 1.2
 local TRAFFIC_CARS = 130
 local CAR_SPEED = 38
@@ -642,6 +642,16 @@ local function spinDeck(rig, axis, dur)
 	if not rig or not rig.deckMount or rig.spinning then return end
 	rig.spinning = true
 	task.spawn(function()
+		-- tuck the knees up while the deck whips underneath (real tailwhip form)
+		local tucked = {}
+		if rig.hips and not rig.posing then
+			for _, hh in ipairs(rig.hips) do
+				if hh.motor.Parent then
+					hh.motor.C0 = hh.rest * CFrame.Angles(math.rad(-55), 0, 0)
+					tucked[#tucked + 1] = hh
+				end
+			end
+		end
 		local steps = 16
 		local dy = rig.deckY or -3.0
 		local pivot = axis == "y" and CFrame.new(0, dy, -2.2) or CFrame.new(0, dy, 0.2)
@@ -656,28 +666,38 @@ local function spinDeck(rig, axis, dur)
 		if rig.deckMount and rig.deckMount.Parent then
 			rig.deckMount.C0 = rig.deckBase
 		end
+		for _, hh in ipairs(tucked) do
+			if hh.motor.Parent then hh.motor.C0 = hh.rest end
+		end
 		rig.spinning = false
 	end)
 end
 
 local function legsBack(rig, dur)
-	if not rig or not rig.hips or #rig.hips == 0 or rig.posing then return end
+	if not rig or not rig.hips or #rig.hips == 0 or rig.posing or rig.spinning then return end
 	rig.posing = true
 	for _, h in ipairs(rig.hips) do
 		if h.motor.Parent then
 			h.motor.C0 = h.rest * CFrame.Angles(math.rad(-75), 0, 0)
 		end
 	end
+	-- arch the chest up for the full superman silhouette
+	if rig.waist and rig.waist.motor.Parent then
+		rig.waist.motor.C0 = rig.waist.rest * CFrame.Angles(math.rad(16), 0, 0)
+	end
 	task.delay(dur, function()
 		for _, h in ipairs(rig.hips) do
 			if h.motor.Parent then h.motor.C0 = h.rest end
+		end
+		if rig.waist and rig.waist.motor.Parent then
+			rig.waist.motor.C0 = rig.waist.rest
 		end
 		rig.posing = false
 	end)
 end
 
 local function armsBack(rig, dur)
-	if not rig or not rig.shoulders or #rig.shoulders == 0 or rig.posing then return end
+	if not rig or not rig.shoulders or #rig.shoulders == 0 or rig.posing or rig.spinning then return end
 	rig.posing = true
 	for _, ik in ipairs(rig.iks) do
 		if ik.Parent then ik.Enabled = false end
@@ -961,6 +981,166 @@ local function hookStudy(part)
 	end)
 end
 
+--==============================================================================================
+-- HOUSES FOR RENT + EGG SHOP DOGS
+--==============================================================================================
+local EGG_PRICE = 30
+local PET_COOLDOWN = 30
+local DOGS = {
+	{ name = "Mary",   pay = 10,  color = Color3.fromRGB(210, 170, 90) },  -- 49.5%
+	{ name = "Jolene", pay = 10,  color = Color3.fromRGB(150, 105, 70) },  -- 49.5%
+	{ name = "Linus",  pay = 100, color = Color3.fromRGB(255, 215, 80) },  -- 1% legendary
+}
+local ownedHouse = {} -- uid -> { house = Model, board = Part }
+local playerDog = {}  -- uid -> Model
+local petStamp = {}   -- dog Model -> last pet time
+
+local function setRentSign(board, text, color)
+	board.Color = color
+	local sgui = board:FindFirstChildOfClass("SurfaceGui")
+	local label = sgui and sgui:FindFirstChildOfClass("TextLabel")
+	if label then
+		label.Text = text
+		label.BackgroundColor3 = color
+	end
+end
+
+local function hookRent(board)
+	local click = board:FindFirstChildOfClass("ClickDetector")
+	if not click then return end
+	click.MouseClick:Connect(function(plr)
+		local house = board.Parent
+		if not house then return end
+		local owner = house:GetAttribute("OwnerUserId")
+		if owner == plr.UserId then
+			TrickResult:FireClient(plr, "That's already YOUR house!", 0)
+			return
+		elseif owner ~= nil then
+			TrickResult:FireClient(plr, "Someone already owns this one!", 0)
+			return
+		end
+		local prev = ownedHouse[plr.UserId] -- one home per player: release the old one
+		if prev and prev.house.Parent then
+			prev.house:SetAttribute("OwnerUserId", nil)
+			setRentSign(prev.board, "RENT", Color3.fromRGB(200, 60, 50))
+		end
+		house:SetAttribute("OwnerUserId", plr.UserId)
+		ownedHouse[plr.UserId] = { house = house, board = board }
+		setRentSign(board, plr.Name .. "'s house", Color3.fromRGB(60, 160, 80))
+		TrickResult:FireClient(plr, "Welcome home! This house is yours now.", 0)
+	end)
+end
+
+local function spawnDog(plr, dogDef, spot)
+	local old = playerDog[plr.UserId]
+	if old and old.Parent then old:Destroy() end
+	local town = workspace:FindFirstChild("DiscoveryBay") or workspace
+	local mdl = Instance.new("Model")
+	mdl.Name = dogDef.name
+	local mat = dogDef.pay >= 100 and Enum.Material.Neon or Enum.Material.SmoothPlastic
+	local base = Vector3.new(spot.X, spot.Y, spot.Z)
+	local function dp(name, size, off, color, shape)
+		local p = Instance.new("Part")
+		p.Name = name
+		p.Size = size
+		p.CFrame = CFrame.new(base + off)
+		p.Color = color
+		p.Material = mat
+		p.Anchored = true
+		p.CanCollide = false
+		p.Parent = mdl
+		if shape then p.Shape = shape end
+		return p
+	end
+	local c = dogDef.color
+	local body = dp("Body", Vector3.new(2.2, 1.8, 3.6), Vector3.new(0, 2.1, 0), c)
+	dp("Head", Vector3.new(1.7, 1.7, 1.7), Vector3.new(0, 3.4, -1.9), c, Enum.PartType.Ball)
+	dp("Snout", Vector3.new(0.8, 0.6, 0.9), Vector3.new(0, 3.1, -2.8), Color3.fromRGB(70, 50, 40))
+	dp("EarL", Vector3.new(0.4, 0.9, 0.4), Vector3.new(-0.6, 4.3, -1.9), c)
+	dp("EarR", Vector3.new(0.4, 0.9, 0.4), Vector3.new(0.6, 4.3, -1.9), c)
+	dp("Tail", Vector3.new(0.4, 0.4, 1.5), Vector3.new(0, 2.9, 2.2), c)
+	for _, lx in ipairs({ -0.7, 0.7 }) do
+		for _, lz in ipairs({ -1.2, 1.2 }) do
+			dp("Leg", Vector3.new(0.6, 1.4, 0.6), Vector3.new(lx, 0.7, lz), c)
+		end
+	end
+	if dogDef.pay >= 100 then
+		local glow = Instance.new("PointLight")
+		glow.Color = Color3.fromRGB(255, 220, 120)
+		glow.Range = 18
+		glow.Brightness = 2
+		glow.Parent = body
+	end
+	local prompt = Instance.new("ProximityPrompt")
+	prompt.ActionText = "Pet"
+	prompt.ObjectText = dogDef.name .. " - pet for $" .. dogDef.pay
+	prompt.MaxActivationDistance = 10
+	prompt.RequiresLineOfSight = false
+	prompt.Parent = body
+	prompt.Triggered:Connect(function(who)
+		if who ~= plr then
+			TrickResult:FireClient(who, "That's " .. plr.Name .. "'s dog!", 0)
+			return
+		end
+		local now = os.clock()
+		if petStamp[mdl] and now - petStamp[mdl] < PET_COOLDOWN then
+			TrickResult:FireClient(who, dogDef.name .. " needs a rest! Come back soon.", 0)
+			return
+		end
+		petStamp[mdl] = now
+		local cash = getCash(who)
+		if cash then
+			cash.Value = cash.Value + dogDef.pay
+			TrickResult:FireClient(who, dogDef.name .. " loves you!", dogDef.pay)
+		end
+	end)
+	mdl.Parent = town
+	playerDog[plr.UserId] = mdl
+end
+
+local function hookEgg(egg)
+	local prompt = egg:FindFirstChildOfClass("ProximityPrompt")
+	if not prompt then return end
+	prompt.Triggered:Connect(function(plr)
+		local home = ownedHouse[plr.UserId]
+		if not home or not home.house.Parent then
+			TrickResult:FireClient(plr, "Rent a house first (click a RENT sign) so your dog has a home!", 0)
+			return
+		end
+		local cash = getCash(plr)
+		if not cash or cash.Value < EGG_PRICE then
+			TrickResult:FireClient(plr, "Not enough cash! Eggs are $" .. EGG_PRICE, 0)
+			return
+		end
+		cash.Value = cash.Value - EGG_PRICE
+		local roll = rng:NextInteger(1, 200)
+		local dogDef
+		if roll <= 2 then
+			dogDef = DOGS[3] -- Linus, 1%
+		elseif roll <= 101 then
+			dogDef = DOGS[1] -- Mary
+		else
+			dogDef = DOGS[2] -- Jolene
+		end
+		local spot = home.house:GetAttribute("DogSpot") or home.house:GetPivot().Position
+		spawnDog(plr, dogDef, spot)
+		local rare = (dogDef.name == "Linus") and " (1% LEGENDARY!)" or ""
+		TrickResult:FireClient(plr, "It hatched... it's " .. dogDef.name .. rare .. "! They ran home to your house.", 0)
+	end)
+end
+
+Players.PlayerRemoving:Connect(function(plr)
+	local home = ownedHouse[plr.UserId]
+	if home and home.house.Parent then
+		home.house:SetAttribute("OwnerUserId", nil)
+		setRentSign(home.board, "RENT", Color3.fromRGB(200, 60, 50))
+	end
+	ownedHouse[plr.UserId] = nil
+	local dog = playerDog[plr.UserId]
+	if dog and dog.Parent then dog:Destroy() end
+	playerDog[plr.UserId] = nil
+end)
+
 -- DEBT: negative cash drains health every second, anywhere, until you're back to $0+
 task.spawn(function()
 	while true do
@@ -1193,6 +1373,10 @@ task.spawn(function()
 				hookMat(d)
 			elseif d:GetAttribute("StudyButton") then
 				hookStudy(d)
+			elseif d:GetAttribute("RentSign") then
+				hookRent(d)
+			elseif d:GetAttribute("EggShop") then
+				hookEgg(d)
 			end
 		end
 	end

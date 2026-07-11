@@ -1019,6 +1019,19 @@ local function buildResidential(m, cf, b)
 			cf * CFrame.new(-w * 0.3 * S, 0.15 * S, (frontZ - 6.5) * S),
 			Color3.fromRGB(165, 160, 152), Enum.Material.Concrete)
 	end
+	-- RENT sign out front: click it in-game to own this house
+	local signCf = cf * CFrame.new((doorX + 7) * S, 0, (frontZ - 5) * S)
+	newPart(m, "RentPost", Vector3.new(0.35, 4.2, 0.35) * S, signCf * CFrame.new(0, 2.1 * S, 0),
+		Color3.fromRGB(110, 90, 70), Enum.Material.Wood)
+	local rentBoard = newPart(m, "RentSign", Vector3.new(4.6, 2.4, 0.25) * S,
+		signCf * CFrame.new(0, 4.6 * S, 0), Color3.fromRGB(200, 60, 50))
+	rentBoard:SetAttribute("RentSign", true)
+	makeSign(rentBoard, Enum.NormalId.Front, "RENT", Color3.fromRGB(200, 60, 50), Color3.new(1, 1, 1))
+	local rentClick = Instance.new("ClickDetector")
+	rentClick.MaxActivationDistance = 32
+	rentClick.Parent = rentBoard
+	-- where a hatched dog appears (by the front door)
+	m:SetAttribute("DogSpot", (cf * CFrame.new(doorX * S, 1 * S, (frontZ - 10) * S)).Position)
 end
 
 local function buildCommercial(m, cf, b)
@@ -1314,6 +1327,24 @@ local function buildPlaza()
 	local rowBase = pos - right * 58 * S
 	local rowCf = CFrame.lookAt(rowBase, rowBase + front)
 
+	-- Egg Shop (in the old Convenience Mart slot, next to Callahan's): hatch a
+	-- mystery egg out front and a dog moves into your rented house
+	storefront(m, "Egg Shop", rowCf * CFrame.new(0, 0, 18 * S), 30, 24, 12,
+		Color3.fromRGB(235, 200, 90), Color3.fromRGB(80, 60, 30))
+	local eggBase = (rowCf * CFrame.new(9 * S, 0, 2 * S)).Position
+	newDisc(m, "EggPedestal", 6 * S, 1 * S, CFrame.new(eggBase + Vector3.new(0, 0.5 * S, 0)),
+		Color3.fromRGB(200, 195, 185), Enum.Material.Concrete)
+	local egg = newBall(m, "MysteryEgg", 4 * S, CFrame.new(eggBase + Vector3.new(0, 3 * S, 0)),
+		Color3.fromRGB(250, 245, 228))
+	egg:SetAttribute("EggShop", true)
+	local eggPrompt = Instance.new("ProximityPrompt")
+	eggPrompt.ActionText = "Hatch"
+	eggPrompt.ObjectText = "Mystery Egg - $30 (needs a rented house)"
+	eggPrompt.HoldDuration = 1
+	eggPrompt.MaxActivationDistance = 10
+	eggPrompt.RequiresLineOfSight = false
+	eggPrompt.Parent = egg
+
 	-- Callahan's Coffee and Cones (REQUIRED): a walk-in ice cream shop
 	do
 		local cSh = rowCf * CFrame.new(-36 * S, 0, 18 * S) -- shop base; local -Z = storefront
@@ -1526,74 +1557,54 @@ local function buildBigSchool(parent, lm)
 				CFrame.lookAt(mid, mid + dir), Color3.fromRGB(168, 164, 156), Enum.Material.Concrete)
 		end
 	end
-	-- corridor walls (z = ±6 local) with a centered door gap into each classroom
-	local ROOMS = {
-		{ "Room 101 · MATH", "MATH: 2 + 2 = FAST" },
-		{ "Room 102 · SCIENCE", "SCIENCE: SPEED = SMART" },
-		{ "Room 103 · HISTORY", "HISTORY OF SCOOTERS, VOL. 1" },
-		{ "Room 104 · ART", "ART: DRAW YOUR TAILWHIP" },
-	}
-	local roomIdx = 0
-	for _, sideZ in ipairs({ 1, -1 }) do
-		for _, sideX in ipairs({ -1, 1 }) do
-			roomIdx = roomIdx + 1
-			local room = ROOMS[roomIdx]
-			local rcx = sideX * w / 4                -- room center x
-			local rcz = sideZ * (d / 4 + 3)          -- room center z (beyond corridor)
-			-- corridor wall segments beside this room's 6-stud door gap
-			local wallLen = (w / 2 - 6) / 2
-			for _, seg in ipairs({ -1, 1 }) do
-				newPart(m, "CorridorWall", Vector3.new(wallLen, h - 2, 0.6) * S,
-					cf * CFrame.new((rcx + seg * (wallLen / 2 + 3)) * S, (h - 2) / 2 * S, sideZ * 6 * S),
-					Color3.fromRGB(235, 230, 218), Enum.Material.SmoothPlastic)
+	-- ONE classroom only: HISTORY OF SCOOTERS. The front is an open lobby; a wall
+	-- with a central gap leads into the big classroom that fills the rest.
+	local lobbyZ = -d / 2 + 26 -- lobby is 26 ft deep
+	for _, sxn in ipairs({ -1, 1 }) do
+		newPart(m, "LobbyWall", Vector3.new((w - 8) / 2, h - 2, 0.6) * S,
+			cf * CFrame.new(sxn * ((w - 8) / 4 + 2) * S, (h - 2) / 2 * S, lobbyZ * S),
+			Color3.fromRGB(235, 230, 218), Enum.Material.SmoothPlastic)
+	end
+	local rs = newPart(m, "RoomSign", Vector3.new(26, 2, 0.25) * S,
+		cf * CFrame.new(0, 10.5 * S, (lobbyZ - 0.4) * S), Color3.fromRGB(30, 60, 110))
+	makeSign(rs, Enum.NormalId.Front, "Room 103 · HISTORY OF SCOOTERS",
+		Color3.fromRGB(30, 60, 110), Color3.new(1, 1, 1))
+	-- blackboard across the back wall
+	local board = newPart(m, "Blackboard", Vector3.new(50, 7, 0.3) * S,
+		cf * CFrame.new(0, 7.5 * S, (d / 2 - 1.2) * S), Color3.fromRGB(30, 70, 45))
+	makeSign(board, Enum.NormalId.Front, "HISTORY OF SCOOTERS, VOL. 1",
+		Color3.fromRGB(30, 70, 45), Color3.fromRGB(235, 235, 225))
+	-- rows of desks
+	for row = 0, 2 do
+		for col = -2, 2 do
+			if not (row == 2 and col == 0) then -- leave an aisle to the teacher desk
+				newPart(m, "Desk", Vector3.new(5, 2.6, 3) * S,
+					cf * CFrame.new(col * 16 * S, 1.7 * S, (lobbyZ + 14 + row * 12) * S),
+					Color3.fromRGB(170, 130, 90), Enum.Material.WoodPlanks)
 			end
-			-- divider between the two rooms on this side
-			if sideX == -1 then
-				newPart(m, "Divider", Vector3.new(0.6, h - 2, d / 2 - 7) * S,
-					cf * CFrame.new(0, (h - 2) / 2 * S, sideZ * (d / 4 + 3) * S),
-					Color3.fromRGB(235, 230, 218), Enum.Material.SmoothPlastic)
-			end
-			-- blackboard on the far wall
-			local board = newPart(m, "Blackboard", Vector3.new(22, 6, 0.3) * S,
-				cf * CFrame.new(rcx * S, 7.5 * S, sideZ * (d / 2 - 1.2) * S), Color3.fromRGB(30, 70, 45))
-			makeSign(board, sideZ == 1 and Enum.NormalId.Front or Enum.NormalId.Back,
-				room[2], Color3.fromRGB(30, 70, 45), Color3.fromRGB(235, 235, 225))
-			-- room sign over the corridor door
-			local rs = newPart(m, "RoomSign", Vector3.new(9, 1.6, 0.25) * S,
-				cf * CFrame.new(rcx * S, 10 * S, sideZ * 5.6 * S), Color3.fromRGB(30, 60, 110))
-			makeSign(rs, sideZ == 1 and Enum.NormalId.Front or Enum.NormalId.Back,
-				room[1], Color3.fromRGB(30, 60, 110), Color3.new(1, 1, 1))
-			-- desks
-			for dxk = -1, 1, 2 do
-				for dzk = -1, 1, 2 do
-					newPart(m, "Desk", Vector3.new(4, 2.6, 2.5) * S,
-						cf * CFrame.new((rcx + dxk * 7) * S, 1.7 * S, (rcz + dzk * 6) * S),
-						Color3.fromRGB(170, 130, 90), Enum.Material.WoodPlanks)
-				end
-			end
-			-- teacher desk + THE STUDY BUTTON
-			local tdx = rcx * S
-			local tdz = (sideZ * (d / 2 - 8)) * S
-			newPart(m, "TeacherDesk", Vector3.new(7, 3, 3) * S,
-				cf * CFrame.new(tdx, 1.9 * S, tdz), Color3.fromRGB(120, 90, 60), Enum.Material.WoodPlanks)
-			local button = newDisc(m, "StudyButton", 2.2 * S, 0.8 * S,
-				cf * CFrame.new(tdx, 3.8 * S, tdz), Color3.fromRGB(220, 50, 50), Enum.Material.Neon)
-			button:SetAttribute("StudyButton", true)
-			local sp = Instance.new("ProximityPrompt")
-			sp.ActionText = "Study"
-			sp.ObjectText = "Hold to study (scooter +10 for 15 min)"
-			sp.HoldDuration = 3
-			sp.MaxActivationDistance = 10
-			sp.RequiresLineOfSight = false
-			sp.Parent = button
-			-- classroom light
-			local rl = newPart(m, "RoomLight", Vector3.new(4, 0.2, 4) * S,
-				cf * CFrame.new(rcx * S, (h - 0.5) * S, rcz * S), Color3.fromRGB(255, 250, 240), Enum.Material.Neon)
-			local rpt = Instance.new("PointLight")
-			rpt.Range = 26
-			rpt.Brightness = 1
-			rpt.Parent = rl
 		end
+	end
+	-- teacher desk + THE study button
+	newPart(m, "TeacherDesk", Vector3.new(9, 3, 3.5) * S,
+		cf * CFrame.new(0, 1.9 * S, (d / 2 - 8) * S), Color3.fromRGB(120, 90, 60), Enum.Material.WoodPlanks)
+	local button = newDisc(m, "StudyButton", 2.4 * S, 0.8 * S,
+		cf * CFrame.new(0, 3.85 * S, (d / 2 - 8) * S), Color3.fromRGB(220, 50, 50), Enum.Material.Neon)
+	button:SetAttribute("StudyButton", true)
+	local sp = Instance.new("ProximityPrompt")
+	sp.ActionText = "Study"
+	sp.ObjectText = "Hold to study (scooter +10 for 15 min)"
+	sp.HoldDuration = 3
+	sp.MaxActivationDistance = 10
+	sp.RequiresLineOfSight = false
+	sp.Parent = button
+	-- lights: lobby + classroom
+	for _, lz in ipairs({ lobbyZ - 12, lobbyZ + 24, d / 2 - 16 }) do
+		local rl = newPart(m, "RoomLight", Vector3.new(5, 0.2, 5) * S,
+			cf * CFrame.new(0, (h - 0.5) * S, lz * S), Color3.fromRGB(255, 250, 240), Enum.Material.Neon)
+		local rpt = Instance.new("PointLight")
+		rpt.Range = 30
+		rpt.Brightness = 1
+		rpt.Parent = rl
 	end
 end
 

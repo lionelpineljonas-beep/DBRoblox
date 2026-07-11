@@ -372,6 +372,26 @@ for i = 1, 4 do
   seg._props.Position = v3(0, 2.025, i * 400)
   seg.Parent = roadModel
 end
+-- a rentable house with its sign, and the egg shop
+local house = newInst("Model", "House")
+house._attrs.DogSpot = v3(300, 2, 300)
+house.Parent = town
+local rentBoard = Instance.new("Part")
+rentBoard.Name = "RentSign"
+rentBoard._attrs.RentSign = true
+local rentClick = Instance.new("ClickDetector")
+rentClick.Parent = rentBoard
+rentBoard.Parent = house
+RENTBOARD = rentBoard
+HOUSE = house
+local eggPart = Instance.new("Part")
+eggPart.Name = "MysteryEgg"
+eggPart._attrs.EggShop = true
+local eggPrompt = Instance.new("ProximityPrompt")
+eggPrompt.Parent = eggPart
+eggPart.Parent = town
+EGG = eggPart
+
 -- study button (school classroom)
 local studyBtn = Instance.new("Part")
 studyBtn.Name = "StudyButton"
@@ -634,6 +654,34 @@ STUDY:FindFirstChildOfClass("ProximityPrompt").Triggered:Fire(PLAYER)
 PUMP(1)
 print("WalkSpeed with EduBoost (mounted, must be 40):", HUM.WalkSpeed,
 	"| ClockTime advancing:", game:GetService("Lighting").ClockTime)
+
+print("--- RENT + EGG + DOG TEST ---")
+local cash3 = PLAYER.leaderstats.Cash
+cash3.Value = 100
+EGG.ProximityPrompt.Triggered:Fire(PLAYER) -- no house yet: must refuse, no charge
+PUMP(0.5)
+print("egg without house (cash must stay 100):", cash3.Value)
+RENTBOARD.ClickDetector.MouseClick:Fire(PLAYER)
+PUMP(0.5)
+print("house owner attr (must be 1):", tostring(HOUSE:GetAttribute("OwnerUserId")))
+EGG.ProximityPrompt.Triggered:Fire(PLAYER)
+PUMP(0.5)
+print("cash after egg (must be 70):", cash3.Value)
+local dog = nil
+for _, c in ipairs(workspace:FindFirstChild("DiscoveryBay"):GetChildren()) do
+	if c.Name == "Mary" or c.Name == "Jolene" or c.Name == "Linus" then dog = c end
+end
+print("dog spawned:", dog and dog.Name or "NONE")
+if dog then
+	local dogBody = dog:FindFirstChild("Body")
+	local dogPrompt = dogBody and dogBody:FindFirstChildOfClass("ProximityPrompt")
+	dogPrompt.Triggered:Fire(PLAYER)
+	PUMP(0.5)
+	print("cash after pet (must be 80 or 170):", cash3.Value)
+	dogPrompt.Triggered:Fire(PLAYER) -- cooldown: no double pay
+	PUMP(0.5)
+	print("cash after immediate re-pet (must be unchanged):", cash3.Value)
+end
 
 print("--- RAGDOLL TEST: Died must convert joints to ball sockets ---")
 print("BreakJointsOnDeath (must be false):", tostring(HUM.BreakJointsOnDeath))
