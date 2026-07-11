@@ -1,0 +1,102 @@
+{
+  "$comment": "Discovery Bay (CA) Golf & Country Club neighborhood — layout spec for procedural Roblox build. Coordinates are a SCHEMATIC SKELETON captured from Google Maps satellite; treat them as relative placement + topology, and refine exact edges against the live satellite while building. See the .svg trace files for visual reference.",
+  "meta": {
+    "place": "Discovery Bay Golf & Country Club, Discovery Bay, California",
+    "satelliteReference": "Google Maps -> search 'Discovery Bay Golf & Country Club' -> Satellite view",
+    "traceFiles": [
+      "discovery-bay-layout-sketch.svg",
+      "discovery-bay-clubhouse-core-trace.svg",
+      "discovery-bay-lagoon-marina-trace.svg"
+    ]
+  },
+  "coordinateSystem": {
+    "grid": "Top-down normalized grid, 0..1000 on both axes.",
+    "x": "0 = west, 1000 = east",
+    "z": "0 = south, 1000 = north (north is up, matching the trace SVGs)",
+    "mapToRoblox": "Roblox world Vector3(X, Y, Z): X = gridX * worldScale, Z = (1000 - gridZ) * worldScale (flip so +Z can stay north or south per your camera), Y = elevation. Keep it consistent.",
+    "worldScale": {
+      "recommended": 4.0,
+      "meaning": "studs per grid unit. 4.0 -> ~4000 x 4000 stud world, roughly true-scale for the ~225-acre core plus lagoons at 1 stud = 1 ft.",
+      "halfScaleOption": 2.0
+    },
+    "elevations": {
+      "waterSurfaceY": 0,
+      "landY": 2,
+      "roadY": 2.2,
+      "note": "Land sits just above water; roads a hair above land to avoid z-fighting."
+    }
+  },
+  "zones": [
+    { "id": 1, "name": "Clubhouse & golf core", "buildOrder": 1, "rect": { "x": 450, "z": 40, "w": 400, "d": 420 }, "trace": "discovery-bay-clubhouse-core-trace.svg" },
+    { "id": 2, "name": "Fairway housing rows", "buildOrder": 2, "rect": { "x": 450, "z": 40, "w": 420, "d": 560 }, "note": "Overlaps golf core; houses line each fairway." },
+    { "id": 3, "name": "Lagoon district", "buildOrder": 3, "rect": { "x": 120, "z": 300, "w": 620, "d": 560 }, "trace": "discovery-bay-lagoon-marina-trace.svg" },
+    { "id": 4, "name": "Marina", "buildOrder": 4, "rect": { "x": 780, "z": 560, "w": 160, "d": 180 } },
+    { "id": 5, "name": "Perimeter / entry", "buildOrder": 5, "rect": { "x": 0, "z": 820, "w": 1000, "d": 180 } }
+  ],
+  "water": {
+    "delta": [
+      { "name": "Indian Slough (north Delta border)", "poly": [[0,900],[1000,900],[1000,1000],[0,1000]] },
+      { "name": "Old River (east Delta border)", "poly": [[860,120],[1000,120],[1000,900],[860,900]] }
+    ],
+    "openWater": [
+      { "name": "Willow Lake", "ellipse": { "cx": 571, "cz": 670, "rx": 110, "rz": 95 } }
+    ],
+    "lagoonNote": "The interior lagoon maze is too intricate to encode as exact polygons. Generate winding channels between the peninsula land-fingers by tracing the satellite; keep a uniform channel width (~30-45 studs) and a single water depth. The lagoon/marina trace SVG shows representative finger shapes."
+  },
+  "roads": [
+    { "name": "Discovery Bay Blvd", "type": "spine", "widthStuds": 28, "waypoints": [[429,850],[425,700],[430,530],[471,300],[471,230]] },
+    { "name": "Willow Lake Rd", "type": "spine", "widthStuds": 26, "waypoints": [[336,530],[450,545],[571,548],[714,530],[771,470]] },
+    { "name": "Clubhouse Dr", "type": "spine-loop", "widthStuds": 24, "waypoints": [[471,230],[560,215],[607,240],[700,300],[760,310],[771,300]] },
+    { "name": "Cherry Hills Dr", "type": "spine", "widthStuds": 24, "waypoints": [[771,500],[775,360],[768,220],[764,120]] }
+  ],
+  "courts": {
+    "note": "Cul-de-sac courts branch off the spines. Place each as a short stub (~60-120 studs) with a house row; exact positions per the trace SVGs.",
+    "golfCore": ["Fairway Ct","Hampton Ct","Augusta Ct","Oakmont Ct","Gateway Ct","Greenfield Way","Pinehurst Ct","Prestwick Dr","Wayfarer Ct","Azure Ct","St Andrews Ct","Emerald Ct","St Andrews Dr"],
+    "lagoon": ["Starboard Dr","Starboard Ct","Starfish Ct","Salmon Ct","Drakes Dr","Drakes Ct","Marlin Dr","Marlin Pl"]
+  },
+  "landmarks": [
+    { "name": "Clubhouse", "hero": true, "point": [607,240], "footprintStuds": { "w": 70, "d": 45 }, "note": "Large parking lot on NE side (~95x60 studs)." },
+    { "name": "Community Center", "point": [390,680], "footprintStuds": { "w": 26, "d": 20 } },
+    { "name": "Marina / Yacht Club", "point": [820,690], "note": "Covered boat slips (5+ long rectangles) + moored boats." },
+    { "name": "Boat Launch", "point": [845,720] },
+    { "name": "Discovery Bay Lighthouse", "point": [529,880], "note": "North Delta entrance; small hero landmark." },
+    { "name": "Callahan's Coffee and Cones", "required": true, "address": "1555 Riverlake Rd, Discovery Bay, CA 94505", "point": [365,708], "footprintStuds": { "w": 30, "d": 24 }, "note": "REQUIRED build. Coffee & ice-cream shop, in the Discovery Bay Blvd / Riverlake Rd plaza just NW of the Community Center." },
+    { "name": "Discovery Bay Jiu Jitsu", "required": true, "address": "near Sand Point Rd / Community Center", "point": [415,690], "footprintStuds": { "w": 34, "d": 26 }, "note": "REQUIRED build. Storefront/studio unit near the Community Center, same commercial cluster." },
+    { "name": "Shell Gas Station", "required": true, "address": "1502 Discovery Bay Blvd, Discovery Bay, CA 94505", "point": [388,715], "footprintStuds": { "w": 40, "d": 30 }, "note": "REQUIRED build. Fuel canopy + pumps + kiosk, corner of Discovery Bay Blvd, adjacent to Callahan's. Open till midnight (24-ish)." },
+    { "name": "Convenience Mart", "required": true, "address": "1502 Discovery Bay Blvd, Discovery Bay, CA 94505", "point": [402,712], "footprintStuds": { "w": 34, "d": 26 }, "note": "REQUIRED build. The convenience store co-located with the Shell (appears on maps as 'Michael's Market' / 'Dash'). Build as the store attached to the gas station." }
+  ],
+  "requiredBusinesses": {
+    "note": "The user requires these four in the final build — do not omit any. CONFIRMED via satellite: all four sit in ONE commercial plaza at the corner of Discovery Bay Blvd & Riverlake Rd, immediately NW of the Discovery Bay Community Center. Build them as a single small strip-mall cluster: Shell station + its Convenience Mart on the Discovery Bay Blvd frontage, with Callahan's and the Jiu Jitsu studio as adjacent storefront units. Add a SurfaceGui/sign with each name.",
+    "cluster": { "name": "Discovery Bay Blvd commercial plaza", "centerPoint": [390,708], "adjacentTo": "Community Center" },
+    "list": ["Callahan's Coffee and Cones", "Discovery Bay Jiu Jitsu", "Shell Gas Station", "Convenience Mart"]
+  },
+  "lots": {
+    "pattern": "road -> row of houses -> fairway OR lagoon -> next row",
+    "lotSizeStuds": { "w": 60, "d": 40 },
+    "waterfrontFacing": "toward water; street lots face the road",
+    "waterfrontGetsDock": true
+  },
+  "houseKit": {
+    "models": [
+      { "id": "house_1story", "footprintStuds": { "w": 40, "d": 30 }, "stories": 1 },
+      { "id": "house_2story", "footprintStuds": { "w": 44, "d": 32 }, "stories": 2 },
+      { "id": "house_estate", "footprintStuds": { "w": 60, "d": 40 }, "stories": 2 }
+    ],
+    "variation": ["wallColor","roofColor","rotation"],
+    "reuseRule": "Place as duplicated instances of the same Model so Roblox can optimize.",
+    "dock": { "footprintStuds": { "w": 6, "d": 20 }, "boat": true }
+  },
+  "constraints": {
+    "anchorEverything": true,
+    "streamingEnabled": true,
+    "meshTriangleCapPerPart": 10000,
+    "preferPartsOverMeshes": true,
+    "colorPalette": {
+      "water": "#5aa0c4",
+      "land": "#d9d0ac",
+      "fairway": "#82b25c",
+      "road": "#3a3a3a",
+      "roofExamples": ["#8c4a2f","#6b6b6b","#7a5230","#334a5c"]
+    }
+  }
+}

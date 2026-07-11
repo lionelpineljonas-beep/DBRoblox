@@ -1,0 +1,127 @@
+<svg viewBox="0 0 1300 860" xmlns="http://www.w3.org/2000/svg" font-family="Arial, Helvetica, sans-serif">
+  <defs>
+    <style>
+      .spine { stroke:#ffffff; stroke-width:11; fill:none; stroke-linecap:round; stroke-linejoin:round; }
+      .road  { stroke:#f6f1e4; stroke-width:7;  fill:none; stroke-linecap:round; stroke-linejoin:round; }
+      .rlbl  { fill:#20323c; font-size:13px; font-weight:bold; }
+      .rlbli { fill:#33424a; font-size:12px; font-style:italic; }
+      .dock  { stroke:#7a5230; stroke-width:3; stroke-linecap:round; }
+      .boat  { fill:#e8e2d0; stroke:#555; stroke-width:0.5; }
+    </style>
+  </defs>
+
+  <!-- ===== WATER BASE (lagoon-dominant) ===== -->
+  <rect x="0" y="0" width="1300" height="860" fill="#4f97bd"/>
+
+  <!-- Delta farmland east boundary -->
+  <rect x="1090" y="0" width="210" height="860" fill="#8aa06a"/>
+  <path d="M1090,0 L1090,860" stroke="#6f8552" stroke-width="3"/>
+  <text x="1195" y="120" class="rlbl" fill="#2f3d22" text-anchor="middle" transform="rotate(90 1195 120)">Delta farmland (east edge)</text>
+
+  <!-- Willow Lake open water label -->
+  <text x="230" y="800" class="rlbl" fill="#eaf3f8">Willow Lake (open water)</text>
+
+  <!-- ===== LAND PENINSULAS (tan fingers) ===== -->
+  <g fill="#d9d0ac">
+    <!-- top peninsula cluster (Starboard / Starfish) -->
+    <path d="M430,40 C520,60 560,120 660,120 C760,120 820,70 900,60
+             C900,150 840,200 760,210 C690,220 640,180 560,200
+             C500,215 470,180 430,190 Z"/>
+    <!-- Starfish spur -->
+    <path d="M820,150 C880,180 900,240 860,300 C820,340 790,280 800,220 Z"/>
+    <!-- middle peninsula (Drakes) -->
+    <path d="M400,300 C520,300 560,360 680,360 C780,360 820,410 760,470
+             C700,510 640,470 560,480 C500,488 460,450 400,455 Z"/>
+    <!-- Drakes lower spur -->
+    <path d="M470,470 C560,490 580,560 520,610 C470,650 430,600 440,530 Z"/>
+    <!-- lower-mid peninsula (Marlin) -->
+    <path d="M430,610 C560,600 620,650 740,650 C820,650 850,610 900,600
+             C900,660 850,700 770,705 C700,710 650,680 560,695
+             C500,705 470,675 430,680 Z"/>
+    <!-- SW peninsula -->
+    <path d="M120,470 C230,470 280,520 270,600 C260,690 160,700 120,660 Z"/>
+    <!-- west edge land -->
+    <path d="M0,0 H300 C260,180 250,380 270,560 C255,700 250,800 240,860 H0 Z"/>
+  </g>
+
+  <!-- ===== MARINA (covered boat slips, boat launch) SE ===== -->
+  <g>
+    <rect x="820" y="640" width="230" height="180" fill="#5aa0c4"/>
+    <g fill="#cfc6a8" stroke="#8a8060" stroke-width="1">
+      <rect x="835" y="655" width="200" height="16"/>
+      <rect x="835" y="685" width="200" height="16"/>
+      <rect x="835" y="715" width="200" height="16"/>
+      <rect x="835" y="745" width="200" height="16"/>
+      <rect x="835" y="775" width="200" height="16"/>
+    </g>
+    <text x="935" y="635" class="rlbl" text-anchor="middle">MARINA — covered boat slips</text>
+    <!-- boat launch ramp -->
+    <rect x="1000" y="560" width="40" height="55" fill="#b8b09a" stroke="#fff" stroke-width="1.5"/>
+    <circle cx="1020" cy="545" r="7" fill="#1c6"/>
+    <text x="1020" y="535" class="rlbl" text-anchor="middle">Boat Launch</text>
+  </g>
+
+  <!-- ===== ROADS ===== -->
+  <!-- Willow Lake Rd: west spine curving -->
+  <path class="spine" d="M300,40 C330,220 330,420 340,600 C345,700 330,790 320,860"/>
+  <!-- courts branching east into peninsulas -->
+  <path class="road" d="M330,120 C450,110 560,150 660,150"/>       <!-- Starboard Dr -->
+  <path class="road" d="M700,150 C760,150 810,190 830,240"/>       <!-- Starfish Ct -->
+  <path class="road" d="M340,360 C470,350 560,400 680,405"/>       <!-- Drakes Dr -->
+  <path class="road" d="M470,420 C500,500 500,560 500,600"/>       <!-- Drakes Ct -->
+  <path class="road" d="M345,660 C470,650 600,680 740,678"/>       <!-- Marlin Dr -->
+  <path class="road" d="M740,678 C790,675 830,650 860,620"/>       <!-- Marlin Pl to marina -->
+  <path class="road" d="M180,520 C240,530 260,580 255,640"/>       <!-- SW court -->
+
+  <!-- ===== DOCKS + BOATS (signature detail, along peninsula edges) ===== -->
+  <g class="dock">
+    <line x1="470" y1="205" x2="470" y2="235"/><line x1="530" y1="212" x2="530" y2="245"/>
+    <line x1="600" y1="205" x2="600" y2="238"/><line x1="680" y1="215" x2="700" y2="245"/>
+    <line x1="450" y1="470" x2="450" y2="500"/><line x1="520" y1="480" x2="520" y2="512"/>
+    <line x1="600" y1="482" x2="600" y2="515"/><line x1="700" y1="470" x2="700" y2="500"/>
+    <line x1="470" y1="695" x2="470" y2="725"/><line x1="560" y1="700" x2="560" y2="732"/>
+    <line x1="660" y1="698" x2="660" y2="730"/><line x1="150" y1="605" x2="150" y2="635"/>
+  </g>
+  <g class="boat">
+    <rect x="463" y="235" width="14" height="7" rx="2"/>
+    <rect x="523" y="245" width="14" height="7" rx="2"/>
+    <rect x="593" y="238" width="14" height="7" rx="2"/>
+    <rect x="443" y="500" width="14" height="7" rx="2"/>
+    <rect x="513" y="512" width="14" height="7" rx="2"/>
+    <rect x="463" y="725" width="14" height="7" rx="2"/>
+    <rect x="553" y="732" width="14" height="7" rx="2"/>
+  </g>
+
+  <!-- ===== STREET LABELS ===== -->
+  <text x="312" y="360" class="rlbl" transform="rotate(90 312 360)">Willow Lake Rd</text>
+  <g class="rlbli">
+    <text x="470" y="128">Starboard Dr</text>
+    <text x="760" y="200">Starfish Ct</text>
+    <text x="470" y="378">Drakes Dr</text>
+    <text x="505" y="560">Drakes Ct</text>
+    <text x="500" y="668">Marlin Dr</text>
+    <text x="780" y="655">Marlin Pl</text>
+  </g>
+
+  <!-- ===== TITLE / LEGEND / NORTH ===== -->
+  <rect x="0" y="0" width="1300" height="30" fill="#20323c"/>
+  <text x="14" y="21" fill="#fff" font-size="16" font-weight="bold">Discovery Bay — LAGOON &amp; MARINA DISTRICT (street-level trace, north = up)</text>
+
+  <g transform="translate(1255,60)">
+    <polygon points="0,-24 9,9 0,2 -9,9" fill="#20323c"/>
+    <text x="0" y="27" fill="#20323c" font-size="14" font-weight="bold" text-anchor="middle">N</text>
+  </g>
+
+  <g transform="translate(30,60)">
+    <rect x="-8" y="-18" width="230" height="150" fill="#ffffff" opacity="0.85" rx="8"/>
+    <text x="0" y="0" fill="#20323c" font-size="14" font-weight="bold">LEGEND</text>
+    <rect x="0" y="10" width="20" height="12" fill="#4f97bd"/><text x="28" y="20" font-size="12" fill="#20323c">Lagoon / open water</text>
+    <rect x="0" y="28" width="20" height="12" fill="#d9d0ac"/><text x="28" y="38" font-size="12" fill="#20323c">Peninsula (housing)</text>
+    <line x1="0" y1="50" x2="20" y2="50" stroke="#fff" stroke-width="6"/><text x="28" y="54" font-size="12" fill="#20323c">Road (thick = spine)</text>
+    <line x1="6" y1="66" x2="6" y2="80" stroke="#7a5230" stroke-width="3"/><text x="28" y="78" font-size="12" fill="#20323c">Private dock</text>
+    <rect x="0" y="88" width="16" height="10" fill="#cfc6a8" stroke="#8a8060"/><text x="28" y="97" font-size="12" fill="#20323c">Marina slips</text>
+    <rect x="0" y="104" width="16" height="10" fill="#8aa06a"/><text x="28" y="113" font-size="12" fill="#20323c">Delta farmland</text>
+  </g>
+
+  <text x="14" y="852" fill="#eaf3f8" font-size="13" font-weight="bold">Key move: every waterfront lot gets a dock + boat. That single detail is what makes it read as Discovery Bay.</text>
+</svg>

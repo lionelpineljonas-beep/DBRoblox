@@ -1,0 +1,145 @@
+<svg viewBox="0 0 1400 1000" xmlns="http://www.w3.org/2000/svg" font-family="Arial, Helvetica, sans-serif">
+  <defs>
+    <style>
+      .rd { stroke:#f4efe2; stroke-width:7; fill:none; stroke-linecap:round; stroke-linejoin:round; }
+      .rdmain { stroke:#ffffff; stroke-width:11; fill:none; stroke-linecap:round; stroke-linejoin:round; }
+      .lagoon { stroke:#4f93b8; fill:none; stroke-linecap:round; stroke-linejoin:round; }
+      .lbl { fill:#20323c; font-size:16px; font-weight:bold; }
+      .rlbl { fill:#4a4a4a; font-size:13px; font-style:italic; }
+      .zlbl { fill:#20323c; font-size:19px; font-weight:bold; }
+      .badge { fill:#e8562a; stroke:#fff; stroke-width:2.5; }
+      .bnum { fill:#fff; font-size:18px; font-weight:bold; text-anchor:middle; }
+    </style>
+  </defs>
+
+  <!-- ===== WATER BASE ===== -->
+  <rect x="0" y="0" width="1400" height="1000" fill="#8fbcd4"/>
+
+  <!-- Delta borders -->
+  <path d="M0,0 H1400 V150 C1150,120 1000,175 820,140 C650,110 400,150 0,110 Z" fill="#3d6f8c"/>
+  <path d="M1195,150 H1400 V1000 H1230 C1250,760 1215,470 1195,150 Z" fill="#3d6f8c"/>
+  <text x="300" y="55" class="lbl" fill="#eaf3f8">INDIAN SLOUGH  (Delta)</text>
+  <text x="1250" y="620" class="lbl" fill="#eaf3f8" transform="rotate(90 1250 620)">OLD RIVER  (Delta)</text>
+
+  <!-- ===== COMMUNITY LANDMASS (tan) ===== -->
+  <path d="M70,140 C300,120 520,150 760,138 C980,128 1120,150 1195,175
+           C1210,470 1245,760 1230,970 L90,970
+           C60,720 55,430 70,140 Z" fill="#d9d0ac"/>
+
+  <!-- ===== LAGOON MAZE (suggested winding channels) ===== -->
+  <g class="lagoon" stroke-width="20" opacity="0.95">
+    <path d="M120,200 C230,240 180,330 300,340 C420,350 380,250 500,270"/>
+    <path d="M110,340 C220,360 250,470 160,520 C90,560 210,610 300,560"/>
+    <path d="M120,660 C240,640 300,720 220,800 C160,860 300,880 380,820"/>
+    <path d="M380,560 C300,470 460,430 420,340"/>
+    <path d="M470,600 C560,560 520,470 610,460"/>
+    <path d="M470,760 C560,720 540,650 470,600"/>
+    <path d="M300,200 C360,150 470,180 470,120"/>
+    <path d="M980,200 C900,260 1010,300 940,370"/>
+    <path d="M1050,470 C980,520 1080,560 1010,620"/>
+    <path d="M300,900 C400,860 470,900 560,860"/>
+    <path d="M640,900 C720,860 700,800 780,820"/>
+  </g>
+
+  <!-- Willow Lake (open water) -->
+  <ellipse cx="800" cy="330" rx="150" ry="95" fill="#5aa0c4"/>
+  <text x="800" y="335" class="lbl" fill="#0f2f40" text-anchor="middle">Willow Lake</text>
+
+  <!-- ===== GOLF COURSE (green, SE) ===== -->
+  <path d="M640,600 C740,560 900,560 1050,600 C1150,630 1180,760 1130,900
+           C1000,950 800,940 660,900 C600,820 600,690 640,600 Z"
+        fill="#7fae5a" opacity="0.95"/>
+  <!-- fairway winding lighter -->
+  <path d="M700,650 C820,630 960,650 1080,700" stroke="#9ac47a" stroke-width="34" fill="none" stroke-linecap="round"/>
+  <path d="M720,860 C820,820 960,840 1090,820" stroke="#9ac47a" stroke-width="30" fill="none" stroke-linecap="round"/>
+  <!-- golf ponds -->
+  <ellipse cx="820" cy="720" rx="45" ry="26" fill="#4f93b8"/>
+  <ellipse cx="1000" cy="780" rx="38" ry="22" fill="#4f93b8"/>
+  <!-- bunkers -->
+  <ellipse cx="900" cy="670" rx="20" ry="12" fill="#e6dcae"/>
+  <ellipse cx="760" cy="820" rx="18" ry="11" fill="#e6dcae"/>
+  <text x="870" y="600" class="zlbl">GOLF COURSE (18 holes)</text>
+
+  <!-- ===== MARINA (east) ===== -->
+  <g>
+    <rect x="1120" y="250" width="80" height="150" fill="#5aa0c4"/>
+    <g fill="#c9bfa0">
+      <rect x="1128" y="262" width="64" height="7"/>
+      <rect x="1128" y="282" width="64" height="7"/>
+      <rect x="1128" y="302" width="64" height="7"/>
+      <rect x="1128" y="322" width="64" height="7"/>
+      <rect x="1128" y="342" width="64" height="7"/>
+      <rect x="1128" y="362" width="64" height="7"/>
+    </g>
+  </g>
+
+  <!-- ===== ROADS ===== -->
+  <!-- Discovery Bay Blvd: main N-S spine -->
+  <path class="rdmain" d="M600,150 C590,300 600,470 590,600 C585,690 610,740 660,770"/>
+  <!-- Willow Lake Rd: E-W -->
+  <path class="rd" d="M470,470 C640,455 820,450 1000,470"/>
+  <!-- Sand Point Rd (west) -->
+  <path class="rd" d="M150,430 C300,415 450,420 590,430"/>
+  <!-- Clubhouse Dr: loop to clubhouse and east -->
+  <path class="rd" d="M660,770 C740,810 830,800 900,760 C980,715 1030,720 1080,700"/>
+  <!-- Cherry Hills Dr (east edge of course) -->
+  <path class="rd" d="M1080,500 C1095,620 1090,760 1070,880"/>
+  <!-- Marina Rd (east) -->
+  <path class="rd" d="M1000,470 C1050,440 1090,430 1120,420"/>
+
+  <!-- road labels -->
+  <text x="612" y="240" class="rlbl" transform="rotate(88 612 240)">Discovery Bay Blvd</text>
+  <text x="700" y="445" class="rlbl">Willow Lake Rd</text>
+  <text x="250" y="410" class="rlbl">Sand Point Rd</text>
+  <text x="760" y="812" class="rlbl">Clubhouse Dr</text>
+  <text x="1090" y="640" class="rlbl" transform="rotate(88 1090 640)">Cherry Hills Dr</text>
+
+  <!-- ===== LANDMARKS ===== -->
+  <!-- Clubhouse (star) -->
+  <polygon points="850,735 858,758 882,758 863,772 870,795 850,781 830,795 837,772 818,758 842,758"
+           fill="#c0392b" stroke="#fff" stroke-width="1.5"/>
+  <text x="850" y="820" class="lbl" text-anchor="middle">Clubhouse</text>
+  <!-- Community Center -->
+  <rect x="533" y="360" width="26" height="20" fill="#8e44ad"/>
+  <text x="546" y="352" class="lbl" text-anchor="middle">Community Ctr</text>
+  <!-- Yacht Club / Marina -->
+  <circle cx="1160" cy="230" r="9" fill="#2c7"/>
+  <text x="1160" y="220" class="lbl" text-anchor="middle">Yacht Club / Marina</text>
+  <!-- Boat Launch -->
+  <circle cx="1090" cy="185" r="8" fill="#1c6"/>
+  <text x="1090" y="176" class="lbl" text-anchor="middle">Boat Launch</text>
+  <!-- Lighthouse (north entry) -->
+  <polygon points="740,120 748,150 732,150" fill="#e74c3c"/>
+  <text x="740" y="112" class="lbl" text-anchor="middle">DB Lighthouse (Delta entry)</text>
+
+  <!-- ===== BUILD-ORDER BADGES ===== -->
+  <g>
+    <circle class="badge" cx="850" cy="700" r="20"/><text class="bnum" x="850" y="707">1</text>
+    <circle class="badge" cx="546" cy="410" r="20"/><text class="bnum" x="546" y="417">1</text>
+    <circle class="badge" cx="740" cy="670" r="20"/><text class="bnum" x="740" y="677">2</text>
+    <circle class="badge" cx="300" cy="470" r="20"/><text class="bnum" x="300" y="477">3</text>
+    <circle class="badge" cx="1160" cy="320" r="20"/><text class="bnum" x="1160" y="327">4</text>
+    <circle class="badge" cx="200" cy="180" r="20"/><text class="bnum" x="200" y="187">5</text>
+  </g>
+
+  <!-- ===== TITLE / NORTH / SCALE / LEGEND ===== -->
+  <text x="40" y="998" fill="#20323c" font-size="15" font-weight="bold">Discovery Bay Golf &amp; Country Club — schematic layout for Roblox (north = up). Trace fine canal detail from Google Maps satellite.</text>
+
+  <!-- north arrow -->
+  <g transform="translate(1330,60)">
+    <polygon points="0,-28 10,10 0,2 -10,10" fill="#20323c"/>
+    <text x="0" y="30" fill="#20323c" font-size="15" font-weight="bold" text-anchor="middle">N</text>
+  </g>
+
+  <!-- legend -->
+  <g transform="translate(60,120)">
+    <rect x="-10" y="-25" width="250" height="190" fill="#ffffff" opacity="0.82" rx="8"/>
+    <text x="0" y="-5" fill="#20323c" font-size="15" font-weight="bold">LEGEND</text>
+    <rect x="0" y="8" width="22" height="14" fill="#3d6f8c"/><text x="30" y="20" font-size="13" fill="#20323c">Delta river</text>
+    <rect x="0" y="30" width="22" height="14" fill="#5aa0c4"/><text x="30" y="42" font-size="13" fill="#20323c">Lagoon / lake</text>
+    <rect x="0" y="52" width="22" height="14" fill="#d9d0ac"/><text x="30" y="64" font-size="13" fill="#20323c">Housing land</text>
+    <rect x="0" y="74" width="22" height="14" fill="#7fae5a"/><text x="30" y="86" font-size="13" fill="#20323c">Golf course</text>
+    <line x1="0" y1="103" x2="22" y2="103" stroke="#fff" stroke-width="6"/><text x="30" y="108" font-size="13" fill="#20323c">Road</text>
+    <circle class="badge" cx="11" cy="128" r="11"/><text x="30" y="133" font-size="13" fill="#20323c">Build-order zone</text>
+  </g>
+</svg>
