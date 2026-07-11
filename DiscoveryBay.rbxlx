@@ -1457,6 +1457,9 @@ local PRODUCTS = {
 	{ name = "Milk",          price = 3, kind = "box",     color = Color3.fromRGB(245, 245, 245) },
 	{ name = "Cookie",        price = 2, kind = "donut",   color = Color3.fromRGB(170, 120, 70) },
 	{ name = "Fried Chicken", price = 8, kind = "melon",   color = Color3.fromRGB(190, 140, 70) },
+	-- Fish N Bait gear
+	{ name = "Fishing Rod", price = 25, kind = "rod", color = Color3.fromRGB(120, 85, 50) },
+	{ name = "Bait Pack",   price = 3,  kind = "bag", color = Color3.fromRGB(180, 150, 100) },
 }
 
 -- (addProductDisplay is defined below productPart — Lua locals must be declared
@@ -1486,6 +1489,12 @@ local function productPart(parent, name, kind, color, cf)
 		local dia = (kind == "burrito") and 0.95 or 0.65
 		p = newPart(parent, name, Vector3.new(len, dia, dia), cf, color)
 		p.Shape = Enum.PartType.Cylinder
+	elseif kind == "rod" then
+		-- long thin pole along X: a fishing rod
+		p = newPart(parent, name, Vector3.new(6, 0.35, 0.35), cf, color)
+		p.Shape = Enum.PartType.Cylinder
+	elseif kind == "bag" then
+		p = newPart(parent, name, Vector3.new(1.3, 1.5, 0.9), cf, color)
 	else -- can / bottle / cup: standing cylinder
 		local h = (kind == "bottle" and 1.5) or (kind == "cup" and 1.2) or 1.3
 		p = newColumn(parent, name, h, 0.9, cf, color)
@@ -1572,6 +1581,9 @@ local function buildGround()
 				local p = newPart(parent, "G_" .. run.class, size, CFrame.new(center),
 					style.color, style.material, style.transparency)
 				p.CastShadow = false
+				if run.class == "w" then
+					p:SetAttribute("Water", true) -- fishable (Fishing Rod checks this)
+				end
 			end
 		end
 	end
@@ -1647,6 +1659,23 @@ local function onRoad(x, z)
 				for _, s in ipairs(cellList) do
 					local dx, dz = s[1] - x, s[2] - z
 					if dx * dx + dz * dz < s[3] * s[3] then return true end
+				end
+			end
+		end
+	end
+	return false
+end
+
+-- tighter test: within r feet of a road CENTERLINE. NPC cars drive the centerline with
+-- no collision, so anything inside this band reads as "cars phasing through the walls".
+local function nearCarPath(x, z, r)
+	for gx = -1, 1 do
+		for gz = -1, 1 do
+			local cellList = roadHash[math.floor(x / ROAD_CELL + gx) .. ":" .. math.floor(z / ROAD_CELL + gz)]
+			if cellList then
+				for _, s in ipairs(cellList) do
+					local dx, dz = s[1] - x, s[2] - z
+					if dx * dx + dz * dz < r * r then return true end
 				end
 			end
 		end
@@ -2082,31 +2111,72 @@ local function nearElementary(x, z)
 end
 
 local counts = { r = 0, c = 0, s = 0, docks = 0 }
+
+-- true when no point of the footprint sits inside the traffic lane band
+local function clearOfCars(x, z, bw, bd, yawDeg)
+	local yr = math.rad(yawDeg)
+	local fx, fz = -math.sin(yr), math.cos(yr) -- front dir (east, north)
+	local sx2, sz2 = math.cos(yr), math.sin(yr) -- side dir
+	local hw, hd = bw / 2, bd / 2
+	for _, c in ipairs({ { 0, 0 }, { hw, hd }, { hw, -hd }, { -hw, hd }, { -hw, -hd },
+		{ hw, 0 }, { -hw, 0 }, { 0, hd }, { 0, -hd } }) do
+		if nearCarPath(x + sx2 * c[1] + fx * c[2], z + sz2 * c[1] + fz * c[2], 14) then
+			return false
+		end
+	end
+	return true
+end
+
 local function buildBuildings()
+	local nudgedN, droppedN = 0, 0
 	for _, b in ipairs(buildings) do
 		if inRegion(b.x, b.z) and not nearPlaza(b.x, b.z)
 			and not (b.cls == "s" and nearElementary(b.x, b.z)) then
-			local pos = toWorld(b.x, b.z, Y_LAND)
-			local cf = CFrame.new(pos) * CFrame.Angles(0, math.rad(b.yaw), 0)
-			local m = newModel(FOLDERS.Buildings, b.cls == "r" and "House" or (b.cls == "c" and "Commercial" or "School"))
-			if b.cls == "r" then
-				buildResidential(m, cf, b)
-				counts.r = counts.r + 1
-			elseif b.cls == "c" then
-				buildCommercial(m, cf, b)
-				counts.c = counts.c + 1
-			else
-				buildSchoolBox(m, cf, b)
-				counts.s = counts.s + 1
+			-- keep buildings out of the traffic lanes: NPC cars have no collision, so
+			-- any overlap reads as cars phasing through walls. Nudge clear, or drop.
+			local bx, bz = b.x, b.z
+			local usable = clearOfCars(bx, bz, b.w, b.d, b.yaw)
+			if not usable then
+				local yr = math.rad(b.yaw)
+				local fx, fz = -math.sin(yr), math.cos(yr)
+				local sx2, sz2 = math.cos(yr), math.sin(yr)
+				for _, dirv in ipairs({ { -fx, -fz }, { sx2, sz2 }, { -sx2, -sz2 } }) do
+					for step = 4, 16, 4 do
+						local nx, nz = b.x + dirv[1] * step, b.z + dirv[2] * step
+						if clearOfCars(nx, nz, b.w, b.d, b.yaw) then
+							bx, bz, usable = nx, nz, true
+							break
+						end
+					end
+					if usable then break end
+				end
+				if usable then nudgedN = nudgedN + 1 else droppedN = droppedN + 1 end
 			end
-			markBuilding(b.x, b.z)
-			if b.cls == "r" and b.dockYaw and CONFIG.build.docks then
-				if buildDockAndBoat(b) then
-					counts.docks = counts.docks + 1
+			if usable then
+				local pos = toWorld(bx, bz, Y_LAND)
+				local cf = CFrame.new(pos) * CFrame.Angles(0, math.rad(b.yaw), 0)
+				local m = newModel(FOLDERS.Buildings, b.cls == "r" and "House" or (b.cls == "c" and "Commercial" or "School"))
+				if b.cls == "r" then
+					buildResidential(m, cf, b)
+					counts.r = counts.r + 1
+				elseif b.cls == "c" then
+					buildCommercial(m, cf, b)
+					counts.c = counts.c + 1
+				else
+					buildSchoolBox(m, cf, b)
+					counts.s = counts.s + 1
+				end
+				markBuilding(bx, bz)
+				if b.cls == "r" and b.dockYaw and CONFIG.build.docks then
+					if buildDockAndBoat(b) then
+						counts.docks = counts.docks + 1
+					end
 				end
 			end
 		end
 	end
+	print(("[DiscoveryBay] road clearance: %d buildings nudged off car lanes, %d dropped"):format(
+		nudgedN, droppedN))
 end
 
 --==============================================================================================
@@ -2347,6 +2417,42 @@ local function buildPlaza()
 		"Psst! Mystery dogs in these eggs. Mostly Mary or Jolene... but one in a HUNDRED hatches Linus. Rent a house first - pups need a home!",
 		{ { "Who's Linus?",
 			"A golden legend. Pays $100 a pet. I saw him hatch once. Changed my whole life." } })
+
+	-- Fish N Bait: rods and bait out front, and a counter that buys your catch
+	do
+		local fSh = rowCf * CFrame.new(36 * S, 0, 18 * S)
+		local mF = storefront(m, "Fish N Bait", fSh, 30, 24, 12,
+			Color3.fromRGB(50, 110, 160), Color3.new(1, 1, 1))
+		local function productByName(nm)
+			for _, pr in ipairs(PRODUCTS) do
+				if pr.name == nm then return pr end
+			end
+		end
+		newPart(mF, "RodStand", Vector3.new(3, 3.2, 3) * S,
+			fSh * CFrame.new(-9 * S, 1.6 * S, -16 * S), Color3.fromRGB(140, 110, 80), Enum.Material.Wood)
+		addProductDisplay(mF, productByName("Fishing Rod"), fSh * CFrame.new(-9 * S, 4.1 * S, -16 * S))
+		newColumn(mF, "BaitBarrel", 3 * S, 3 * S,
+			fSh * CFrame.new(-3 * S, 1.5 * S, -16 * S), Color3.fromRGB(120, 90, 60), Enum.Material.Wood)
+		addProductDisplay(mF, productByName("Bait Pack"), fSh * CFrame.new(-3 * S, 3.6 * S, -16 * S))
+		local sellC = newPart(mF, "SellCounter", Vector3.new(7, 3.4, 2.5) * S,
+			fSh * CFrame.new(6.5 * S, 1.9 * S, -16 * S), Color3.fromRGB(90, 70, 50), Enum.Material.Wood)
+		sellC:SetAttribute("FishSell", true)
+		makeSign(sellC, Enum.NormalId.Front, "SELL FISH", Color3.fromRGB(90, 70, 50), Color3.new(1, 1, 1))
+		local sellPrompt = Instance.new("ProximityPrompt")
+		sellPrompt.ActionText = "Sell"
+		sellPrompt.ObjectText = "Sell your fish"
+		sellPrompt.MaxActivationDistance = 10
+		sellPrompt.RequiresLineOfSight = false
+		sellPrompt.Parent = sellC
+		-- trophy over the door
+		newPart(mF, "TrophyFish", Vector3.new(4, 1.3, 0.5) * S,
+			fSh * CFrame.new(9 * S, 8 * S, -12.6 * S), Color3.fromRGB(70, 140, 190))
+		buildNPC(mF, "Captain Finn", fSh * CFrame.new(11 * S, 0, -18 * S),
+			Color3.fromRGB(50, 110, 160),
+			"Ahoy! Grab a rod, grab bait, and cast into ANY water in the bay. When the bobber glows - REEL! I buy every fish you land.",
+			{ { "Any secret fish?",
+				"They whisper of THE LIONEL. One cast in a hundred. Worth five hundred bucks. Never landed it myself... yet." } })
+	end
 
 	-- Callahan's Coffee and Cones (REQUIRED): a walk-in ice cream shop
 	do
@@ -2711,7 +2817,8 @@ local function findBloxwaySite()
 			local cz = plazaPt.z + math.sin(math.rad(ang)) * r
 			local ok = true
 			for _, off in ipairs({ { 0, 0 }, { 115, 0 }, { -115, 0 }, { 0, 90 }, { 0, -90 },
-				{ 85, 70 }, { -85, 70 }, { 85, -70 }, { -85, -70 } }) do
+				{ 85, 70 }, { -85, 70 }, { 85, -70 }, { -85, -70 },
+				{ 45, 35 }, { -45, 35 }, { 45, -35 }, { -45, -35 }, { 0, 45 }, { 0, -45 } }) do
 				local px, pz = cx + off[1], cz + off[2]
 				local cls = classAt(px, pz)
 				if (cls ~= "l" and cls ~= "p") or onRoad(px, pz) or nearBuilding(px, pz, 55) then
@@ -3074,7 +3181,7 @@ end)
 local START_CASH = 100
 local WALK_SPEED = 16
 local SCOOTER_SPEED = 30
-local VERSION = "v36"
+local VERSION = "v37"
 local TRICK_COOLDOWN = 1.2
 local TRAFFIC_CARS = 130
 local CAR_SPEED = 38
@@ -3107,6 +3214,8 @@ local DoTrick = remote("DoTrick")
 local TrickResult = remote("TrickResult")
 local ToggleScooter = remote("ToggleScooter")
 local HatchEgg = remote("HatchEgg") -- server -> client: play the on-screen hatch cinematic
+local FishGame = remote("FishGame") -- server -> client: FISH ON! start the reel minigame
+local FishReel = remote("FishReel") -- client -> server: minigame result (true = landed)
 
 -- Cash leaderboard ------------------------------------------------------------------------------
 local function getCash(plr)
@@ -3950,6 +4059,11 @@ local EFFECTS = {
 		plr:SetAttribute("TrickMult", 2)
 		return "MINT POWER! Trick payouts x2"
 	end,
+	["Bait Pack"] = function(plr)
+		local n = (plr:GetAttribute("Bait") or 0) + 5
+		plr:SetAttribute("Bait", n)
+		return "Bait +5! You have " .. n .. " bait"
+	end,
 }
 
 local function hookProduct(part)
@@ -4452,6 +4566,201 @@ task.spawn(function()
 end)
 
 --==============================================================================================
+-- FISHING (Fish N Bait): rod + bait -> cast into water -> reel minigame -> sell the catch
+--==============================================================================================
+local FISH = {
+	{ name = "Bluegill",      pay = 6,   weight = 40 },
+	{ name = "Bass",          pay = 14,  weight = 28 },
+	{ name = "Rainbow Trout", pay = 22,  weight = 16 },
+	{ name = "Catfish",       pay = 35,  weight = 10 },
+	{ name = "Golden Salmon", pay = 120, weight = 5 },
+	{ name = "THE LIONEL",    pay = 500, weight = 1 },
+}
+local FISH_BY_NAME = {}
+for _, f in ipairs(FISH) do
+	FISH_BY_NAME[f.name] = f
+end
+
+local fishBag = {}   -- uid -> { [fishName] = count }
+local castState = {} -- uid -> { stage = "wait"|"bite", bobber = Part }
+
+local function rollFish()
+	local total = 0
+	for _, f in ipairs(FISH) do
+		total = total + f.weight
+	end
+	local pick = rng:NextNumber() * total
+	local acc = 0
+	for _, f in ipairs(FISH) do
+		acc = acc + f.weight
+		if pick <= acc then return f end
+	end
+	return FISH[1]
+end
+
+local function clearCast(uid)
+	local st = castState[uid]
+	if st and st.bobber and st.bobber.Parent then
+		st.bobber:Destroy()
+	end
+	castState[uid] = nil
+end
+
+local function findWaterAhead(hrp)
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	params.FilterDescendantsInstances = { hrp.Parent }
+	local look = hrp.CFrame.LookVector
+	local flat = Vector3.new(look.X, 0, look.Z)
+	if flat.Magnitude < 0.05 then
+		flat = Vector3.new(0, 0, -1)
+	end
+	flat = flat.Unit
+	for _, dist in ipairs({ 8, 14, 22 }) do
+		local origin = hrp.Position + flat * dist + Vector3.new(0, 12, 0)
+		local hit = workspace:Raycast(origin, Vector3.new(0, -60, 0), params)
+		if hit and hit.Instance and hit.Instance:GetAttribute("Water") then
+			return hit.Position
+		end
+	end
+	return nil
+end
+
+local function hookRod(plr, tool)
+	tool.Activated:Connect(function()
+		local uid = plr.UserId
+		if castState[uid] then return end -- line's already in the water
+		local char = plr.Character
+		local hrp = char and char:FindFirstChild("HumanoidRootPart")
+		local hum = char and char:FindFirstChildOfClass("Humanoid")
+		if not hrp or not hum or hum.Health <= 0 then return end
+		local waterPos = findWaterAhead(hrp)
+		if not waterPos then
+			TrickResult:FireClient(plr, "Face some water to cast! The bay is full of it.", 0)
+			return
+		end
+		local bait = plr:GetAttribute("Bait") or 0
+		if bait <= 0 then
+			TrickResult:FireClient(plr, "Out of bait! Grab a Bait Pack at Fish N Bait.", 0)
+			return
+		end
+		plr:SetAttribute("Bait", bait - 1)
+		local bobber = Instance.new("Part")
+		bobber.Name = "Bobber"
+		bobber.Shape = Enum.PartType.Ball
+		bobber.Size = Vector3.new(1, 1, 1)
+		bobber.Color = Color3.fromRGB(230, 60, 50)
+		bobber.Anchored = true
+		bobber.CanCollide = false
+		bobber.CFrame = CFrame.new(waterPos + Vector3.new(0, 0.3, 0))
+		bobber.Parent = workspace
+		castState[uid] = { stage = "wait", bobber = bobber }
+		TrickResult:FireClient(plr, "Cast! Watch the bobber... (" .. (bait - 1) .. " bait left)", 0)
+		task.delay(rng:NextNumber(2, 6), function()
+			local st = castState[uid]
+			if not st or st.stage ~= "wait" then return end
+			if not tool.Parent then
+				clearCast(uid)
+				return
+			end
+			st.stage = "bite"
+			if st.bobber and st.bobber.Parent then
+				st.bobber.Material = Enum.Material.Neon -- the bobber lights up: FISH ON
+			end
+			FishGame:FireClient(plr)
+			task.delay(6, function()
+				local st2 = castState[uid]
+				if st2 and st2.stage == "bite" then
+					clearCast(uid)
+					TrickResult:FireClient(plr, "Too slow... it got away.", 0)
+				end
+			end)
+		end)
+	end)
+end
+
+FishReel.OnServerEvent:Connect(function(plr, success)
+	local uid = plr.UserId
+	local st = castState[uid]
+	if not st or st.stage ~= "bite" then return end
+	clearCast(uid)
+	if success ~= true then
+		TrickResult:FireClient(plr, "It wriggled off the hook!", 0)
+		return
+	end
+	local f = rollFish()
+	local bag = fishBag[uid]
+	if not bag then
+		bag = {}
+		fishBag[uid] = bag
+	end
+	bag[f.name] = (bag[f.name] or 0) + 1
+	if f.name == "THE LIONEL" then
+		TrickResult:FireClient(plr, "THE LIONEL!!! The 1-in-100 legend - worth $500!", 0)
+	else
+		TrickResult:FireClient(plr, "Caught a " .. f.name .. "! (sells for $" .. f.pay .. ")", 0)
+	end
+end)
+
+local function hookFishSell(part)
+	local prompt = part:FindFirstChildOfClass("ProximityPrompt")
+	if not prompt then return end
+	prompt.Triggered:Connect(function(plr)
+		local bag = fishBag[plr.UserId]
+		local total, n = 0, 0
+		if bag then
+			for nm, count in pairs(bag) do
+				local f = FISH_BY_NAME[nm]
+				if f then
+					total = total + f.pay * count
+					n = n + count
+				end
+			end
+		end
+		if n == 0 then
+			TrickResult:FireClient(plr, "No fish yet! Cast a line anywhere in the bay.", 0)
+			return
+		end
+		fishBag[plr.UserId] = nil
+		local cash = getCash(plr)
+		if cash then
+			cash.Value = cash.Value + total
+		end
+		TrickResult:FireClient(plr, "Sold " .. n .. " fish for $" .. total .. "!", 0)
+	end)
+end
+
+local function watchRods(char, plr)
+	local ev = char.ChildAdded
+	if not ev then return end -- (mock sim characters have no ChildAdded)
+	ev:Connect(function(child)
+		if child.Name == "Fishing Rod" and child:IsA("Tool")
+			and not child:GetAttribute("RodHooked") then
+			child:SetAttribute("RodHooked", true)
+			hookRod(plr, child)
+		end
+	end)
+end
+
+Players.PlayerAdded:Connect(function(plr)
+	plr.CharacterAdded:Connect(function(char)
+		watchRods(char, plr)
+	end)
+end)
+for _, plr in ipairs(Players:GetPlayers()) do
+	plr.CharacterAdded:Connect(function(char)
+		watchRods(char, plr)
+	end)
+	if plr.Character then
+		watchRods(plr.Character, plr)
+	end
+end
+Players.PlayerRemoving:Connect(function(plr)
+	clearCast(plr.UserId)
+	fishBag[plr.UserId] = nil
+end)
+
+--==============================================================================================
 -- WEATHER: every 2 in-game days a random one of 50 weathers rolls in for 2 minutes.
 -- Disasters hurt (shelter indoors!), boosts speed you up, some just pay or look wild.
 --==============================================================================================
@@ -4902,6 +5211,8 @@ task.spawn(function()
 				hookRent(d)
 			elseif d:GetAttribute("EggShop") then
 				hookEgg(d)
+			elseif d:GetAttribute("FishSell") then
+				hookFishSell(d)
 			end
 		end
 	end
@@ -4960,7 +5271,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 
-local VERSION = "v36"
+local VERSION = "v37"
 local SPEED_PASS_ID = 0 -- paste the real Game Pass ID here (same one as in DiscoveryBayShop)
 local RunService = game:GetService("RunService")
 local plr = Players.LocalPlayer
@@ -4970,6 +5281,8 @@ local DoTrick = remotes:WaitForChild("DoTrick")
 local TrickResult = remotes:WaitForChild("TrickResult")
 local ToggleScooter = remotes:WaitForChild("ToggleScooter")
 local HatchEgg = remotes:WaitForChild("HatchEgg")
+local FishGame = remotes:WaitForChild("FishGame")
+local FishReel = remotes:WaitForChild("FishReel")
 
 -- background music: Roblox's own licensed "Lofi Chill A" (free-to-use library track),
 -- looping softly from the moment you join
@@ -5540,7 +5853,7 @@ mapLegend.Font = Enum.Font.FredokaOne
 mapLegend.TextSize = 15
 mapLegend.TextColor3 = Color3.new(1, 1, 1)
 mapLegend.TextStrokeTransparency = 0.5
-mapLegend.Text = "S ShellBlox   C Callahan's   B Bloxway   J Jiu Jitsu   E School   ● stores   -   click to mark"
+mapLegend.Text = "S ShellBlox   C Callahan's   B Bloxway   J Jiu Jitsu   E School   F Fish   ● stores   -   click to mark"
 mapLegend.ZIndex = 10
 mapLegend.Parent = mapFrame
 
@@ -5669,6 +5982,7 @@ local function buildMap()
 	if landmarks then
 		local plaza = landmarks:FindFirstChild("Discovery Bay Blvd Plaza")
 		dot(plaza and plaza:FindFirstChild("ShellBlox Gas Station"), "S", Color3.fromRGB(230, 180, 30))
+		dot(plaza and plaza:FindFirstChild("Fish N Bait"), "F", Color3.fromRGB(60, 160, 220))
 		dot(plaza and plaza:FindFirstChild("Callahan's Coffee and Cones"), "C", Color3.fromRGB(200, 100, 140))
 		dot(plaza and plaza:FindFirstChild("Discovery Bay Jiu Jitsu"), "J", Color3.fromRGB(40, 45, 60))
 		dot(landmarks:FindFirstChild("BLOXWAY"), "B", Color3.fromRGB(200, 60, 55))
@@ -6010,6 +6324,107 @@ TrickResult.OnClientEvent:Connect(function(trickName, pay)
 	}):Play()
 	task.delay(1.2, function()
 		pop:Destroy()
+	end)
+end)
+
+-- FISHING minigame: FISH ON! stop the swinging marker inside the green zone ----------------------
+local fishFrame = nil
+FishGame.OnClientEvent:Connect(function()
+	if fishFrame then
+		fishFrame:Destroy()
+		fishFrame = nil
+	end
+	local frame = Instance.new("Frame")
+	frame.AnchorPoint = Vector2.new(0.5, 0.5)
+	frame.Position = UDim2.new(0.5, 0, 0.62, 0)
+	frame.Size = UDim2.new(0, 400, 0, 170)
+	frame.BackgroundColor3 = Color3.fromRGB(20, 40, 60)
+	frame.BackgroundTransparency = 0.1
+	frame.Parent = gui
+	fishFrame = frame
+	local fCorner = Instance.new("UICorner")
+	fCorner.CornerRadius = UDim.new(0, 16)
+	fCorner.Parent = frame
+	local title = Instance.new("TextLabel")
+	title.Position = UDim2.new(0, 0, 0, 8)
+	title.Size = UDim2.new(1, 0, 0, 34)
+	title.BackgroundTransparency = 1
+	title.Font = Enum.Font.FredokaOne
+	title.TextSize = 30
+	title.TextColor3 = Color3.fromRGB(255, 225, 120)
+	title.Text = "FISH ON!"
+	title.Parent = frame
+	local bar = Instance.new("Frame")
+	bar.AnchorPoint = Vector2.new(0.5, 0)
+	bar.Position = UDim2.new(0.5, 0, 0, 52)
+	bar.Size = UDim2.new(0, 340, 0, 26)
+	bar.BackgroundColor3 = Color3.fromRGB(10, 20, 30)
+	bar.Parent = frame
+	local bCorner = Instance.new("UICorner")
+	bCorner.CornerRadius = UDim.new(0, 8)
+	bCorner.Parent = bar
+	local zoneW = 0.26
+	local zoneX = 0.12 + math.random() * (1 - zoneW - 0.24)
+	local zone = Instance.new("Frame")
+	zone.Position = UDim2.fromScale(zoneX, 0)
+	zone.Size = UDim2.fromScale(zoneW, 1)
+	zone.BackgroundColor3 = Color3.fromRGB(90, 210, 110)
+	zone.Parent = bar
+	local zCorner = Instance.new("UICorner")
+	zCorner.CornerRadius = UDim.new(0, 8)
+	zCorner.Parent = zone
+	local marker = Instance.new("Frame")
+	marker.AnchorPoint = Vector2.new(0.5, 0)
+	marker.Size = UDim2.new(0, 6, 1.3, 0)
+	marker.Position = UDim2.fromScale(0.5, -0.15)
+	marker.BackgroundColor3 = Color3.new(1, 1, 1)
+	marker.ZIndex = 3
+	marker.Parent = bar
+	local reelBtn = Instance.new("TextButton")
+	reelBtn.AnchorPoint = Vector2.new(0.5, 1)
+	reelBtn.Position = UDim2.new(0.5, 0, 1, -12)
+	reelBtn.Size = UDim2.new(0, 170, 0, 44)
+	reelBtn.BackgroundColor3 = Color3.fromRGB(250, 205, 30)
+	reelBtn.TextColor3 = Color3.fromRGB(40, 30, 10)
+	reelBtn.Font = Enum.Font.FredokaOne
+	reelBtn.TextSize = 24
+	reelBtn.Text = "REEL!  (Space)"
+	reelBtn.Parent = frame
+	local rCorner = Instance.new("UICorner")
+	rCorner.CornerRadius = UDim.new(0, 12)
+	rCorner.Parent = reelBtn
+
+	local pos = 0.5
+	local t0 = os.clock()
+	local moveConn = RunService.RenderStepped:Connect(function()
+		pos = 0.5 + 0.5 * math.sin((os.clock() - t0) * 4.2)
+		marker.Position = UDim2.fromScale(pos, -0.15)
+	end)
+	local keyConn = nil
+	local done = false
+	local function finish(success)
+		if done then return end
+		done = true
+		moveConn:Disconnect()
+		if keyConn then keyConn:Disconnect() end
+		FishReel:FireServer(success)
+		frame:Destroy()
+		if fishFrame == frame then fishFrame = nil end
+	end
+	local function attempt()
+		finish(pos >= zoneX and pos <= zoneX + zoneW)
+	end
+	reelBtn.Activated:Connect(attempt)
+	keyConn = UserInputService.InputBegan:Connect(function(input, gameProcessed)
+		if gameProcessed then return end
+		if input.KeyCode == Enum.KeyCode.Space then
+			attempt()
+		end
+	end)
+	task.delay(5, function()
+		if not done and frame.Parent then
+			finish(false)
+		end
 	end)
 end)
 ]]></ProtectedString>

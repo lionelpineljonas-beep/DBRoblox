@@ -565,6 +565,9 @@ local PRODUCTS = {
 	{ name = "Milk",          price = 3, kind = "box",     color = Color3.fromRGB(245, 245, 245) },
 	{ name = "Cookie",        price = 2, kind = "donut",   color = Color3.fromRGB(170, 120, 70) },
 	{ name = "Fried Chicken", price = 8, kind = "melon",   color = Color3.fromRGB(190, 140, 70) },
+	-- Fish N Bait gear
+	{ name = "Fishing Rod", price = 25, kind = "rod", color = Color3.fromRGB(120, 85, 50) },
+	{ name = "Bait Pack",   price = 3,  kind = "bag", color = Color3.fromRGB(180, 150, 100) },
 }
 
 -- (addProductDisplay is defined below productPart — Lua locals must be declared
@@ -594,6 +597,12 @@ local function productPart(parent, name, kind, color, cf)
 		local dia = (kind == "burrito") and 0.95 or 0.65
 		p = newPart(parent, name, Vector3.new(len, dia, dia), cf, color)
 		p.Shape = Enum.PartType.Cylinder
+	elseif kind == "rod" then
+		-- long thin pole along X: a fishing rod
+		p = newPart(parent, name, Vector3.new(6, 0.35, 0.35), cf, color)
+		p.Shape = Enum.PartType.Cylinder
+	elseif kind == "bag" then
+		p = newPart(parent, name, Vector3.new(1.3, 1.5, 0.9), cf, color)
 	else -- can / bottle / cup: standing cylinder
 		local h = (kind == "bottle" and 1.5) or (kind == "cup" and 1.2) or 1.3
 		p = newColumn(parent, name, h, 0.9, cf, color)
@@ -680,6 +689,9 @@ local function buildGround()
 				local p = newPart(parent, "G_" .. run.class, size, CFrame.new(center),
 					style.color, style.material, style.transparency)
 				p.CastShadow = false
+				if run.class == "w" then
+					p:SetAttribute("Water", true) -- fishable (Fishing Rod checks this)
+				end
 			end
 		end
 	end
@@ -755,6 +767,23 @@ local function onRoad(x, z)
 				for _, s in ipairs(cellList) do
 					local dx, dz = s[1] - x, s[2] - z
 					if dx * dx + dz * dz < s[3] * s[3] then return true end
+				end
+			end
+		end
+	end
+	return false
+end
+
+-- tighter test: within r feet of a road CENTERLINE. NPC cars drive the centerline with
+-- no collision, so anything inside this band reads as "cars phasing through the walls".
+local function nearCarPath(x, z, r)
+	for gx = -1, 1 do
+		for gz = -1, 1 do
+			local cellList = roadHash[math.floor(x / ROAD_CELL + gx) .. ":" .. math.floor(z / ROAD_CELL + gz)]
+			if cellList then
+				for _, s in ipairs(cellList) do
+					local dx, dz = s[1] - x, s[2] - z
+					if dx * dx + dz * dz < r * r then return true end
 				end
 			end
 		end
@@ -1190,31 +1219,72 @@ local function nearElementary(x, z)
 end
 
 local counts = { r = 0, c = 0, s = 0, docks = 0 }
+
+-- true when no point of the footprint sits inside the traffic lane band
+local function clearOfCars(x, z, bw, bd, yawDeg)
+	local yr = math.rad(yawDeg)
+	local fx, fz = -math.sin(yr), math.cos(yr) -- front dir (east, north)
+	local sx2, sz2 = math.cos(yr), math.sin(yr) -- side dir
+	local hw, hd = bw / 2, bd / 2
+	for _, c in ipairs({ { 0, 0 }, { hw, hd }, { hw, -hd }, { -hw, hd }, { -hw, -hd },
+		{ hw, 0 }, { -hw, 0 }, { 0, hd }, { 0, -hd } }) do
+		if nearCarPath(x + sx2 * c[1] + fx * c[2], z + sz2 * c[1] + fz * c[2], 14) then
+			return false
+		end
+	end
+	return true
+end
+
 local function buildBuildings()
+	local nudgedN, droppedN = 0, 0
 	for _, b in ipairs(buildings) do
 		if inRegion(b.x, b.z) and not nearPlaza(b.x, b.z)
 			and not (b.cls == "s" and nearElementary(b.x, b.z)) then
-			local pos = toWorld(b.x, b.z, Y_LAND)
-			local cf = CFrame.new(pos) * CFrame.Angles(0, math.rad(b.yaw), 0)
-			local m = newModel(FOLDERS.Buildings, b.cls == "r" and "House" or (b.cls == "c" and "Commercial" or "School"))
-			if b.cls == "r" then
-				buildResidential(m, cf, b)
-				counts.r = counts.r + 1
-			elseif b.cls == "c" then
-				buildCommercial(m, cf, b)
-				counts.c = counts.c + 1
-			else
-				buildSchoolBox(m, cf, b)
-				counts.s = counts.s + 1
+			-- keep buildings out of the traffic lanes: NPC cars have no collision, so
+			-- any overlap reads as cars phasing through walls. Nudge clear, or drop.
+			local bx, bz = b.x, b.z
+			local usable = clearOfCars(bx, bz, b.w, b.d, b.yaw)
+			if not usable then
+				local yr = math.rad(b.yaw)
+				local fx, fz = -math.sin(yr), math.cos(yr)
+				local sx2, sz2 = math.cos(yr), math.sin(yr)
+				for _, dirv in ipairs({ { -fx, -fz }, { sx2, sz2 }, { -sx2, -sz2 } }) do
+					for step = 4, 16, 4 do
+						local nx, nz = b.x + dirv[1] * step, b.z + dirv[2] * step
+						if clearOfCars(nx, nz, b.w, b.d, b.yaw) then
+							bx, bz, usable = nx, nz, true
+							break
+						end
+					end
+					if usable then break end
+				end
+				if usable then nudgedN = nudgedN + 1 else droppedN = droppedN + 1 end
 			end
-			markBuilding(b.x, b.z)
-			if b.cls == "r" and b.dockYaw and CONFIG.build.docks then
-				if buildDockAndBoat(b) then
-					counts.docks = counts.docks + 1
+			if usable then
+				local pos = toWorld(bx, bz, Y_LAND)
+				local cf = CFrame.new(pos) * CFrame.Angles(0, math.rad(b.yaw), 0)
+				local m = newModel(FOLDERS.Buildings, b.cls == "r" and "House" or (b.cls == "c" and "Commercial" or "School"))
+				if b.cls == "r" then
+					buildResidential(m, cf, b)
+					counts.r = counts.r + 1
+				elseif b.cls == "c" then
+					buildCommercial(m, cf, b)
+					counts.c = counts.c + 1
+				else
+					buildSchoolBox(m, cf, b)
+					counts.s = counts.s + 1
+				end
+				markBuilding(bx, bz)
+				if b.cls == "r" and b.dockYaw and CONFIG.build.docks then
+					if buildDockAndBoat(b) then
+						counts.docks = counts.docks + 1
+					end
 				end
 			end
 		end
 	end
+	print(("[DiscoveryBay] road clearance: %d buildings nudged off car lanes, %d dropped"):format(
+		nudgedN, droppedN))
 end
 
 --==============================================================================================
@@ -1455,6 +1525,42 @@ local function buildPlaza()
 		"Psst! Mystery dogs in these eggs. Mostly Mary or Jolene... but one in a HUNDRED hatches Linus. Rent a house first - pups need a home!",
 		{ { "Who's Linus?",
 			"A golden legend. Pays $100 a pet. I saw him hatch once. Changed my whole life." } })
+
+	-- Fish N Bait: rods and bait out front, and a counter that buys your catch
+	do
+		local fSh = rowCf * CFrame.new(36 * S, 0, 18 * S)
+		local mF = storefront(m, "Fish N Bait", fSh, 30, 24, 12,
+			Color3.fromRGB(50, 110, 160), Color3.new(1, 1, 1))
+		local function productByName(nm)
+			for _, pr in ipairs(PRODUCTS) do
+				if pr.name == nm then return pr end
+			end
+		end
+		newPart(mF, "RodStand", Vector3.new(3, 3.2, 3) * S,
+			fSh * CFrame.new(-9 * S, 1.6 * S, -16 * S), Color3.fromRGB(140, 110, 80), Enum.Material.Wood)
+		addProductDisplay(mF, productByName("Fishing Rod"), fSh * CFrame.new(-9 * S, 4.1 * S, -16 * S))
+		newColumn(mF, "BaitBarrel", 3 * S, 3 * S,
+			fSh * CFrame.new(-3 * S, 1.5 * S, -16 * S), Color3.fromRGB(120, 90, 60), Enum.Material.Wood)
+		addProductDisplay(mF, productByName("Bait Pack"), fSh * CFrame.new(-3 * S, 3.6 * S, -16 * S))
+		local sellC = newPart(mF, "SellCounter", Vector3.new(7, 3.4, 2.5) * S,
+			fSh * CFrame.new(6.5 * S, 1.9 * S, -16 * S), Color3.fromRGB(90, 70, 50), Enum.Material.Wood)
+		sellC:SetAttribute("FishSell", true)
+		makeSign(sellC, Enum.NormalId.Front, "SELL FISH", Color3.fromRGB(90, 70, 50), Color3.new(1, 1, 1))
+		local sellPrompt = Instance.new("ProximityPrompt")
+		sellPrompt.ActionText = "Sell"
+		sellPrompt.ObjectText = "Sell your fish"
+		sellPrompt.MaxActivationDistance = 10
+		sellPrompt.RequiresLineOfSight = false
+		sellPrompt.Parent = sellC
+		-- trophy over the door
+		newPart(mF, "TrophyFish", Vector3.new(4, 1.3, 0.5) * S,
+			fSh * CFrame.new(9 * S, 8 * S, -12.6 * S), Color3.fromRGB(70, 140, 190))
+		buildNPC(mF, "Captain Finn", fSh * CFrame.new(11 * S, 0, -18 * S),
+			Color3.fromRGB(50, 110, 160),
+			"Ahoy! Grab a rod, grab bait, and cast into ANY water in the bay. When the bobber glows - REEL! I buy every fish you land.",
+			{ { "Any secret fish?",
+				"They whisper of THE LIONEL. One cast in a hundred. Worth five hundred bucks. Never landed it myself... yet." } })
+	end
 
 	-- Callahan's Coffee and Cones (REQUIRED): a walk-in ice cream shop
 	do
@@ -1819,7 +1925,8 @@ local function findBloxwaySite()
 			local cz = plazaPt.z + math.sin(math.rad(ang)) * r
 			local ok = true
 			for _, off in ipairs({ { 0, 0 }, { 115, 0 }, { -115, 0 }, { 0, 90 }, { 0, -90 },
-				{ 85, 70 }, { -85, 70 }, { 85, -70 }, { -85, -70 } }) do
+				{ 85, 70 }, { -85, 70 }, { 85, -70 }, { -85, -70 },
+				{ 45, 35 }, { -45, 35 }, { 45, -35 }, { -45, -35 }, { 0, 45 }, { 0, -45 } }) do
 				local px, pz = cx + off[1], cz + off[2]
 				local cls = classAt(px, pz)
 				if (cls ~= "l" and cls ~= "p") or onRoad(px, pz) or nearBuilding(px, pz, 55) then

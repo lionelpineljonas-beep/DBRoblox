@@ -399,6 +399,14 @@ rentBoard._attrs.RentSign = true
 local rentClick = Instance.new("ClickDetector")
 rentClick.Parent = rentBoard
 rentBoard.Parent = house
+-- Fish N Bait sell counter
+local sellC = Instance.new("Part")
+sellC.Name = "SellCounter"
+sellC._attrs.FishSell = true
+local sellPrompt = Instance.new("ProximityPrompt")
+sellPrompt.Parent = sellC
+sellC.Parent = town
+SELLC = sellC
 RENTBOARD = rentBoard
 HOUSE = house
 local eggPart = Instance.new("Part")
@@ -707,6 +715,16 @@ if dog then
 	PUMP(0.5)
 	print("cash after immediate re-pet (must be unchanged):", cash3.Value)
 end
+
+print("--- FISHING: remotes exist; reel w/o cast + empty sell must not error ---")
+local FishReelR = remotes:FindFirstChild("FishReel")
+print("fish remotes:", tostring(FishReelR ~= nil), tostring(remotes:FindFirstChild("FishGame") ~= nil))
+FishReelR.OnServerEvent:Fire(PLAYER, true)
+PUMP(0.5)
+local cashBeforeSell = cash3.Value
+SELLC.ProximityPrompt.Triggered:Fire(PLAYER)
+PUMP(0.5)
+print("empty fish sell leaves cash unchanged:", tostring(cash3.Value == cashBeforeSell))
 
 print("--- RAGDOLL TEST: Died must convert joints to ball sockets ---")
 print("BreakJointsOnDeath (must be false):", tostring(HUM.BreakJointsOnDeath))

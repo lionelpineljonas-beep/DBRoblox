@@ -11,7 +11,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 
-local VERSION = "v36"
+local VERSION = "v37"
 local SPEED_PASS_ID = 0 -- paste the real Game Pass ID here (same one as in DiscoveryBayShop)
 local RunService = game:GetService("RunService")
 local plr = Players.LocalPlayer
@@ -21,6 +21,8 @@ local DoTrick = remotes:WaitForChild("DoTrick")
 local TrickResult = remotes:WaitForChild("TrickResult")
 local ToggleScooter = remotes:WaitForChild("ToggleScooter")
 local HatchEgg = remotes:WaitForChild("HatchEgg")
+local FishGame = remotes:WaitForChild("FishGame")
+local FishReel = remotes:WaitForChild("FishReel")
 
 -- background music: Roblox's own licensed "Lofi Chill A" (free-to-use library track),
 -- looping softly from the moment you join
@@ -591,7 +593,7 @@ mapLegend.Font = Enum.Font.FredokaOne
 mapLegend.TextSize = 15
 mapLegend.TextColor3 = Color3.new(1, 1, 1)
 mapLegend.TextStrokeTransparency = 0.5
-mapLegend.Text = "S ShellBlox   C Callahan's   B Bloxway   J Jiu Jitsu   E School   ● stores   -   click to mark"
+mapLegend.Text = "S ShellBlox   C Callahan's   B Bloxway   J Jiu Jitsu   E School   F Fish   ● stores   -   click to mark"
 mapLegend.ZIndex = 10
 mapLegend.Parent = mapFrame
 
@@ -720,6 +722,7 @@ local function buildMap()
 	if landmarks then
 		local plaza = landmarks:FindFirstChild("Discovery Bay Blvd Plaza")
 		dot(plaza and plaza:FindFirstChild("ShellBlox Gas Station"), "S", Color3.fromRGB(230, 180, 30))
+		dot(plaza and plaza:FindFirstChild("Fish N Bait"), "F", Color3.fromRGB(60, 160, 220))
 		dot(plaza and plaza:FindFirstChild("Callahan's Coffee and Cones"), "C", Color3.fromRGB(200, 100, 140))
 		dot(plaza and plaza:FindFirstChild("Discovery Bay Jiu Jitsu"), "J", Color3.fromRGB(40, 45, 60))
 		dot(landmarks:FindFirstChild("BLOXWAY"), "B", Color3.fromRGB(200, 60, 55))
@@ -1061,5 +1064,106 @@ TrickResult.OnClientEvent:Connect(function(trickName, pay)
 	}):Play()
 	task.delay(1.2, function()
 		pop:Destroy()
+	end)
+end)
+
+-- FISHING minigame: FISH ON! stop the swinging marker inside the green zone ----------------------
+local fishFrame = nil
+FishGame.OnClientEvent:Connect(function()
+	if fishFrame then
+		fishFrame:Destroy()
+		fishFrame = nil
+	end
+	local frame = Instance.new("Frame")
+	frame.AnchorPoint = Vector2.new(0.5, 0.5)
+	frame.Position = UDim2.new(0.5, 0, 0.62, 0)
+	frame.Size = UDim2.new(0, 400, 0, 170)
+	frame.BackgroundColor3 = Color3.fromRGB(20, 40, 60)
+	frame.BackgroundTransparency = 0.1
+	frame.Parent = gui
+	fishFrame = frame
+	local fCorner = Instance.new("UICorner")
+	fCorner.CornerRadius = UDim.new(0, 16)
+	fCorner.Parent = frame
+	local title = Instance.new("TextLabel")
+	title.Position = UDim2.new(0, 0, 0, 8)
+	title.Size = UDim2.new(1, 0, 0, 34)
+	title.BackgroundTransparency = 1
+	title.Font = Enum.Font.FredokaOne
+	title.TextSize = 30
+	title.TextColor3 = Color3.fromRGB(255, 225, 120)
+	title.Text = "FISH ON!"
+	title.Parent = frame
+	local bar = Instance.new("Frame")
+	bar.AnchorPoint = Vector2.new(0.5, 0)
+	bar.Position = UDim2.new(0.5, 0, 0, 52)
+	bar.Size = UDim2.new(0, 340, 0, 26)
+	bar.BackgroundColor3 = Color3.fromRGB(10, 20, 30)
+	bar.Parent = frame
+	local bCorner = Instance.new("UICorner")
+	bCorner.CornerRadius = UDim.new(0, 8)
+	bCorner.Parent = bar
+	local zoneW = 0.26
+	local zoneX = 0.12 + math.random() * (1 - zoneW - 0.24)
+	local zone = Instance.new("Frame")
+	zone.Position = UDim2.fromScale(zoneX, 0)
+	zone.Size = UDim2.fromScale(zoneW, 1)
+	zone.BackgroundColor3 = Color3.fromRGB(90, 210, 110)
+	zone.Parent = bar
+	local zCorner = Instance.new("UICorner")
+	zCorner.CornerRadius = UDim.new(0, 8)
+	zCorner.Parent = zone
+	local marker = Instance.new("Frame")
+	marker.AnchorPoint = Vector2.new(0.5, 0)
+	marker.Size = UDim2.new(0, 6, 1.3, 0)
+	marker.Position = UDim2.fromScale(0.5, -0.15)
+	marker.BackgroundColor3 = Color3.new(1, 1, 1)
+	marker.ZIndex = 3
+	marker.Parent = bar
+	local reelBtn = Instance.new("TextButton")
+	reelBtn.AnchorPoint = Vector2.new(0.5, 1)
+	reelBtn.Position = UDim2.new(0.5, 0, 1, -12)
+	reelBtn.Size = UDim2.new(0, 170, 0, 44)
+	reelBtn.BackgroundColor3 = Color3.fromRGB(250, 205, 30)
+	reelBtn.TextColor3 = Color3.fromRGB(40, 30, 10)
+	reelBtn.Font = Enum.Font.FredokaOne
+	reelBtn.TextSize = 24
+	reelBtn.Text = "REEL!  (Space)"
+	reelBtn.Parent = frame
+	local rCorner = Instance.new("UICorner")
+	rCorner.CornerRadius = UDim.new(0, 12)
+	rCorner.Parent = reelBtn
+
+	local pos = 0.5
+	local t0 = os.clock()
+	local moveConn = RunService.RenderStepped:Connect(function()
+		pos = 0.5 + 0.5 * math.sin((os.clock() - t0) * 4.2)
+		marker.Position = UDim2.fromScale(pos, -0.15)
+	end)
+	local keyConn = nil
+	local done = false
+	local function finish(success)
+		if done then return end
+		done = true
+		moveConn:Disconnect()
+		if keyConn then keyConn:Disconnect() end
+		FishReel:FireServer(success)
+		frame:Destroy()
+		if fishFrame == frame then fishFrame = nil end
+	end
+	local function attempt()
+		finish(pos >= zoneX and pos <= zoneX + zoneW)
+	end
+	reelBtn.Activated:Connect(attempt)
+	keyConn = UserInputService.InputBegan:Connect(function(input, gameProcessed)
+		if gameProcessed then return end
+		if input.KeyCode == Enum.KeyCode.Space then
+			attempt()
+		end
+	end)
+	task.delay(5, function()
+		if not done and frame.Parent then
+			finish(false)
+		end
 	end)
 end)

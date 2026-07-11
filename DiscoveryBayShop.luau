@@ -43,7 +43,7 @@ end)
 local START_CASH = 100
 local WALK_SPEED = 16
 local SCOOTER_SPEED = 30
-local VERSION = "v36"
+local VERSION = "v37"
 local TRICK_COOLDOWN = 1.2
 local TRAFFIC_CARS = 130
 local CAR_SPEED = 38
@@ -76,6 +76,8 @@ local DoTrick = remote("DoTrick")
 local TrickResult = remote("TrickResult")
 local ToggleScooter = remote("ToggleScooter")
 local HatchEgg = remote("HatchEgg") -- server -> client: play the on-screen hatch cinematic
+local FishGame = remote("FishGame") -- server -> client: FISH ON! start the reel minigame
+local FishReel = remote("FishReel") -- client -> server: minigame result (true = landed)
 
 -- Cash leaderboard ------------------------------------------------------------------------------
 local function getCash(plr)
@@ -919,6 +921,11 @@ local EFFECTS = {
 		plr:SetAttribute("TrickMult", 2)
 		return "MINT POWER! Trick payouts x2"
 	end,
+	["Bait Pack"] = function(plr)
+		local n = (plr:GetAttribute("Bait") or 0) + 5
+		plr:SetAttribute("Bait", n)
+		return "Bait +5! You have " .. n .. " bait"
+	end,
 }
 
 local function hookProduct(part)
@@ -1421,6 +1428,201 @@ task.spawn(function()
 end)
 
 --==============================================================================================
+-- FISHING (Fish N Bait): rod + bait -> cast into water -> reel minigame -> sell the catch
+--==============================================================================================
+local FISH = {
+	{ name = "Bluegill",      pay = 6,   weight = 40 },
+	{ name = "Bass",          pay = 14,  weight = 28 },
+	{ name = "Rainbow Trout", pay = 22,  weight = 16 },
+	{ name = "Catfish",       pay = 35,  weight = 10 },
+	{ name = "Golden Salmon", pay = 120, weight = 5 },
+	{ name = "THE LIONEL",    pay = 500, weight = 1 },
+}
+local FISH_BY_NAME = {}
+for _, f in ipairs(FISH) do
+	FISH_BY_NAME[f.name] = f
+end
+
+local fishBag = {}   -- uid -> { [fishName] = count }
+local castState = {} -- uid -> { stage = "wait"|"bite", bobber = Part }
+
+local function rollFish()
+	local total = 0
+	for _, f in ipairs(FISH) do
+		total = total + f.weight
+	end
+	local pick = rng:NextNumber() * total
+	local acc = 0
+	for _, f in ipairs(FISH) do
+		acc = acc + f.weight
+		if pick <= acc then return f end
+	end
+	return FISH[1]
+end
+
+local function clearCast(uid)
+	local st = castState[uid]
+	if st and st.bobber and st.bobber.Parent then
+		st.bobber:Destroy()
+	end
+	castState[uid] = nil
+end
+
+local function findWaterAhead(hrp)
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	params.FilterDescendantsInstances = { hrp.Parent }
+	local look = hrp.CFrame.LookVector
+	local flat = Vector3.new(look.X, 0, look.Z)
+	if flat.Magnitude < 0.05 then
+		flat = Vector3.new(0, 0, -1)
+	end
+	flat = flat.Unit
+	for _, dist in ipairs({ 8, 14, 22 }) do
+		local origin = hrp.Position + flat * dist + Vector3.new(0, 12, 0)
+		local hit = workspace:Raycast(origin, Vector3.new(0, -60, 0), params)
+		if hit and hit.Instance and hit.Instance:GetAttribute("Water") then
+			return hit.Position
+		end
+	end
+	return nil
+end
+
+local function hookRod(plr, tool)
+	tool.Activated:Connect(function()
+		local uid = plr.UserId
+		if castState[uid] then return end -- line's already in the water
+		local char = plr.Character
+		local hrp = char and char:FindFirstChild("HumanoidRootPart")
+		local hum = char and char:FindFirstChildOfClass("Humanoid")
+		if not hrp or not hum or hum.Health <= 0 then return end
+		local waterPos = findWaterAhead(hrp)
+		if not waterPos then
+			TrickResult:FireClient(plr, "Face some water to cast! The bay is full of it.", 0)
+			return
+		end
+		local bait = plr:GetAttribute("Bait") or 0
+		if bait <= 0 then
+			TrickResult:FireClient(plr, "Out of bait! Grab a Bait Pack at Fish N Bait.", 0)
+			return
+		end
+		plr:SetAttribute("Bait", bait - 1)
+		local bobber = Instance.new("Part")
+		bobber.Name = "Bobber"
+		bobber.Shape = Enum.PartType.Ball
+		bobber.Size = Vector3.new(1, 1, 1)
+		bobber.Color = Color3.fromRGB(230, 60, 50)
+		bobber.Anchored = true
+		bobber.CanCollide = false
+		bobber.CFrame = CFrame.new(waterPos + Vector3.new(0, 0.3, 0))
+		bobber.Parent = workspace
+		castState[uid] = { stage = "wait", bobber = bobber }
+		TrickResult:FireClient(plr, "Cast! Watch the bobber... (" .. (bait - 1) .. " bait left)", 0)
+		task.delay(rng:NextNumber(2, 6), function()
+			local st = castState[uid]
+			if not st or st.stage ~= "wait" then return end
+			if not tool.Parent then
+				clearCast(uid)
+				return
+			end
+			st.stage = "bite"
+			if st.bobber and st.bobber.Parent then
+				st.bobber.Material = Enum.Material.Neon -- the bobber lights up: FISH ON
+			end
+			FishGame:FireClient(plr)
+			task.delay(6, function()
+				local st2 = castState[uid]
+				if st2 and st2.stage == "bite" then
+					clearCast(uid)
+					TrickResult:FireClient(plr, "Too slow... it got away.", 0)
+				end
+			end)
+		end)
+	end)
+end
+
+FishReel.OnServerEvent:Connect(function(plr, success)
+	local uid = plr.UserId
+	local st = castState[uid]
+	if not st or st.stage ~= "bite" then return end
+	clearCast(uid)
+	if success ~= true then
+		TrickResult:FireClient(plr, "It wriggled off the hook!", 0)
+		return
+	end
+	local f = rollFish()
+	local bag = fishBag[uid]
+	if not bag then
+		bag = {}
+		fishBag[uid] = bag
+	end
+	bag[f.name] = (bag[f.name] or 0) + 1
+	if f.name == "THE LIONEL" then
+		TrickResult:FireClient(plr, "THE LIONEL!!! The 1-in-100 legend - worth $500!", 0)
+	else
+		TrickResult:FireClient(plr, "Caught a " .. f.name .. "! (sells for $" .. f.pay .. ")", 0)
+	end
+end)
+
+local function hookFishSell(part)
+	local prompt = part:FindFirstChildOfClass("ProximityPrompt")
+	if not prompt then return end
+	prompt.Triggered:Connect(function(plr)
+		local bag = fishBag[plr.UserId]
+		local total, n = 0, 0
+		if bag then
+			for nm, count in pairs(bag) do
+				local f = FISH_BY_NAME[nm]
+				if f then
+					total = total + f.pay * count
+					n = n + count
+				end
+			end
+		end
+		if n == 0 then
+			TrickResult:FireClient(plr, "No fish yet! Cast a line anywhere in the bay.", 0)
+			return
+		end
+		fishBag[plr.UserId] = nil
+		local cash = getCash(plr)
+		if cash then
+			cash.Value = cash.Value + total
+		end
+		TrickResult:FireClient(plr, "Sold " .. n .. " fish for $" .. total .. "!", 0)
+	end)
+end
+
+local function watchRods(char, plr)
+	local ev = char.ChildAdded
+	if not ev then return end -- (mock sim characters have no ChildAdded)
+	ev:Connect(function(child)
+		if child.Name == "Fishing Rod" and child:IsA("Tool")
+			and not child:GetAttribute("RodHooked") then
+			child:SetAttribute("RodHooked", true)
+			hookRod(plr, child)
+		end
+	end)
+end
+
+Players.PlayerAdded:Connect(function(plr)
+	plr.CharacterAdded:Connect(function(char)
+		watchRods(char, plr)
+	end)
+end)
+for _, plr in ipairs(Players:GetPlayers()) do
+	plr.CharacterAdded:Connect(function(char)
+		watchRods(char, plr)
+	end)
+	if plr.Character then
+		watchRods(plr.Character, plr)
+	end
+end
+Players.PlayerRemoving:Connect(function(plr)
+	clearCast(plr.UserId)
+	fishBag[plr.UserId] = nil
+end)
+
+--==============================================================================================
 -- WEATHER: every 2 in-game days a random one of 50 weathers rolls in for 2 minutes.
 -- Disasters hurt (shelter indoors!), boosts speed you up, some just pay or look wild.
 --==============================================================================================
@@ -1871,6 +2073,8 @@ task.spawn(function()
 				hookRent(d)
 			elseif d:GetAttribute("EggShop") then
 				hookEgg(d)
+			elseif d:GetAttribute("FishSell") then
+				hookFishSell(d)
 			end
 		end
 	end
