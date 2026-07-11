@@ -2943,7 +2943,7 @@ end)
 local START_CASH = 100
 local WALK_SPEED = 16
 local SCOOTER_SPEED = 30
-local VERSION = "v26"
+local VERSION = "v28"
 local TRICK_COOLDOWN = 1.2
 local TRAFFIC_CARS = 130
 local CAR_SPEED = 38
@@ -3555,16 +3555,29 @@ local function spinDeck(rig, axis, dur)
 		local steps = 16
 		local dy = rig.deckY or -3.0
 		local pivot = axis == "y" and CFrame.new(0, dy, -2.2) or CFrame.new(0, dy, 0.2)
+		local waistOK = rig.waist and rig.waist.motor.Parent and not rig.posing
 		for i = 1, steps do
 			local mount = rig.deckMount
 			if not mount or not mount.Parent then break end
 			local a = (i / steps) * math.pi * 2
 			local rot = axis == "y" and CFrame.Angles(0, a, 0) or CFrame.Angles(0, 0, a)
 			mount.C0 = rig.deckBase * pivot * rot * pivot:Inverse()
+			-- the RIDER moves too: dip into the tailwhip, lean through the kickflip
+			if waistOK then
+				local wave = math.sin((i / steps) * math.pi)
+				if axis == "y" then
+					rig.waist.motor.C0 = rig.waist.rest * CFrame.Angles(math.rad(-24 * wave), 0, 0)
+				else
+					rig.waist.motor.C0 = rig.waist.rest * CFrame.Angles(0, 0, math.rad(26 * wave))
+				end
+			end
 			task.wait(dur / steps)
 		end
 		if rig.deckMount and rig.deckMount.Parent then
 			rig.deckMount.C0 = rig.deckBase
+		end
+		if waistOK and rig.waist.motor.Parent then
+			rig.waist.motor.C0 = rig.waist.rest
 		end
 		for _, hh in ipairs(tucked) do
 			if hh.motor.Parent then hh.motor.C0 = hh.rest end
@@ -3576,14 +3589,17 @@ end
 local function legsBack(rig, dur)
 	if not rig or not rig.hips or #rig.hips == 0 or rig.posing or rig.spinning then return end
 	rig.posing = true
-	for _, h in ipairs(rig.hips) do
+	-- legs kick back at staggered angles with a slight splay: reads as real flight
+	for idx, h in ipairs(rig.hips) do
 		if h.motor.Parent then
-			h.motor.C0 = h.rest * CFrame.Angles(math.rad(-75), 0, 0)
+			local pitch = (idx == 1) and -70 or -86
+			local yaw = (idx == 1) and 9 or -9
+			h.motor.C0 = h.rest * CFrame.Angles(math.rad(pitch), math.rad(yaw), 0)
 		end
 	end
 	-- arch the chest up for the full superman silhouette
 	if rig.waist and rig.waist.motor.Parent then
-		rig.waist.motor.C0 = rig.waist.rest * CFrame.Angles(math.rad(16), 0, 0)
+		rig.waist.motor.C0 = rig.waist.rest * CFrame.Angles(math.rad(20), 0, 0)
 	end
 	task.delay(dur, function()
 		for _, h in ipairs(rig.hips) do
@@ -3607,9 +3623,16 @@ local function armsBack(rig, dur)
 			s.motor.C0 = s.rest * CFrame.Angles(math.rad(-130), 0, 0)
 		end
 	end
+	-- lean back with the arms flung: full no-hander commitment
+	if rig.waist and rig.waist.motor.Parent then
+		rig.waist.motor.C0 = rig.waist.rest * CFrame.Angles(math.rad(-16), 0, 0)
+	end
 	task.delay(dur, function()
 		for _, s in ipairs(rig.shoulders) do
 			if s.motor.Parent then s.motor.C0 = s.rest end
+		end
+		if rig.waist and rig.waist.motor.Parent then
+			rig.waist.motor.C0 = rig.waist.rest
 		end
 		for _, ik in ipairs(rig.iks) do
 			if ik.Parent then ik.Enabled = true end
@@ -3622,7 +3645,20 @@ local TRICKS = {
 	{ name = "Tailwhip", pay = 4, fn = function(rig, hrp) spinDeck(rig, "y", 0.45) end },
 	{ name = "Kickflip", pay = 3, fn = function(rig, hrp) spinDeck(rig, "z", 0.5) end },
 	{ name = "360 Spin", pay = 6, fn = function(rig, hrp)
-		hrp.AssemblyAngularVelocity = Vector3.new(0, (rng:NextInteger(0, 1) == 0 and 1 or -1) * 22, 0)
+		local dirSign = (rng:NextInteger(0, 1) == 0 and 1 or -1)
+		-- wind the shoulders up, then whip the whole rider around
+		task.spawn(function()
+			if rig and rig.waist and rig.waist.motor.Parent and not rig.posing and not rig.spinning then
+				rig.waist.motor.C0 = rig.waist.rest * CFrame.Angles(0, math.rad(-30 * dirSign), 0)
+				task.wait(0.12)
+				rig.waist.motor.C0 = rig.waist.rest * CFrame.Angles(0, math.rad(14 * dirSign), 0)
+				task.wait(0.35)
+				if rig.waist.motor.Parent then
+					rig.waist.motor.C0 = rig.waist.rest
+				end
+			end
+		end)
+		hrp.AssemblyAngularVelocity = Vector3.new(0, dirSign * 22, 0)
 	end },
 	{ name = "Superman", pay = 8, fn = function(rig, hrp) legsBack(rig, 0.55) end },
 	{ name = "No-Hander", pay = 5, fn = function(rig, hrp) armsBack(rig, 0.5) end },
@@ -3887,9 +3923,15 @@ end
 local EGG_PRICE = 30
 local PET_COOLDOWN = 30
 local DOGS = {
-	{ name = "Mary",   pay = 10,  color = Color3.fromRGB(210, 170, 90) },  -- 49.5%
-	{ name = "Jolene", pay = 10,  color = Color3.fromRGB(150, 105, 70) },  -- 49.5%
-	{ name = "Linus",  pay = 100, color = Color3.fromRGB(255, 215, 80) },  -- 1% legendary
+	-- Mary: doberman pinscher, black & brown (49.5%)
+	{ name = "Mary", pay = 10, scale = 1,
+		color = Color3.fromRGB(38, 32, 30), accent = Color3.fromRGB(150, 95, 50) },
+	-- Jolene: great dane, grey & white mix (49.5%) — big girl
+	{ name = "Jolene", pay = 10, scale = 1.25,
+		color = Color3.fromRGB(168, 170, 175), accent = Color3.fromRGB(245, 245, 245) },
+	-- Linus: doberman, brown/tan (1% legendary, still glows)
+	{ name = "Linus", pay = 100, scale = 1,
+		color = Color3.fromRGB(175, 125, 75), accent = Color3.fromRGB(120, 80, 45) },
 }
 local ownedHouse = {} -- uid -> { house = Model, board = Part }
 local playerDog = {}  -- uid -> Model
@@ -3903,6 +3945,81 @@ local function setRentSign(board, text, color)
 		label.Text = text
 		label.BackgroundColor3 = color
 	end
+end
+
+-- Renting a house makes it REAL: the solid body is swapped for walls with a
+-- walk-through front door, plus a furnished living room. Runs once per house.
+local function hollowHouse(house)
+	if house:GetAttribute("Hollowed") then return end
+	house:SetAttribute("Hollowed", true)
+	local body = house:FindFirstChild("Body")
+	if not body then return end
+	local cfB, size = body.CFrame, body.Size
+	local col, mat = body.Color, body.Material
+	local w, h, d = size.X, size.Y, size.Z
+	body:Destroy()
+	local function wall(name, sz, off, wcol, wmat)
+		local p = Instance.new("Part")
+		p.Name = name
+		p.Size = sz
+		p.CFrame = cfB * off
+		p.Color = wcol or col
+		p.Material = wmat or mat
+		p.Anchored = true
+		p.TopSurface = Enum.SurfaceType.Smooth
+		p.BottomSurface = Enum.SurfaceType.Smooth
+		p.Parent = house
+		return p
+	end
+	wall("Floor", Vector3.new(w, 0.4, d), CFrame.new(0, -h / 2 + 0.2, 0),
+		Color3.fromRGB(160, 125, 85), Enum.Material.WoodPlanks)
+	wall("Ceiling", Vector3.new(w, 0.4, d), CFrame.new(0, h / 2 - 0.2, 0),
+		Color3.fromRGB(238, 234, 224), Enum.Material.SmoothPlastic)
+	wall("BackWall", Vector3.new(w, h, 0.8), CFrame.new(0, 0, d / 2 - 0.4))
+	wall("SideL", Vector3.new(0.8, h, d), CFrame.new(-w / 2 + 0.4, 0, 0))
+	wall("SideR", Vector3.new(0.8, h, d), CFrame.new(w / 2 - 0.4, 0, 0))
+	-- front wall with a doorway where the door visual stands
+	local doorX = 0
+	local door = house:FindFirstChild("Door")
+	if door then
+		local rel = cfB:PointToObjectSpace(door.Position)
+		doorX = math.clamp(rel.X, -w / 2 + 5, w / 2 - 5)
+		door.CanCollide = false -- walk right through your own front door
+	end
+	local gapW = 5.5
+	local leftW = (doorX - gapW / 2) - (-w / 2)
+	if leftW > 0.6 then
+		wall("FrontL", Vector3.new(leftW, h, 0.8), CFrame.new(-w / 2 + leftW / 2, 0, -d / 2 + 0.4))
+	end
+	local rightW = (w / 2) - (doorX + gapW / 2)
+	if rightW > 0.6 then
+		wall("FrontR", Vector3.new(rightW, h, 0.8), CFrame.new(w / 2 - rightW / 2, 0, -d / 2 + 0.4))
+	end
+	if h > 8.4 then
+		wall("DoorHeader", Vector3.new(gapW, h - 7.6, 0.8),
+			CFrame.new(doorX, h / 2 - (h - 7.6) / 2, -d / 2 + 0.4))
+	end
+	-- cozy furnishing
+	wall("Rug", Vector3.new(math.min(w * 0.4, 12), 0.15, math.min(d * 0.35, 9)),
+		CFrame.new(0, -h / 2 + 0.5, 0), Color3.fromRGB(170, 60, 60), Enum.Material.Fabric)
+	wall("Sofa", Vector3.new(8, 2.4, 3), CFrame.new(-w * 0.22, -h / 2 + 1.6, d * 0.22),
+		Color3.fromRGB(90, 110, 150), Enum.Material.Fabric)
+	wall("SofaBack", Vector3.new(8, 2, 0.8), CFrame.new(-w * 0.22, -h / 2 + 3.6, d * 0.22 + 1.1),
+		Color3.fromRGB(90, 110, 150), Enum.Material.Fabric)
+	wall("Table", Vector3.new(4.5, 2.2, 3), CFrame.new(0, -h / 2 + 1.5, -d * 0.05),
+		Color3.fromRGB(140, 105, 70), Enum.Material.WoodPlanks)
+	wall("Bed", Vector3.new(6.5, 1.8, 4), CFrame.new(w * 0.26, -h / 2 + 1.3, d * 0.28),
+		Color3.fromRGB(230, 230, 240), Enum.Material.Fabric)
+	wall("DogBed", Vector3.new(3.5, 0.6, 3.5), CFrame.new(w * 0.28, -h / 2 + 0.7, -d * 0.22),
+		Color3.fromRGB(120, 85, 60), Enum.Material.Fabric)
+	local lampPart = wall("Lamp", Vector3.new(1, 4.5, 1), CFrame.new(w * 0.4 - 1.5, -h / 2 + 2.6, -d * 0.4 + 1.5),
+		Color3.fromRGB(240, 230, 200), Enum.Material.Neon)
+	local lampLight = Instance.new("PointLight")
+	lampLight.Range = 22
+	lampLight.Brightness = 1.2
+	lampLight.Parent = lampPart
+	-- where a hatched dog waits: on the dog bed, inside
+	house:SetAttribute("DogSpotInside", (cfB * CFrame.new(w * 0.28, -h / 2 + 1, -d * 0.22)).Position)
 end
 
 local function hookRent(board)
@@ -3927,7 +4044,11 @@ local function hookRent(board)
 		house:SetAttribute("OwnerUserId", plr.UserId)
 		ownedHouse[plr.UserId] = { house = house, board = board }
 		setRentSign(board, plr.Name .. "'s house", Color3.fromRGB(60, 160, 80))
-		TrickResult:FireClient(plr, "Welcome home! This house is yours now.", 0)
+		local ok, err = pcall(hollowHouse, house)
+		if not ok then
+			warn("[DiscoveryBayShop] hollowing failed: " .. tostring(err))
+		end
+		TrickResult:FireClient(plr, "Welcome home! Walk in through your front door.", 0)
 	end)
 end
 
@@ -3937,15 +4058,15 @@ local function spawnDog(plr, dogDef, spot)
 	local town = workspace:FindFirstChild("DiscoveryBay") or workspace
 	local mdl = Instance.new("Model")
 	mdl.Name = dogDef.name
-	local mat = dogDef.pay >= 100 and Enum.Material.Neon or Enum.Material.SmoothPlastic
 	local base = Vector3.new(spot.X, spot.Y, spot.Z)
+	local k = dogDef.scale or 1
 	local function dp(name, size, off, color, shape)
 		local p = Instance.new("Part")
 		p.Name = name
-		p.Size = size
-		p.CFrame = CFrame.new(base + off)
+		p.Size = size * k
+		p.CFrame = CFrame.new(base + off * k)
 		p.Color = color
-		p.Material = mat
+		p.Material = Enum.Material.SmoothPlastic
 		p.Anchored = true
 		p.CanCollide = false
 		p.Parent = mdl
@@ -3953,15 +4074,19 @@ local function spawnDog(plr, dogDef, spot)
 		return p
 	end
 	local c = dogDef.color
+	local a = dogDef.accent or c
 	local body = dp("Body", Vector3.new(2.2, 1.8, 3.6), Vector3.new(0, 2.1, 0), c)
+	dp("Chest", Vector3.new(1.6, 1.2, 0.6), Vector3.new(0, 1.9, -1.7), a) -- breed marking
 	dp("Head", Vector3.new(1.7, 1.7, 1.7), Vector3.new(0, 3.4, -1.9), c, Enum.PartType.Ball)
-	dp("Snout", Vector3.new(0.8, 0.6, 0.9), Vector3.new(0, 3.1, -2.8), Color3.fromRGB(70, 50, 40))
+	dp("Snout", Vector3.new(0.8, 0.6, 0.9), Vector3.new(0, 3.1, -2.8), a)
 	dp("EarL", Vector3.new(0.4, 0.9, 0.4), Vector3.new(-0.6, 4.3, -1.9), c)
 	dp("EarR", Vector3.new(0.4, 0.9, 0.4), Vector3.new(0.6, 4.3, -1.9), c)
 	dp("Tail", Vector3.new(0.4, 0.4, 1.5), Vector3.new(0, 2.9, 2.2), c)
 	for _, lx in ipairs({ -0.7, 0.7 }) do
 		for _, lz in ipairs({ -1.2, 1.2 }) do
-			dp("Leg", Vector3.new(0.6, 1.4, 0.6), Vector3.new(lx, 0.7, lz), c)
+			-- front legs carry the accent ("boots"), back legs stay the base coat
+			dp("Leg", Vector3.new(0.6, 1.4, 0.6), Vector3.new(lx, 0.7, lz),
+				lz < 0 and a or c)
 		end
 	end
 	if dogDef.pay >= 100 then
@@ -4022,10 +4147,63 @@ local function hookEgg(egg)
 		else
 			dogDef = DOGS[2] -- Jolene
 		end
-		local spot = home.house:GetAttribute("DogSpot") or home.house:GetPivot().Position
-		spawnDog(plr, dogDef, spot)
-		local rare = (dogDef.name == "Linus") and " (1% LEGENDARY!)" or ""
-		TrickResult:FireClient(plr, "It hatched... it's " .. dogDef.name .. rare .. "! They ran home to your house.", 0)
+		local homeSpot = home.house:GetAttribute("DogSpotInside")
+			or home.house:GetAttribute("DogSpot") or home.house:GetPivot().Position
+		-- HATCH CINEMATIC: an egg appears in front of you, shakes harder and harder,
+		-- cracks open to reveal the pet, then the pet runs home to your house
+		local char = plr.Character
+		local hrp = char and char:FindFirstChild("HumanoidRootPart")
+		task.spawn(function()
+			local ground
+			if hrp then
+				local fwd = hrp.CFrame.LookVector
+				ground = hrp.Position + Vector3.new(fwd.X, 0, fwd.Z) * 7 + Vector3.new(0, -3, 0)
+			else
+				ground = Vector3.new(homeSpot.X, homeSpot.Y, homeSpot.Z)
+			end
+			local shell = Instance.new("Part")
+			shell.Name = "HatchingEgg"
+			shell.Shape = Enum.PartType.Ball
+			shell.Size = Vector3.new(4, 4, 4)
+			shell.Color = Color3.fromRGB(250, 245, 228)
+			shell.Anchored = true
+			shell.CanCollide = false
+			local shellBase = CFrame.new(ground + Vector3.new(0, 2, 0))
+			shell.CFrame = shellBase
+			shell.Parent = workspace:FindFirstChild("DiscoveryBay") or workspace
+			for i = 1, 12 do -- shake, building up
+				local amp = 3 + i * 1.5
+				shell.CFrame = shellBase * CFrame.Angles(
+					math.rad(rng:NextNumber(-amp, amp)), 0, math.rad(rng:NextNumber(-amp, amp)))
+				task.wait(0.09)
+			end
+			shell:Destroy()
+			for _, sx in ipairs({ -1, 1 }) do -- crack: two shell halves fly apart
+				task.spawn(function()
+					local half = Instance.new("Part")
+					half.Shape = Enum.PartType.Ball
+					half.Size = Vector3.new(3.2, 3.2, 3.2)
+					half.Color = Color3.fromRGB(250, 245, 228)
+					half.Anchored = true
+					half.CanCollide = false
+					half.CFrame = shellBase
+					half.Parent = workspace:FindFirstChild("DiscoveryBay") or workspace
+					for i = 1, 6 do
+						half.CFrame = half.CFrame * CFrame.new(sx * 0.6, 0.4, 0)
+						half.Transparency = i / 6
+						task.wait(0.05)
+					end
+					half:Destroy()
+				end)
+			end
+			spawnDog(plr, dogDef, ground) -- ta-da: the pet, right where the egg stood
+			task.wait(2.5)
+			local mdl = playerDog[plr.UserId]
+			if mdl and mdl.Parent then -- then it runs home
+				local delta = Vector3.new(homeSpot.X - ground.X, homeSpot.Y - ground.Y, homeSpot.Z - ground.Z)
+				mdl:PivotTo(CFrame.new(mdl:GetPivot().Position + delta))
+			end
+		end)
 	end)
 end
 
@@ -4335,7 +4513,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 
-local VERSION = "v26"
+local VERSION = "v28"
 local SPEED_PASS_ID = 0 -- paste the real Game Pass ID here (same one as in DiscoveryBayShop)
 local RunService = game:GetService("RunService")
 local plr = Players.LocalPlayer

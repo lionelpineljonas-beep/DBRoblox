@@ -376,6 +376,17 @@ end
 local house = newInst("Model", "House")
 house._attrs.DogSpot = v3(300, 2, 300)
 house.Parent = town
+local houseBody = Instance.new("Part")
+houseBody.Name = "Body"
+houseBody._props.Size = v3(40, 11, 30)
+houseBody._props.CFrame = cf(300, 8, 285)
+houseBody._props.Color = { body = true }
+houseBody._props.Material = { plastic = true }
+houseBody.Parent = house
+local houseDoor = Instance.new("Part")
+houseDoor.Name = "Door"
+houseDoor._props.Position = v3(305, 5, 270)
+houseDoor.Parent = house
 local rentBoard = Instance.new("Part")
 rentBoard.Name = "RentSign"
 rentBoard._attrs.RentSign = true
@@ -664,9 +675,16 @@ print("egg without house (cash must stay 100):", cash3.Value)
 RENTBOARD.ClickDetector.MouseClick:Fire(PLAYER)
 PUMP(0.5)
 print("house owner attr (must be 1):", tostring(HOUSE:GetAttribute("OwnerUserId")))
+print("hollowed:", tostring(HOUSE:GetAttribute("Hollowed")),
+	"| body gone:", tostring(HOUSE:FindFirstChild("Body") == nil),
+	"| has floor/back/sofa:", tostring(HOUSE:FindFirstChild("Floor") ~= nil),
+	tostring(HOUSE:FindFirstChild("BackWall") ~= nil), tostring(HOUSE:FindFirstChild("Sofa") ~= nil),
+	"| door walkthrough:", tostring(HOUSE:FindFirstChild("Door").CanCollide == false),
+	"| inside dog spot:", tostring(HOUSE:GetAttribute("DogSpotInside") ~= nil))
 EGG.ProximityPrompt.Triggered:Fire(PLAYER)
 PUMP(0.5)
 print("cash after egg (must be 70):", cash3.Value)
+PUMP(5) -- let the hatch cinematic (shake + crack + reveal + run home) finish
 local dog = nil
 for _, c in ipairs(workspace:FindFirstChild("DiscoveryBay"):GetChildren()) do
 	if c.Name == "Mary" or c.Name == "Jolene" or c.Name == "Linus" then dog = c end
