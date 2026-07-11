@@ -2308,8 +2308,8 @@ local function buildPlaza()
 	eggPrompt.MaxActivationDistance = 10
 	eggPrompt.RequiresLineOfSight = false
 	eggPrompt.Parent = egg
-	buildNPC(m, "Eggbert",
-		CFrame.lookAt(eggBase + Vector3.new(-8 * S, 0, 3 * S), Vector3.new(eggBase.X, eggBase.Y, eggBase.Z)),
+	-- Eggbert stands RIGHT beside the egg pedestal, greeting customers
+	buildNPC(m, "Eggbert", rowCf * CFrame.new(14 * S, 0, 2 * S),
 		Color3.fromRGB(235, 200, 90),
 		"Psst! Mystery dogs in these eggs. Mostly Mary or Jolene... but one in a HUNDRED hatches Linus. Rent a house first - pups need a home!",
 		{ { "Who's Linus?",
@@ -3041,7 +3041,7 @@ end)
 local START_CASH = 100
 local WALK_SPEED = 16
 local SCOOTER_SPEED = 30
-local VERSION = "v31"
+local VERSION = "v32"
 local TRICK_COOLDOWN = 1.2
 local TRAFFIC_CARS = 130
 local CAR_SPEED = 38
@@ -4563,7 +4563,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 
-local VERSION = "v31"
+local VERSION = "v32"
 local SPEED_PASS_ID = 0 -- paste the real Game Pass ID here (same one as in DiscoveryBayShop)
 local RunService = game:GetService("RunService")
 local plr = Players.LocalPlayer

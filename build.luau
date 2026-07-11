@@ -1416,8 +1416,8 @@ local function buildPlaza()
 	eggPrompt.MaxActivationDistance = 10
 	eggPrompt.RequiresLineOfSight = false
 	eggPrompt.Parent = egg
-	buildNPC(m, "Eggbert",
-		CFrame.lookAt(eggBase + Vector3.new(-8 * S, 0, 3 * S), Vector3.new(eggBase.X, eggBase.Y, eggBase.Z)),
+	-- Eggbert stands RIGHT beside the egg pedestal, greeting customers
+	buildNPC(m, "Eggbert", rowCf * CFrame.new(14 * S, 0, 2 * S),
 		Color3.fromRGB(235, 200, 90),
 		"Psst! Mystery dogs in these eggs. Mostly Mary or Jolene... but one in a HUNDRED hatches Linus. Rent a house first - pups need a home!",
 		{ { "Who's Linus?",
