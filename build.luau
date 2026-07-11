@@ -1061,9 +1061,14 @@ local function buildResidential(m, cf, b)
 	newPart(m, "Door", Vector3.new(3.4, 6.6, 0.3) * S,
 		cf * CFrame.new(doorX * S, (0.5 + 3.3) * S, (frontZ - 0.12) * S),
 		Color3.fromRGB(70, 50, 40), Enum.Material.Wood)
-	-- quality details: a proper door frame and an entry step
-	newPart(m, "DoorFrame", Vector3.new(4.6, 7.4, 0.18) * S,
-		cf * CFrame.new(doorX * S, (0.5 + 3.6) * S, (frontZ - 0.08) * S),
+	-- quality details: a REAL door frame (two jambs + lintel, doorway stays clear) and a step
+	for _, jx in ipairs({ -2.0, 2.0 }) do
+		newPart(m, "DoorJamb", Vector3.new(0.6, 7.2, 0.18) * S,
+			cf * CFrame.new((doorX + jx) * S, (0.5 + 3.6) * S, (frontZ - 0.08) * S),
+			Color3.fromRGB(245, 242, 235))
+	end
+	newPart(m, "DoorLintel", Vector3.new(4.6, 0.5, 0.18) * S,
+		cf * CFrame.new(doorX * S, (0.5 + 6.85) * S, (frontZ - 0.08) * S),
 		Color3.fromRGB(245, 242, 235))
 	newPart(m, "DoorStep", Vector3.new(5, 0.6, 2.6) * S,
 		cf * CFrame.new(doorX * S, 0.55 * S, (frontZ - 1.6) * S),

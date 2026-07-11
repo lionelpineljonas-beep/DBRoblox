@@ -43,7 +43,7 @@ end)
 local START_CASH = 100
 local WALK_SPEED = 16
 local SCOOTER_SPEED = 30
-local VERSION = "v34"
+local VERSION = "v35"
 local TRICK_COOLDOWN = 1.2
 local TRAFFIC_CARS = 130
 local CAR_SPEED = 38
@@ -1187,6 +1187,11 @@ local function hollowHouse(house)
 		-- a REAL front door: slides open when you walk up, like the shop doors
 		door:SetAttribute("SlideDist", 3.8)
 		hookDoor(door)
+	end
+	-- towns saved before v35 have a solid decorative slab over the doorway; unblock it
+	local oldFrame = house:FindFirstChild("DoorFrame")
+	if oldFrame then
+		oldFrame.CanCollide = false
 	end
 	local gapW = 5.5
 	local leftW = (doorX - gapW / 2) - (-w / 2)

@@ -387,6 +387,11 @@ local houseDoor = Instance.new("Part")
 houseDoor.Name = "Door"
 houseDoor._props.Position = v3(305, 5, 270)
 houseDoor.Parent = house
+-- legacy pre-v35 towns: a solid decorative slab over the doorway (must be unblocked on rent)
+local houseFrame = Instance.new("Part")
+houseFrame.Name = "DoorFrame"
+houseFrame._props.CanCollide = true
+houseFrame.Parent = house
 local rentBoard = Instance.new("Part")
 rentBoard.Name = "RentSign"
 rentBoard._attrs.RentSign = true
@@ -680,6 +685,7 @@ print("hollowed:", tostring(HOUSE:GetAttribute("Hollowed")),
 	"| has floor/back/sofa:", tostring(HOUSE:FindFirstChild("Floor") ~= nil),
 	tostring(HOUSE:FindFirstChild("BackWall") ~= nil), tostring(HOUSE:FindFirstChild("Sofa") ~= nil),
 	"| door slides:", tostring(HOUSE:FindFirstChild("Door"):GetAttribute("SlideDist") ~= nil),
+	"| doorway clear:", tostring(HOUSE:FindFirstChild("DoorFrame").CanCollide == false),
 	"| inside dog spot:", tostring(HOUSE:GetAttribute("DogSpotInside") ~= nil))
 EGG.ProximityPrompt.Triggered:Fire(PLAYER)
 PUMP(0.5)

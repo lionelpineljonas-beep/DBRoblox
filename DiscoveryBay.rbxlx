@@ -1953,9 +1953,14 @@ local function buildResidential(m, cf, b)
 	newPart(m, "Door", Vector3.new(3.4, 6.6, 0.3) * S,
 		cf * CFrame.new(doorX * S, (0.5 + 3.3) * S, (frontZ - 0.12) * S),
 		Color3.fromRGB(70, 50, 40), Enum.Material.Wood)
-	-- quality details: a proper door frame and an entry step
-	newPart(m, "DoorFrame", Vector3.new(4.6, 7.4, 0.18) * S,
-		cf * CFrame.new(doorX * S, (0.5 + 3.6) * S, (frontZ - 0.08) * S),
+	-- quality details: a REAL door frame (two jambs + lintel, doorway stays clear) and a step
+	for _, jx in ipairs({ -2.0, 2.0 }) do
+		newPart(m, "DoorJamb", Vector3.new(0.6, 7.2, 0.18) * S,
+			cf * CFrame.new((doorX + jx) * S, (0.5 + 3.6) * S, (frontZ - 0.08) * S),
+			Color3.fromRGB(245, 242, 235))
+	end
+	newPart(m, "DoorLintel", Vector3.new(4.6, 0.5, 0.18) * S,
+		cf * CFrame.new(doorX * S, (0.5 + 6.85) * S, (frontZ - 0.08) * S),
 		Color3.fromRGB(245, 242, 235))
 	newPart(m, "DoorStep", Vector3.new(5, 0.6, 2.6) * S,
 		cf * CFrame.new(doorX * S, 0.55 * S, (frontZ - 1.6) * S),
@@ -3069,7 +3074,7 @@ end)
 local START_CASH = 100
 local WALK_SPEED = 16
 local SCOOTER_SPEED = 30
-local VERSION = "v34"
+local VERSION = "v35"
 local TRICK_COOLDOWN = 1.2
 local TRAFFIC_CARS = 130
 local CAR_SPEED = 38
@@ -4214,6 +4219,11 @@ local function hollowHouse(house)
 		door:SetAttribute("SlideDist", 3.8)
 		hookDoor(door)
 	end
+	-- towns saved before v35 have a solid decorative slab over the doorway; unblock it
+	local oldFrame = house:FindFirstChild("DoorFrame")
+	if oldFrame then
+		oldFrame.CanCollide = false
+	end
 	local gapW = 5.5
 	local leftW = (doorX - gapW / 2) - (-w / 2)
 	if leftW > 0.6 then
@@ -4922,7 +4932,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 
-local VERSION = "v34"
+local VERSION = "v35"
 local SPEED_PASS_ID = 0 -- paste the real Game Pass ID here (same one as in DiscoveryBayShop)
 local RunService = game:GetService("RunService")
 local plr = Players.LocalPlayer
