@@ -11,7 +11,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 
-local VERSION = "v28"
+local VERSION = "v29"
 local SPEED_PASS_ID = 0 -- paste the real Game Pass ID here (same one as in DiscoveryBayShop)
 local RunService = game:GetService("RunService")
 local plr = Players.LocalPlayer
@@ -20,6 +20,7 @@ if not remotes then return end
 local DoTrick = remotes:WaitForChild("DoTrick")
 local TrickResult = remotes:WaitForChild("TrickResult")
 local ToggleScooter = remotes:WaitForChild("ToggleScooter")
+local HatchEgg = remotes:WaitForChild("HatchEgg")
 
 -- background music: Roblox's own licensed "Lofi Chill A" (free-to-use library track),
 -- looping softly from the moment you join
@@ -783,6 +784,129 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 			return
 		end
 	end
+end)
+
+--==============================================================================================
+-- PET-SIM-X-STYLE HATCH: dimmed screen, big 3D egg wobbling center-screen, flash,
+-- then the actual pet spinning in 3D with its name
+--==============================================================================================
+local DOG_LOOKS = { -- keep in sync with the server's DOGS table
+	["Mary"]   = { color = Color3.fromRGB(38, 32, 30),    accent = Color3.fromRGB(150, 95, 50),
+		scale = 1,    tag = "Mary!",                    tagColor = Color3.new(1, 1, 1) },
+	["Jolene"] = { color = Color3.fromRGB(168, 170, 175), accent = Color3.fromRGB(245, 245, 245),
+		scale = 1.25, tag = "Jolene!",                  tagColor = Color3.new(1, 1, 1) },
+	["Linus"]  = { color = Color3.fromRGB(175, 125, 75),  accent = Color3.fromRGB(120, 80, 45),
+		scale = 1,    tag = "LINUS  -  1% LEGENDARY!",  tagColor = Color3.fromRGB(255, 215, 80) },
+}
+local hatchOverlay = nil
+
+HatchEgg.OnClientEvent:Connect(function(dogName)
+	local look = DOG_LOOKS[dogName]
+	if not look then return end
+	if hatchOverlay then hatchOverlay:Destroy() end
+	local overlay = Instance.new("ScreenGui")
+	overlay.Name = "HatchOverlay"
+	overlay.IgnoreGuiInset = true
+	overlay.ResetOnSpawn = false
+	overlay.Parent = plr:WaitForChild("PlayerGui")
+	hatchOverlay = overlay
+
+	local dim = Instance.new("Frame")
+	dim.Size = UDim2.fromScale(1, 1)
+	dim.BackgroundColor3 = Color3.new(0, 0, 0)
+	dim.BackgroundTransparency = 0.35
+	dim.BorderSizePixel = 0
+	dim.Parent = overlay
+
+	local vf = Instance.new("ViewportFrame")
+	vf.AnchorPoint = Vector2.new(0.5, 0.5)
+	vf.Position = UDim2.new(0.5, 0, 0.46, 0)
+	vf.Size = UDim2.new(0, 420, 0, 420)
+	vf.BackgroundTransparency = 1
+	vf.Ambient = Color3.fromRGB(200, 200, 200)
+	vf.LightColor = Color3.new(1, 1, 1)
+	vf.Parent = overlay
+	local cam = Instance.new("Camera")
+	cam.Parent = vf
+	vf.CurrentCamera = cam
+	cam.CFrame = CFrame.lookAt(Vector3.new(0, 1.2, 9), Vector3.new(0, 0.6, 0))
+
+	task.spawn(function()
+		-- phase 1: the egg wobbles harder and harder
+		local egg = Instance.new("Part")
+		egg.Shape = Enum.PartType.Ball
+		egg.Size = Vector3.new(4.4, 4.4, 4.4)
+		egg.Color = Color3.fromRGB(250, 245, 228)
+		egg.Parent = vf
+		local sign = 1
+		for i = 1, 14 do
+			if not overlay.Parent then return end
+			sign = -sign
+			egg.CFrame = CFrame.new(0, 0.4, 0) * CFrame.Angles(0, 0, math.rad(sign * (5 + i * 2)))
+			task.wait(0.09)
+		end
+		-- flash
+		local flash = Instance.new("Frame")
+		flash.Size = UDim2.fromScale(1, 1)
+		flash.BackgroundColor3 = Color3.new(1, 1, 1)
+		flash.BorderSizePixel = 0
+		flash.Parent = overlay
+		egg:Destroy()
+		TweenService:Create(flash, TweenInfo.new(0.45), { BackgroundTransparency = 1 }):Play()
+		task.delay(0.5, function() flash:Destroy() end)
+
+		-- phase 2: the pet, in 3D, slowly spinning
+		local k = look.scale
+		local c, a = look.color, look.accent
+		local function vpart(size, off, color, shape)
+			local p = Instance.new("Part")
+			p.Size = size * k
+			p.CFrame = CFrame.new(off * k)
+			p.Color = color
+			p.Parent = vf
+			if shape then p.Shape = shape end
+			return p
+		end
+		vpart(Vector3.new(2.2, 1.8, 3.6), Vector3.new(0, 0, 0), c)
+		vpart(Vector3.new(1.6, 1.2, 0.6), Vector3.new(0, -0.2, -1.7), a)
+		vpart(Vector3.new(1.7, 1.7, 1.7), Vector3.new(0, 1.3, -1.9), c, Enum.PartType.Ball)
+		vpart(Vector3.new(0.8, 0.6, 0.9), Vector3.new(0, 1, -2.8), a)
+		vpart(Vector3.new(0.4, 0.9, 0.4), Vector3.new(-0.6, 2.2, -1.9), c)
+		vpart(Vector3.new(0.4, 0.9, 0.4), Vector3.new(0.6, 2.2, -1.9), c)
+		vpart(Vector3.new(0.4, 0.4, 1.5), Vector3.new(0, 0.8, 2.2), c)
+		for _, lx in ipairs({ -0.7, 0.7 }) do
+			for _, lz in ipairs({ -1.2, 1.2 }) do
+				vpart(Vector3.new(0.6, 1.4, 0.6), Vector3.new(lx, -1.4, lz), lz < 0 and a or c)
+			end
+		end
+
+		local tag = Instance.new("TextLabel")
+		tag.AnchorPoint = Vector2.new(0.5, 0)
+		tag.Position = UDim2.new(0.5, 0, 0.72, 0)
+		tag.Size = UDim2.new(1, 0, 0, 56)
+		tag.BackgroundTransparency = 1
+		tag.Font = Enum.Font.FredokaOne
+		tag.TextSize = (dogName == "Linus") and 52 or 42
+		tag.TextColor3 = look.tagColor
+		tag.TextStrokeTransparency = 0.3
+		tag.Text = look.tag
+		tag.Parent = overlay
+
+		-- orbit the camera around the pet for the reveal
+		local t0 = os.clock()
+		local spin = RunService.RenderStepped:Connect(function()
+			local ang = (os.clock() - t0) * 1.6
+			cam.CFrame = CFrame.lookAt(
+				Vector3.new(math.sin(ang) * 9, 1.6, math.cos(ang) * 9),
+				Vector3.new(0, 0.2, 0))
+		end)
+		task.wait(2.6)
+		spin:Disconnect()
+		if overlay.Parent then
+			overlay:Destroy()
+		end
+		if hatchOverlay == overlay then hatchOverlay = nil end
+	end)
 end)
 
 -- trick popups -----------------------------------------------------------------------------------

@@ -43,7 +43,7 @@ end)
 local START_CASH = 100
 local WALK_SPEED = 16
 local SCOOTER_SPEED = 30
-local VERSION = "v28"
+local VERSION = "v29"
 local TRICK_COOLDOWN = 1.2
 local TRAFFIC_CARS = 130
 local CAR_SPEED = 38
@@ -75,6 +75,7 @@ end
 local DoTrick = remote("DoTrick")
 local TrickResult = remote("TrickResult")
 local ToggleScooter = remote("ToggleScooter")
+local HatchEgg = remote("HatchEgg") -- server -> client: play the on-screen hatch cinematic
 
 -- Cash leaderboard ------------------------------------------------------------------------------
 local function getCash(plr)
@@ -1021,7 +1022,7 @@ end
 -- HOUSES FOR RENT + EGG SHOP DOGS
 --==============================================================================================
 local EGG_PRICE = 30
-local PET_COOLDOWN = 30
+local PET_COOLDOWN = 2
 local DOGS = {
 	-- Mary: doberman pinscher, black & brown (49.5%)
 	{ name = "Mary", pay = 10, scale = 1,
@@ -1249,61 +1250,10 @@ local function hookEgg(egg)
 		end
 		local homeSpot = home.house:GetAttribute("DogSpotInside")
 			or home.house:GetAttribute("DogSpot") or home.house:GetPivot().Position
-		-- HATCH CINEMATIC: an egg appears in front of you, shakes harder and harder,
-		-- cracks open to reveal the pet, then the pet runs home to your house
-		local char = plr.Character
-		local hrp = char and char:FindFirstChild("HumanoidRootPart")
-		task.spawn(function()
-			local ground
-			if hrp then
-				local fwd = hrp.CFrame.LookVector
-				ground = hrp.Position + Vector3.new(fwd.X, 0, fwd.Z) * 7 + Vector3.new(0, -3, 0)
-			else
-				ground = Vector3.new(homeSpot.X, homeSpot.Y, homeSpot.Z)
-			end
-			local shell = Instance.new("Part")
-			shell.Name = "HatchingEgg"
-			shell.Shape = Enum.PartType.Ball
-			shell.Size = Vector3.new(4, 4, 4)
-			shell.Color = Color3.fromRGB(250, 245, 228)
-			shell.Anchored = true
-			shell.CanCollide = false
-			local shellBase = CFrame.new(ground + Vector3.new(0, 2, 0))
-			shell.CFrame = shellBase
-			shell.Parent = workspace:FindFirstChild("DiscoveryBay") or workspace
-			for i = 1, 12 do -- shake, building up
-				local amp = 3 + i * 1.5
-				shell.CFrame = shellBase * CFrame.Angles(
-					math.rad(rng:NextNumber(-amp, amp)), 0, math.rad(rng:NextNumber(-amp, amp)))
-				task.wait(0.09)
-			end
-			shell:Destroy()
-			for _, sx in ipairs({ -1, 1 }) do -- crack: two shell halves fly apart
-				task.spawn(function()
-					local half = Instance.new("Part")
-					half.Shape = Enum.PartType.Ball
-					half.Size = Vector3.new(3.2, 3.2, 3.2)
-					half.Color = Color3.fromRGB(250, 245, 228)
-					half.Anchored = true
-					half.CanCollide = false
-					half.CFrame = shellBase
-					half.Parent = workspace:FindFirstChild("DiscoveryBay") or workspace
-					for i = 1, 6 do
-						half.CFrame = half.CFrame * CFrame.new(sx * 0.6, 0.4, 0)
-						half.Transparency = i / 6
-						task.wait(0.05)
-					end
-					half:Destroy()
-				end)
-			end
-			spawnDog(plr, dogDef, ground) -- ta-da: the pet, right where the egg stood
-			task.wait(2.5)
-			local mdl = playerDog[plr.UserId]
-			if mdl and mdl.Parent then -- then it runs home
-				local delta = Vector3.new(homeSpot.X - ground.X, homeSpot.Y - ground.Y, homeSpot.Z - ground.Z)
-				mdl:PivotTo(CFrame.new(mdl:GetPivot().Position + delta))
-			end
-		end)
+		-- Pet-Sim-X-style hatch: the cinematic plays ON THE PLAYER'S SCREEN (client),
+		-- while the pet spawns at home ready for petting afterwards
+		HatchEgg:FireClient(plr, dogDef.name)
+		spawnDog(plr, dogDef, Vector3.new(homeSpot.X, homeSpot.Y, homeSpot.Z))
 	end)
 end
 
