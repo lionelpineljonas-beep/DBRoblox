@@ -655,9 +655,11 @@ local function buildKit()
 		handle.Anchored = false
 		handle.CanCollide = false
 		if pr.name == "Fishing Rod" then
-			-- held like a real rod: butt in the hand, tip pointing forward and up
-			tool.Grip = CFrame.new(0, 1.1, -1.7)
-				* CFrame.Angles(math.rad(35), 0, 0) * CFrame.Angles(0, math.rad(90), 0)
+			-- held like a real rod: butt in the hand, tip pointing forward and up.
+			-- Tool.Grip is the grip weld's C1, so the desired handle-in-hand CFrame
+			-- must be INVERTED (the non-inverted form parks the rod on the shoulder).
+			tool.Grip = (CFrame.new(0, 1.1, -1.7)
+				* CFrame.Angles(math.rad(35), 0, 0) * CFrame.Angles(0, math.rad(90), 0)):Inverse()
 		end
 		tool.Parent = prodFolder
 	end

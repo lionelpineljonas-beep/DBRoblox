@@ -43,7 +43,7 @@ end)
 local START_CASH = 100
 local WALK_SPEED = 16
 local SCOOTER_SPEED = 30
-local VERSION = "v39"
+local VERSION = "v40"
 local TRICK_COOLDOWN = 1.2
 local TRAFFIC_CARS = 130
 local CAR_SPEED = 38
@@ -165,8 +165,14 @@ local function setRideAnimations(char, humanoid, riding)
 	end
 end
 
--- riding stance (R15): lean forward, stagger the feet. Stores both the original C0
--- (restored on dismount) and the stance C0 (what tricks return to).
+-- riding stance: lean forward, stagger the feet. Works on BOTH rigs: R15 poses joint
+-- pitch directly; R6 swings its Z-axis Torso motors with mirrored signs (and has no
+-- waist joint, so waist accents simply skip). Each joint entry carries a pose()
+-- closure so the trick code never has to know which rig it's animating.
+local function r15Pose(rest, a, yawD, rollD)
+	return rest * CFrame.Angles(math.rad(a), math.rad(yawD or 0), math.rad(rollD or 0))
+end
+
 local function poseStance(char, rig)
 	local upperTorso = char:FindFirstChild("UpperTorso")
 	local waist = upperTorso and upperTorso:FindFirstChild("Waist")
@@ -175,15 +181,36 @@ local function poseStance(char, rig)
 		waist.C0 = orig * CFrame.Angles(math.rad(-8), 0, 0)
 		rig.waist = { motor = waist, orig = orig, rest = waist.C0 }
 	end
+	-- whole-body root motor: guaranteed-visible 360 spins on any rig
+	local lowerTorso = char:FindFirstChild("LowerTorso")
+	local rootMotor = lowerTorso and lowerTorso:FindFirstChild("Root")
+	local rootAxis = "y"
+	if not rootMotor then
+		local hrp = char:FindFirstChild("HumanoidRootPart")
+		rootMotor = hrp and hrp:FindFirstChild("RootJoint")
+		rootAxis = "z"
+	end
+	if rootMotor then
+		rig.root = { motor = rootMotor, rest = rootMotor.C0, axis = rootAxis }
+	end
 	rig.hips = {}
 	local legPose = { Left = 12, Right = -6 }
 	for side, deg in pairs(legPose) do
 		local upperLeg = char:FindFirstChild(side .. "UpperLeg")
 		local hip = upperLeg and upperLeg:FindFirstChild(side .. "Hip")
+		local pose = r15Pose
+		if not hip then
+			local torso = char:FindFirstChild("Torso")
+			hip = torso and torso:FindFirstChild(side .. " Hip")
+			local fw = (side == "Left") and 1 or -1
+			pose = function(rest, a)
+				return rest * CFrame.Angles(0, 0, math.rad(a * fw))
+			end
+		end
 		if hip then
 			local orig = hip.C0
-			hip.C0 = orig * CFrame.Angles(math.rad(deg), 0, 0)
-			table.insert(rig.hips, { motor = hip, orig = orig, rest = hip.C0 })
+			hip.C0 = pose(orig, deg)
+			table.insert(rig.hips, { motor = hip, orig = orig, rest = hip.C0, pose = pose })
 		end
 	end
 	rig.shoulders = {}
@@ -191,7 +218,7 @@ local function poseStance(char, rig)
 		local upperArm = char:FindFirstChild(side .. "UpperArm")
 		local shoulder = upperArm and upperArm:FindFirstChild(side .. "Shoulder")
 		if shoulder then
-			table.insert(rig.shoulders, { motor = shoulder, rest = shoulder.C0 })
+			table.insert(rig.shoulders, { motor = shoulder, rest = shoulder.C0, pose = r15Pose })
 		end
 	end
 end
@@ -393,6 +420,7 @@ function mountScooterBody(plr, char)
 					weld.C0 = CFrame.new(sign * 1.4, 0.25, -0.75) * CFrame.Angles(math.rad(62), 0, math.rad(sign * 10))
 					weld.Parent = torso
 					rig.r6arms[#rig.r6arms].weld = weld
+					rig.r6arms[#rig.r6arms].gripC0 = weld.C0 -- trick poses offset from here
 				end
 			end
 		end
@@ -472,6 +500,7 @@ local function dismountScooter(plr)
 			if ik.Parent then ik:Destroy() end
 		end
 		if rig.waist and rig.waist.motor.Parent then rig.waist.motor.C0 = rig.waist.orig end
+		if rig.root and rig.root.motor.Parent then rig.root.motor.C0 = rig.root.rest end
 		for _, hh in ipairs(rig.hips or {}) do
 			if hh.motor.Parent then hh.motor.C0 = hh.orig end
 		end
@@ -654,9 +683,9 @@ local function spinDeck(rig, axis, dur, kick)
 			for idx, hh in ipairs(rig.hips) do
 				if hh.motor.Parent then
 					if kick and idx == 2 then
-						hh.motor.C0 = hh.rest * CFrame.Angles(math.rad(-20), 0, math.rad(-55))
+						hh.motor.C0 = hh.pose(hh.rest, -20, 0, -55)
 					else
-						hh.motor.C0 = hh.rest * CFrame.Angles(math.rad(kick and -62 or -55), 0, 0)
+						hh.motor.C0 = hh.pose(hh.rest, kick and -62 or -55)
 					end
 					tucked[#tucked + 1] = hh
 				end
@@ -670,6 +699,7 @@ local function spinDeck(rig, axis, dur, kick)
 				if ik.Parent then ik.Enabled = false end
 			end
 		end
+		local r6ArmsOn = rig.r6arms and not rig.posing
 		local steps = 16
 		local dy = rig.deckY or -3.0
 		local pivot = axis == "y" and CFrame.new(0, dy, -2.2) or CFrame.new(0, dy, 0.2)
@@ -693,8 +723,14 @@ local function spinDeck(rig, axis, dur, kick)
 				for idx, sh in ipairs(rig.shoulders) do
 					if sh.motor.Parent then
 						local side = (idx == 1) and 1 or -1
-						sh.motor.C0 = sh.rest *
-							CFrame.Angles(math.rad(-38 * wave), 0, math.rad(10 * wave * side))
+						sh.motor.C0 = sh.pose(sh.rest, -38 * wave, 0, 10 * wave * side)
+					end
+				end
+			end
+			if r6ArmsOn then
+				for _, ra in ipairs(rig.r6arms) do
+					if ra.weld and ra.weld.Parent then
+						ra.weld.C0 = ra.gripC0 * CFrame.Angles(math.rad(-22 * wave), 0, 0)
 					end
 				end
 			end
@@ -717,6 +753,11 @@ local function spinDeck(rig, axis, dur, kick)
 				if ik.Parent then ik.Enabled = true end
 			end
 		end
+		if r6ArmsOn then
+			for _, ra in ipairs(rig.r6arms) do
+				if ra.weld and ra.weld.Parent then ra.weld.C0 = ra.gripC0 end
+			end
+		end
 		rig.spinning = false
 	end)
 end
@@ -729,7 +770,7 @@ local function legsBack(rig, dur)
 		if h.motor.Parent then
 			local pitch = (idx == 1) and -70 or -86
 			local yaw = (idx == 1) and 9 or -9
-			h.motor.C0 = h.rest * CFrame.Angles(math.rad(pitch), math.rad(yaw), 0)
+			h.motor.C0 = h.pose(h.rest, pitch, yaw)
 		end
 	end
 	-- arms punch straight ahead (IK paused): the full flying-superman silhouette
@@ -738,7 +779,14 @@ local function legsBack(rig, dur)
 	end
 	for idx, s in ipairs(rig.shoulders or {}) do
 		if s.motor.Parent then
-			s.motor.C0 = s.rest * CFrame.Angles(math.rad(85), 0, math.rad((idx == 1) and 8 or -8))
+			s.motor.C0 = s.pose(s.rest, 85, 0, (idx == 1) and 8 or -8)
+		end
+	end
+	if rig.r6arms then
+		for _, ra in ipairs(rig.r6arms) do
+			if ra.weld and ra.weld.Parent then
+				ra.weld.C0 = ra.gripC0 * CFrame.Angles(math.rad(28), 0, 0)
+			end
 		end
 	end
 	-- arch the chest up for the full superman silhouette
@@ -752,6 +800,11 @@ local function legsBack(rig, dur)
 		for _, s in ipairs(rig.shoulders or {}) do
 			if s.motor.Parent then s.motor.C0 = s.rest end
 		end
+		if rig.r6arms then
+			for _, ra in ipairs(rig.r6arms) do
+				if ra.weld and ra.weld.Parent then ra.weld.C0 = ra.gripC0 end
+			end
+		end
 		if rig.waist and rig.waist.motor.Parent then
 			rig.waist.motor.C0 = rig.waist.rest
 		end
@@ -763,14 +816,23 @@ local function legsBack(rig, dur)
 end
 
 local function armsBack(rig, dur)
-	if not rig or not rig.shoulders or #rig.shoulders == 0 or rig.posing or rig.spinning then return end
+	if not rig or rig.posing or rig.spinning then return end
+	local hasArms = (rig.shoulders and #rig.shoulders > 0) or rig.r6arms
+	if not hasArms then return end
 	rig.posing = true
 	for _, ik in ipairs(rig.iks) do
 		if ik.Parent then ik.Enabled = false end
 	end
-	for _, s in ipairs(rig.shoulders) do
+	for _, s in ipairs(rig.shoulders or {}) do
 		if s.motor.Parent then
-			s.motor.C0 = s.rest * CFrame.Angles(math.rad(-130), 0, 0)
+			s.motor.C0 = s.pose(s.rest, -130)
+		end
+	end
+	if rig.r6arms then
+		for _, ra in ipairs(rig.r6arms) do
+			if ra.weld and ra.weld.Parent then
+				ra.weld.C0 = ra.gripC0 * CFrame.Angles(math.rad(-95), 0, 0)
+			end
 		end
 	end
 	-- lean back with the arms flung: full no-hander commitment
@@ -778,8 +840,13 @@ local function armsBack(rig, dur)
 		rig.waist.motor.C0 = rig.waist.rest * CFrame.Angles(math.rad(-16), 0, 0)
 	end
 	task.delay(dur, function()
-		for _, s in ipairs(rig.shoulders) do
+		for _, s in ipairs(rig.shoulders or {}) do
 			if s.motor.Parent then s.motor.C0 = s.rest end
+		end
+		if rig.r6arms then
+			for _, ra in ipairs(rig.r6arms) do
+				if ra.weld and ra.weld.Parent then ra.weld.C0 = ra.gripC0 end
+			end
 		end
 		if rig.waist and rig.waist.motor.Parent then
 			rig.waist.motor.C0 = rig.waist.rest
@@ -796,37 +863,38 @@ local TRICKS = {
 	{ name = "Kickflip", pay = 3, fn = function(rig, hrp) spinDeck(rig, "z", 0.5, true) end },
 	{ name = "360 Spin", pay = 6, fn = function(rig, hrp)
 		local dirSign = (rng:NextInteger(0, 1) == 0 and 1 or -1)
-		hrp.AssemblyAngularVelocity = Vector3.new(0, dirSign * 10, 0)
-		-- crouch + wind the waist up, then whip the whole rider a guaranteed full turn
+		-- crouch, then whip the whole rider a guaranteed full turn: spun through the
+		-- ROOT joint so it shows on every rig even though the client owns the physics
 		task.spawn(function()
 			local crouched = {}
 			if rig and rig.hips and not rig.posing and not rig.spinning then
 				for _, h in ipairs(rig.hips) do
 					if h.motor.Parent then
-						h.motor.C0 = h.rest * CFrame.Angles(math.rad(-42), 0, 0)
+						h.motor.C0 = h.pose(h.rest, -42)
 						crouched[#crouched + 1] = h
 					end
 				end
 			end
-			local waistOK = rig and rig.waist and rig.waist.motor.Parent
-				and not rig.posing and not rig.spinning
-			if waistOK then
-				rig.waist.motor.C0 = rig.waist.rest * CFrame.Angles(0, math.rad(-35 * dirSign), 0)
-			end
-			task.wait(0.1)
+			task.wait(0.08)
 			local steps = 14
+			local root = rig and rig.root
 			for i = 1, steps do
-				if not hrp.Parent then break end
-				hrp.CFrame = hrp.CFrame * CFrame.Angles(0, dirSign * (2 * math.pi / steps), 0)
-				if waistOK and rig.waist.motor.Parent then
-					local wave = math.sin((i / steps) * math.pi)
-					rig.waist.motor.C0 = rig.waist.rest *
-						CFrame.Angles(0, math.rad(18 * dirSign * wave), 0)
+				local ang = dirSign * (2 * math.pi / steps) * i
+				if root and root.motor.Parent then
+					if root.axis == "y" then
+						root.motor.C0 = root.rest * CFrame.Angles(0, ang, 0)
+					else
+						root.motor.C0 = root.rest * CFrame.Angles(0, 0, ang)
+					end
+				elseif hrp.Parent then
+					hrp.CFrame = hrp.CFrame * CFrame.Angles(0, dirSign * (2 * math.pi / steps), 0)
+				else
+					break
 				end
 				task.wait(0.035)
 			end
-			if waistOK and rig.waist.motor.Parent then
-				rig.waist.motor.C0 = rig.waist.rest
+			if root and root.motor.Parent then
+				root.motor.C0 = root.rest
 			end
 			for _, h in ipairs(crouched) do
 				if h.motor.Parent then h.motor.C0 = h.rest end
