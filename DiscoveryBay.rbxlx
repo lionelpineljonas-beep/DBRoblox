@@ -4750,7 +4750,9 @@ local function spawnDog(plr, dogDef, spot)
 		p.Anchored = false
 		p.CanCollide = false
 		if shape then p.Shape = shape end
-		p.CFrame = body.CFrame * CFrame.new(off * k)
+		
+		-- off is relative to the base floor spot, not the body!
+		p.CFrame = CFrame.new(base + off * k)
 		p.Parent = mdl
 		
 		local weld = Instance.new("Weld")
