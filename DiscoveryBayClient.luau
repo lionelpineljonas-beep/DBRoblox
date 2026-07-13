@@ -139,10 +139,10 @@ local function runIntro()
 	loadTxt:Destroy()
 	TweenService:Create(loadFrame, TweenInfo.new(1.0), { BackgroundTransparency = 1 }):Play()
 	
-	-- cinematic aerial camera over the town
+	-- cinematic aerial camera over the town (drone height)
 	local cam = workspace.CurrentCamera
 	cam.CameraType = Enum.CameraType.Scriptable
-	cam.CFrame = CFrame.lookAt(Vector3.new(0, 150, 150), Vector3.new(0, 0, 0))
+	cam.CFrame = CFrame.lookAt(Vector3.new(0, 70, 70), Vector3.new(0, 5, 0))
 
 	local playBtn = Instance.new("TextButton")
 	playBtn.AnchorPoint = Vector2.new(0.5, 0.5)

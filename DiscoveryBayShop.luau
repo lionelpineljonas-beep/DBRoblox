@@ -56,12 +56,12 @@ local function initializeLighting()
 		-- Subtle, realistic Atmosphere (Depth)
 		local atmo = Instance.new("Atmosphere")
 		atmo.Name = "DiscoveryBayAtmosphere"
-		atmo.Density = 0.25
-		atmo.Offset = 0.25
+		atmo.Density = 0.08
+		atmo.Offset = 0.5
 		atmo.Color = Color3.fromRGB(180, 190, 200)
 		atmo.Decay = Color3.fromRGB(140, 150, 160)
 		atmo.Glare = 0
-		atmo.Haze = 0
+		atmo.Haze = 1.2
 		atmo.Parent = Lighting
 
 		-- Very mild Bloom (Neon glow without blinding)
