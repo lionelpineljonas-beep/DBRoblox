@@ -1523,7 +1523,11 @@ local function hollowHouse(house)
 	
 	local hasAutoPetter = false
 	apPrompt.Triggered:Connect(function(who)
-		if who ~= plr then return end
+		local ownerId = house:GetAttribute("OwnerUserId")
+		if not ownerId or who.UserId ~= ownerId then
+			TrickResult:FireClient(who, "You don't own this house!", 0)
+			return
+		end
 		if hasAutoPetter then return end
 		local cash = getCash(who)
 		if not cash or cash.Value < 500 then
@@ -1538,14 +1542,21 @@ local function hollowHouse(house)
 		apBtn.Color = Color3.fromRGB(80, 220, 120)
 		
 		task.spawn(function()
-			while hasAutoPetter and who.Parent do
-				local mdl = playerDog[who.UserId]
-				if mdl then
-					local pay = mdl:GetAttribute("Pay")
-					local dogName = mdl:GetAttribute("DogName")
-					if pay and dogName and cash then
-						cash.Value = cash.Value + pay
-						TrickResult:FireClient(who, dogName .. " loves the Auto Petter!", pay)
+			while hasAutoPetter do
+				local currOwnerId = house:GetAttribute("OwnerUserId")
+				if currOwnerId then
+					local ownerPlr = game.Players:GetPlayerByUserId(currOwnerId)
+					if ownerPlr then
+						local mdl = playerDog[currOwnerId]
+						if mdl then
+							local pay = mdl:GetAttribute("Pay")
+							local dogName = mdl:GetAttribute("DogName")
+							local oCash = getCash(ownerPlr)
+							if pay and dogName and oCash then
+								oCash.Value = oCash.Value + pay
+								TrickResult:FireClient(ownerPlr, dogName .. " loves the Auto Petter!", pay)
+							end
+						end
 					end
 				end
 				task.wait(1)
