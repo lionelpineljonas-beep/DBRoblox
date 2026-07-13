@@ -2333,6 +2333,17 @@ task.spawn(function()
 	end
 end)
 
+local ForceWeather = remote("ForceWeather")
+ForceWeather.OnServerEvent:Connect(function(plr)
+	-- only for testing!
+	task.spawn(function()
+		local ok, err = pcall(runWeather, WEATHERS[rng:NextInteger(1, #WEATHERS)])
+		if not ok then
+			warn("[DiscoveryBayShop] debug weather error: " .. tostring(err))
+		end
+	end)
+end)
+
 --==============================================================================================
 -- NPC TRAFFIC
 --==============================================================================================
