@@ -6146,33 +6146,11 @@ local mbCorner = Instance.new("UICorner")
 mbCorner.CornerRadius = UDim.new(0, 10)
 mbCorner.Parent = mapBtn
 
--- weather debug button
-local weatherBtn = Instance.new("TextButton")
-weatherBtn.Name = "DebugWeather"
-weatherBtn.AnchorPoint = Vector2.new(0, 1)
-weatherBtn.Position = UDim2.new(0, 16, 1, -214)
-weatherBtn.Size = UDim2.new(0, 190, 0, 36)
-weatherBtn.BackgroundColor3 = Color3.fromRGB(200, 120, 40)
-weatherBtn.TextColor3 = Color3.new(1, 1, 1)
-weatherBtn.Font = Enum.Font.FredokaOne
-weatherBtn.TextSize = 15
-weatherBtn.Text = "Debug: Summon Weather"
-weatherBtn.Parent = gui
-local wbCorner = Instance.new("UICorner")
-wbCorner.CornerRadius = UDim.new(0, 8)
-wbCorner.Parent = weatherBtn
-
-weatherBtn.Activated:Connect(function()
-	if ForceWeather then
-		ForceWeather:FireServer()
-	end
-end)
-
--- Robux shop toggle, stacked above the weather button
+-- Robux shop toggle, stacked above the map button
 local shopBtn = Instance.new("TextButton")
 shopBtn.Name = "ShopToggle"
 shopBtn.AnchorPoint = Vector2.new(0, 1)
-shopBtn.Position = UDim2.new(0, 16, 1, -258)
+shopBtn.Position = UDim2.new(0, 16, 1, -214)
 shopBtn.Size = UDim2.new(0, 190, 0, 42)
 shopBtn.BackgroundColor3 = Color3.fromRGB(190, 120, 40)
 shopBtn.TextColor3 = Color3.new(1, 1, 1)
