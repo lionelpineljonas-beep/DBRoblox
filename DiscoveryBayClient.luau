@@ -1164,6 +1164,28 @@ TrickResult.OnClientEvent:Connect(function(trickName, pay)
 				task.wait(0.025)
 			end
 		end)
+	elseif trickName == "Tailwhip" or trickName == "Kickflip" then
+		local scooterDeck = scooter and scooter:FindFirstChild("Deck")
+		local deckMount = scooterDeck and scooterDeck:FindFirstChild("DeckMount")
+		if deckMount then
+			task.spawn(function()
+				local steps = 16
+				local isKick = (trickName == "Kickflip")
+				local axis = isKick and "z" or "y"
+				local origC0 = deckMount.C0
+				-- Same pivot offset used by the server
+				local dy = -3.0
+				local pivot = axis == "y" and CFrame.new(0, dy, -2.2) or CFrame.new(0, dy, 0.2)
+				
+				for i = 1, steps do
+					local a = (i / steps) * math.pi * 2
+					local rot = axis == "y" and CFrame.Angles(0, a, 0) or CFrame.Angles(0, 0, a)
+					deckMount.C0 = origC0 * pivot * rot * pivot:Inverse()
+					task.wait(isKick and 0.03 or 0.028)
+				end
+				deckMount.C0 = origC0
+			end)
+		end
 	end
 end)
 
