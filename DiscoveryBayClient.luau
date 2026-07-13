@@ -133,22 +133,10 @@ local function runIntro()
 	while town and not town:GetAttribute("BuildComplete") do
 		task.wait(0.25)
 	end
-	-- town ready: drop the spinner and fade the grey background so the town is visible
+	-- town ready: drop the spinner but KEEP the flat grey background (no world peek)
 	spinConn:Disconnect()
 	spinner:Destroy()
 	loadTxt:Destroy()
-	TweenService:Create(loadFrame, TweenInfo.new(1.0), { BackgroundTransparency = 1 }):Play()
-	
-	-- cinematic Brookhaven-style camera: slow orbit around the player's location
-	local cam = workspace.CurrentCamera
-	cam.CameraType = Enum.CameraType.Scriptable
-	local orbitAngle = 0
-	local camConn = RunService.RenderStepped:Connect(function(dt)
-		if not hrp or not hrp.Parent then return end
-		orbitAngle = orbitAngle + dt * 0.15 -- slow rotation speed
-		local offset = Vector3.new(math.cos(orbitAngle) * 60, 45, math.sin(orbitAngle) * 60)
-		cam.CFrame = CFrame.lookAt(hrp.Position + offset, hrp.Position)
-	end)
 
 	local playBtn = Instance.new("TextButton")
 	playBtn.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -269,7 +257,6 @@ local function runIntro()
 	end)
 
 	playBtn.Activated:Connect(function()
-		if camConn then camConn:Disconnect() end
 		introGui:Destroy()
 		gui.Enabled = true
 		workspace.CurrentCamera.CameraType = Enum.CameraType.Custom

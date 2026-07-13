@@ -1460,6 +1460,26 @@ local function hollowHouse(house)
 	lampLight.Range = 22
 	lampLight.Brightness = 1.2
 	lampLight.Parent = lampPart
+	
+	-- NEW FURNITURE: TV, Kitchen Island, Bookshelf, Ceiling Light
+	wall("TV", Vector3.new(0.6, 3, 5.5), CFrame.new(-w / 2 + 0.5, -h / 2 + 3.8, d * 0.22),
+		Color3.fromRGB(20, 20, 25), Enum.Material.SmoothPlastic)
+	wall("TVScreen", Vector3.new(0.7, 2.7, 5.1), CFrame.new(-w / 2 + 0.6, -h / 2 + 3.8, d * 0.22),
+		Color3.fromRGB(40, 45, 60), Enum.Material.Neon)
+		
+	wall("KitchenIsland", Vector3.new(3, 2.5, 6), CFrame.new(w * 0.1, -h / 2 + 1.25, -d * 0.25),
+		Color3.fromRGB(200, 210, 220), Enum.Material.Marble)
+	wall("Bookshelf", Vector3.new(4, 6, 1.2), CFrame.new(w / 2 - 0.7, -h / 2 + 3, d * 0.1),
+		Color3.fromRGB(120, 80, 50), Enum.Material.WoodPlanks)
+		
+	local ceilingLight = wall("CeilingLight", Vector3.new(3, 0.4, 3), CFrame.new(0, h / 2 - 0.4, 0),
+		Color3.fromRGB(255, 245, 230), Enum.Material.Neon)
+	local cLight = Instance.new("PointLight")
+	cLight.Range = 30
+	cLight.Brightness = 0.8
+	cLight.Shadows = true
+	cLight.Parent = ceilingLight
+
 	-- where a hatched dog waits: on the dog bed, inside
 	house:SetAttribute("DogSpotInside", (cfB * CFrame.new(w * 0.28, -h / 2 + 1, -d * 0.22)).Position)
 end
@@ -1502,35 +1522,66 @@ local function spawnDog(plr, dogDef, spot)
 	mdl.Name = dogDef.name
 	local base = Vector3.new(spot.X, spot.Y, spot.Z)
 	local k = dogDef.scale or 1
-	local function dp(name, size, off, color, shape)
+	
+	local c = dogDef.color
+	local a = dogDef.accent or c
+	
+	-- Root part
+	local body = Instance.new("Part")
+	body.Name = "Body"
+	body.Size = Vector3.new(2.2, 1.8, 3.6) * k
+	body.CFrame = CFrame.new(base + Vector3.new(0, 2.1, 0) * k)
+	body.Color = c
+	body.Material = Enum.Material.SmoothPlastic
+	body.Anchored = true -- Only root is anchored for Tweening
+	body.CanCollide = true
+	body.Parent = mdl
+	mdl.PrimaryPart = body
+	
+	local function dpWeld(name, size, off, color, shape, parentPart)
 		local p = Instance.new("Part")
 		p.Name = name
 		p.Size = size * k
-		p.CFrame = CFrame.new(base + off * k)
 		p.Color = color
 		p.Material = Enum.Material.SmoothPlastic
-		p.Anchored = true
+		p.Anchored = false
 		p.CanCollide = false
-		p.Parent = mdl
 		if shape then p.Shape = shape end
-		return p
+		p.CFrame = body.CFrame * CFrame.new(off * k)
+		p.Parent = mdl
+		
+		local weld = Instance.new("Weld")
+		weld.Part0 = parentPart or body
+		weld.Part1 = p
+		-- C0 is the offset from the parent part
+		weld.C0 = weld.Part0.CFrame:Inverse() * weld.Part1.CFrame
+		weld.Parent = weld.Part0
+		return p, weld
 	end
-	local c = dogDef.color
-	local a = dogDef.accent or c
-	local body = dp("Body", Vector3.new(2.2, 1.8, 3.6), Vector3.new(0, 2.1, 0), c)
-	dp("Chest", Vector3.new(1.6, 1.2, 0.6), Vector3.new(0, 1.9, -1.7), a) -- breed marking
-	dp("Head", Vector3.new(1.7, 1.7, 1.7), Vector3.new(0, 3.4, -1.9), c, Enum.PartType.Ball)
-	dp("Snout", Vector3.new(0.8, 0.6, 0.9), Vector3.new(0, 3.1, -2.8), a)
-	dp("EarL", Vector3.new(0.4, 0.9, 0.4), Vector3.new(-0.6, 4.3, -1.9), c)
-	dp("EarR", Vector3.new(0.4, 0.9, 0.4), Vector3.new(0.6, 4.3, -1.9), c)
-	dp("Tail", Vector3.new(0.4, 0.4, 1.5), Vector3.new(0, 2.9, 2.2), c)
+
+	dpWeld("Chest", Vector3.new(1.6, 1.2, 0.6), Vector3.new(0, 1.9, -1.7), a)
+	local head = dpWeld("Head", Vector3.new(1.7, 1.7, 1.7), Vector3.new(0, 3.4, -1.9), c, Enum.PartType.Ball)
+	dpWeld("Snout", Vector3.new(0.8, 0.6, 0.9), Vector3.new(0, 3.1, -2.8), a)
+	dpWeld("EarL", Vector3.new(0.4, 0.9, 0.4), Vector3.new(-0.6, 4.3, -1.9), c)
+	dpWeld("EarR", Vector3.new(0.4, 0.9, 0.4), Vector3.new(0.6, 4.3, -1.9), c)
+	
+	-- EYES
+	dpWeld("EyeL", Vector3.new(0.2, 0.2, 0.2), Vector3.new(-0.4, 3.5, -2.7), Color3.new(0,0,0), Enum.PartType.Ball, head)
+	dpWeld("EyeR", Vector3.new(0.2, 0.2, 0.2), Vector3.new(0.4, 3.5, -2.7), Color3.new(0,0,0), Enum.PartType.Ball, head)
+	
+	dpWeld("Tail", Vector3.new(0.4, 0.4, 1.5), Vector3.new(0, 2.9, 2.2), c)
+	
+	local legWelds = {}
 	for _, lx in ipairs({ -0.7, 0.7 }) do
 		for _, lz in ipairs({ -1.2, 1.2 }) do
-			-- front legs carry the accent ("boots"), back legs stay the base coat
-			dp("Leg", Vector3.new(0.6, 1.4, 0.6), Vector3.new(lx, 0.7, lz),
-				lz < 0 and a or c)
+			local leg, lw = dpWeld("Leg", Vector3.new(0.6, 1.4, 0.6), Vector3.new(lx, 0.7, lz), lz < 0 and a or c)
+			-- adjust C0 so they pivot at the top of the leg
+			lw.C0 = lw.C0 * CFrame.new(0, 0.7*k, 0)
+			lw.C1 = CFrame.new(0, 0.7*k, 0)
+			legWelds[#legWelds + 1] = lw
 		end
 	end
+
 	if dogDef.pay >= 100 then
 		local glow = Instance.new("PointLight")
 		glow.Color = Color3.fromRGB(255, 220, 120)
@@ -1561,8 +1612,53 @@ local function spawnDog(plr, dogDef, spot)
 			TrickResult:FireClient(who, dogDef.name .. " loves you!", dogDef.pay)
 		end
 	end)
-	mdl.Parent = town
 	playerDog[plr.UserId] = mdl
+	
+	-- AI Wandering Loop
+	task.spawn(function()
+		local trng = Random.new()
+		local t = 0
+		local ts = game:GetService("TweenService")
+		local initialC0s = {}
+		for i, lw in ipairs(legWelds) do initialC0s[i] = lw.C0 end
+		
+		while body and body.Parent do
+			task.wait(trng:NextNumber(2, 6))
+			if not body or not body.Parent then break end
+			
+			-- pick a random spot near the original spawn spot (the dog bed)
+			local targetSpot = spot + Vector3.new(trng:NextNumber(-9, 9), 0, trng:NextNumber(-9, 9))
+			local targetPos = targetSpot + Vector3.new(0, 2.1 * k, 0)
+			local dist = (body.Position - targetPos).Magnitude
+			local walkTime = dist / 5 -- walk speed: 5 studs per sec
+			
+			local lookAtCFrame = CFrame.lookAt(body.Position, Vector3.new(targetPos.X, body.Position.Y, targetPos.Z))
+			
+			-- Pivot to face the target immediately (or use a quick tween)
+			local turnTween = ts:Create(body, TweenInfo.new(0.3), {CFrame = lookAtCFrame})
+			turnTween:Play()
+			task.wait(0.3)
+			
+			if not body or not body.Parent then break end
+			local walkTween = ts:Create(body, TweenInfo.new(walkTime, Enum.EasingStyle.Linear), {CFrame = lookAtCFrame + (targetPos - lookAtCFrame.Position)})
+			walkTween:Play()
+			
+			-- Walk animation loop
+			local walkConn = game:GetService("RunService").Heartbeat:Connect(function(dt)
+				t = t + dt * 15
+				for i, lw in ipairs(legWelds) do
+					-- alternate diagonal legs
+					local swing = math.sin(t + ((i == 1 or i == 4) and 0 or math.pi)) * 0.45
+					lw.C0 = initialC0s[i] * CFrame.Angles(swing, 0, 0)
+				end
+			end)
+			
+			task.wait(walkTime)
+			walkConn:Disconnect()
+			for i, lw in ipairs(legWelds) do lw.C0 = initialC0s[i] end -- reset stance
+		end
+	end)
+	mdl.Parent = town
 end
 
 local function hookEgg(egg)
