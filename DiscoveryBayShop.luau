@@ -145,6 +145,7 @@ local DoTrick = remote("DoTrick")
 local TrickResult = remote("TrickResult")
 local ToggleScooter = remote("ToggleScooter")
 local HatchEgg = remote("HatchEgg") -- server -> client: play the on-screen hatch cinematic
+local UpdatePity = remote("UpdatePity") -- server -> client: updates pity tracker
 local FishGame = remote("FishGame") -- server -> client: FISH ON! start the reel minigame
 local FishReel = remote("FishReel") -- client -> server: minigame result (true = landed)
 
@@ -1749,6 +1750,8 @@ local function spawnDog(plr, dogDef, spot)
 	mdl.Parent = town
 end
 
+local playerRolls = {}
+
 local function hookEgg(egg)
 	local prompt = egg:FindFirstChildOfClass("ProximityPrompt")
 	if not prompt then return end
@@ -1764,15 +1767,27 @@ local function hookEgg(egg)
 			return
 		end
 		cash.Value = cash.Value - EGG_PRICE
+		
+		local rolls = (playerRolls[plr.UserId] or 0) + 1
+		playerRolls[plr.UserId] = rolls
+		
 		local roll = rng:NextInteger(1, 200)
 		local dogDef
-		if roll <= 2 then
-			dogDef = DOGS[3] -- Linus, 1%
+		
+		-- PITY SYSTEM
+		if rolls >= 90 or roll <= 2 then
+			dogDef = DOGS[3] -- Linus, 1% or Pity
+			playerRolls[plr.UserId] = 0 -- Reset pity!
 		elseif roll <= 101 then
 			dogDef = DOGS[1] -- Mary
 		else
 			dogDef = DOGS[2] -- Jolene
 		end
+		
+		-- Update client on their pity status
+		local currentRolls = playerRolls[plr.UserId] or 0
+		UpdatePity:FireClient(plr, 90 - currentRolls)
+		
 		local homeSpot = home.house:GetAttribute("DogSpotInside")
 			or home.house:GetAttribute("DogSpot") or home.house:GetPivot().Position
 		-- Pet-Sim-X-style hatch: the cinematic plays ON THE PLAYER'S SCREEN (client),

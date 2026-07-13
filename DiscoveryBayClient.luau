@@ -21,6 +21,7 @@ local DoTrick = remotes:WaitForChild("DoTrick")
 local TrickResult = remotes:WaitForChild("TrickResult")
 local ToggleScooter = remotes:WaitForChild("ToggleScooter")
 local HatchEgg = remotes:WaitForChild("HatchEgg")
+local UpdatePity = remotes:WaitForChild("UpdatePity")
 local FishGame = remotes:WaitForChild("FishGame")
 local FishReel = remotes:WaitForChild("FishReel")
 
@@ -296,6 +297,31 @@ mountBtn.Parent = gui
 local mtCorner = Instance.new("UICorner")
 mtCorner.CornerRadius = UDim.new(0, 10)
 mtCorner.Parent = mountBtn
+
+local pityLabel = Instance.new("TextLabel")
+pityLabel.Name = "PityLabel"
+pityLabel.AnchorPoint = Vector2.new(0, 1)
+pityLabel.Position = UDim2.new(0, 16, 1, -120)
+pityLabel.Size = UDim2.new(0, 190, 0, 36)
+pityLabel.BackgroundColor3 = Color3.fromRGB(130, 40, 160)
+pityLabel.TextColor3 = Color3.new(1, 1, 1)
+pityLabel.Font = Enum.Font.FredokaOne
+pityLabel.TextSize = 15
+pityLabel.Text = "Pity: 90 rolls until Linus"
+pityLabel.Parent = gui
+local plCorner = Instance.new("UICorner")
+plCorner.CornerRadius = UDim.new(0, 8)
+plCorner.Parent = pityLabel
+
+UpdatePity.OnClientEvent:Connect(function(rollsLeft)
+	if rollsLeft <= 0 then
+		pityLabel.Text = "Pity: GUARANTEED LINUS!"
+		pityLabel.BackgroundColor3 = Color3.fromRGB(220, 180, 40)
+	else
+		pityLabel.Text = "Pity: " .. tostring(rollsLeft) .. " rolls until Linus"
+		pityLabel.BackgroundColor3 = Color3.fromRGB(130, 40, 160)
+	end
+end)
 
 -- map toggle, stacked above the mount button
 local mapBtn = Instance.new("TextButton")

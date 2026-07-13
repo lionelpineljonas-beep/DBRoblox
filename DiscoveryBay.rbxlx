@@ -3348,6 +3348,7 @@ local DoTrick = remote("DoTrick")
 local TrickResult = remote("TrickResult")
 local ToggleScooter = remote("ToggleScooter")
 local HatchEgg = remote("HatchEgg") -- server -> client: play the on-screen hatch cinematic
+local UpdatePity = remote("UpdatePity") -- server -> client: updates pity tracker
 local FishGame = remote("FishGame") -- server -> client: FISH ON! start the reel minigame
 local FishReel = remote("FishReel") -- client -> server: minigame result (true = landed)
 
@@ -4952,6 +4953,8 @@ local function spawnDog(plr, dogDef, spot)
 	mdl.Parent = town
 end
 
+local playerRolls = {}
+
 local function hookEgg(egg)
 	local prompt = egg:FindFirstChildOfClass("ProximityPrompt")
 	if not prompt then return end
@@ -4967,15 +4970,27 @@ local function hookEgg(egg)
 			return
 		end
 		cash.Value = cash.Value - EGG_PRICE
+		
+		local rolls = (playerRolls[plr.UserId] or 0) + 1
+		playerRolls[plr.UserId] = rolls
+		
 		local roll = rng:NextInteger(1, 200)
 		local dogDef
-		if roll <= 2 then
-			dogDef = DOGS[3] -- Linus, 1%
+		
+		-- PITY SYSTEM
+		if rolls >= 90 or roll <= 2 then
+			dogDef = DOGS[3] -- Linus, 1% or Pity
+			playerRolls[plr.UserId] = 0 -- Reset pity!
 		elseif roll <= 101 then
 			dogDef = DOGS[1] -- Mary
 		else
 			dogDef = DOGS[2] -- Jolene
 		end
+		
+		-- Update client on their pity status
+		local currentRolls = playerRolls[plr.UserId] or 0
+		UpdatePity:FireClient(plr, 90 - currentRolls)
+		
 		local homeSpot = home.house:GetAttribute("DogSpotInside")
 			or home.house:GetAttribute("DogSpot") or home.house:GetPivot().Position
 		-- Pet-Sim-X-style hatch: the cinematic plays ON THE PLAYER'S SCREEN (client),
@@ -5801,6 +5816,7 @@ local DoTrick = remotes:WaitForChild("DoTrick")
 local TrickResult = remotes:WaitForChild("TrickResult")
 local ToggleScooter = remotes:WaitForChild("ToggleScooter")
 local HatchEgg = remotes:WaitForChild("HatchEgg")
+local UpdatePity = remotes:WaitForChild("UpdatePity")
 local FishGame = remotes:WaitForChild("FishGame")
 local FishReel = remotes:WaitForChild("FishReel")
 
@@ -6076,6 +6092,31 @@ mountBtn.Parent = gui
 local mtCorner = Instance.new("UICorner")
 mtCorner.CornerRadius = UDim.new(0, 10)
 mtCorner.Parent = mountBtn
+
+local pityLabel = Instance.new("TextLabel")
+pityLabel.Name = "PityLabel"
+pityLabel.AnchorPoint = Vector2.new(0, 1)
+pityLabel.Position = UDim2.new(0, 16, 1, -120)
+pityLabel.Size = UDim2.new(0, 190, 0, 36)
+pityLabel.BackgroundColor3 = Color3.fromRGB(130, 40, 160)
+pityLabel.TextColor3 = Color3.new(1, 1, 1)
+pityLabel.Font = Enum.Font.FredokaOne
+pityLabel.TextSize = 15
+pityLabel.Text = "Pity: 90 rolls until Linus"
+pityLabel.Parent = gui
+local plCorner = Instance.new("UICorner")
+plCorner.CornerRadius = UDim.new(0, 8)
+plCorner.Parent = pityLabel
+
+UpdatePity.OnClientEvent:Connect(function(rollsLeft)
+	if rollsLeft <= 0 then
+		pityLabel.Text = "Pity: GUARANTEED LINUS!"
+		pityLabel.BackgroundColor3 = Color3.fromRGB(220, 180, 40)
+	else
+		pityLabel.Text = "Pity: " .. tostring(rollsLeft) .. " rolls until Linus"
+		pityLabel.BackgroundColor3 = Color3.fromRGB(130, 40, 160)
+	end
+end)
 
 -- map toggle, stacked above the mount button
 local mapBtn = Instance.new("TextButton")
