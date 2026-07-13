@@ -1094,19 +1094,19 @@ local function buildResidential(m, cf, b)
 			Color3.fromRGB(150, 90, 70), Enum.Material.Brick)
 	end
 
-	newPart(m, "Door", Vector3.new(3.4, 6.6, 0.3) * S,
+	newPart(m, "Door", Vector3.new(4.3, 6.6, 0.3) * S,
 		cf * CFrame.new(doorX * S, (0.5 + 3.3) * S, (frontZ - 0.12) * S),
-		Color3.fromRGB(70, 50, 40), Enum.Material.Wood)
+		Color3.fromRGB(130, 90, 60), Enum.Material.WoodPlanks)
 	-- quality details: a REAL door frame (two jambs + lintel, doorway stays clear) and a step
-	for _, jx in ipairs({ -2.0, 2.0 }) do
+	for _, jx in ipairs({ -2.45, 2.45 }) do
 		newPart(m, "DoorJamb", Vector3.new(0.6, 7.2, 0.18) * S,
 			cf * CFrame.new((doorX + jx) * S, (0.5 + 3.6) * S, (frontZ - 0.08) * S),
-			Color3.fromRGB(245, 242, 235))
+			trim, Enum.Material.Concrete)
 	end
-	newPart(m, "DoorLintel", Vector3.new(4.6, 0.5, 0.18) * S,
+	newPart(m, "DoorLintel", Vector3.new(5.5, 0.5, 0.18) * S,
 		cf * CFrame.new(doorX * S, (0.5 + 6.85) * S, (frontZ - 0.08) * S),
-		Color3.fromRGB(245, 242, 235))
-	newPart(m, "DoorStep", Vector3.new(5, 0.6, 2.6) * S,
+		trim, Enum.Material.Concrete)
+	newPart(m, "DoorStep", Vector3.new(6.0, 0.6, 2.6) * S,
 		cf * CFrame.new(doorX * S, 0.55 * S, (frontZ - 1.6) * S),
 		Color3.fromRGB(190, 185, 175), Enum.Material.Concrete)
 

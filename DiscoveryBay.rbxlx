@@ -1986,19 +1986,19 @@ local function buildResidential(m, cf, b)
 			Color3.fromRGB(150, 90, 70), Enum.Material.Brick)
 	end
 
-	newPart(m, "Door", Vector3.new(3.4, 6.6, 0.3) * S,
+	newPart(m, "Door", Vector3.new(4.3, 6.6, 0.3) * S,
 		cf * CFrame.new(doorX * S, (0.5 + 3.3) * S, (frontZ - 0.12) * S),
-		Color3.fromRGB(70, 50, 40), Enum.Material.Wood)
+		Color3.fromRGB(130, 90, 60), Enum.Material.WoodPlanks)
 	-- quality details: a REAL door frame (two jambs + lintel, doorway stays clear) and a step
-	for _, jx in ipairs({ -2.0, 2.0 }) do
+	for _, jx in ipairs({ -2.45, 2.45 }) do
 		newPart(m, "DoorJamb", Vector3.new(0.6, 7.2, 0.18) * S,
 			cf * CFrame.new((doorX + jx) * S, (0.5 + 3.6) * S, (frontZ - 0.08) * S),
-			Color3.fromRGB(245, 242, 235))
+			trim, Enum.Material.Concrete)
 	end
-	newPart(m, "DoorLintel", Vector3.new(4.6, 0.5, 0.18) * S,
+	newPart(m, "DoorLintel", Vector3.new(5.5, 0.5, 0.18) * S,
 		cf * CFrame.new(doorX * S, (0.5 + 6.85) * S, (frontZ - 0.08) * S),
-		Color3.fromRGB(245, 242, 235))
-	newPart(m, "DoorStep", Vector3.new(5, 0.6, 2.6) * S,
+		trim, Enum.Material.Concrete)
+	newPart(m, "DoorStep", Vector3.new(6.0, 0.6, 2.6) * S,
 		cf * CFrame.new(doorX * S, 0.55 * S, (frontZ - 1.6) * S),
 		Color3.fromRGB(190, 185, 175), Enum.Material.Concrete)
 
@@ -4714,6 +4714,47 @@ local function hollowHouse(house)
 	cLight.Brightness = 0.8
 	cLight.Shadows = true
 	cLight.Parent = ceilingLight
+	
+	-- NEW MECHANIC: Auto Petter outside the front door
+	local apBtn = wall("AutoPetter", Vector3.new(2, 3, 2), CFrame.new(doorX + 5, -h / 2 + 1.5, -d / 2 - 1.5),
+		Color3.fromRGB(40, 150, 80), Enum.Material.SmoothPlastic)
+	local apPrompt = Instance.new("ProximityPrompt")
+	apPrompt.ActionText = "Buy Auto Petter"
+	apPrompt.ObjectText = "$500"
+	apPrompt.HoldDuration = 1
+	apPrompt.Parent = apBtn
+	
+	local hasAutoPetter = false
+	apPrompt.Triggered:Connect(function(who)
+		if who ~= plr then return end
+		if hasAutoPetter then return end
+		local cash = getCash(who)
+		if not cash or cash.Value < 500 then
+			TrickResult:FireClient(who, "Not enough cash for Auto Petter!", 0)
+			return
+		end
+		cash.Value = cash.Value - 500
+		hasAutoPetter = true
+		apPrompt.ActionText = "Auto Petter Active"
+		apPrompt.ObjectText = ""
+		apPrompt.Enabled = false
+		apBtn.Color = Color3.fromRGB(80, 220, 120)
+		
+		task.spawn(function()
+			while hasAutoPetter and who.Parent do
+				local mdl = playerDog[who.UserId]
+				if mdl then
+					local pay = mdl:GetAttribute("Pay")
+					local dogName = mdl:GetAttribute("DogName")
+					if pay and dogName and cash then
+						cash.Value = cash.Value + pay
+						TrickResult:FireClient(who, dogName .. " loves the Auto Petter!", pay)
+					end
+				end
+				task.wait(1)
+			end
+		end)
+	end)
 
 	-- where a hatched dog waits: on the dog bed, inside
 	house:SetAttribute("DogSpotInside", (cfB * CFrame.new(w * 0.28, -h / 2 + 1, -d * 0.22)).Position)
@@ -4850,6 +4891,8 @@ local function spawnDog(plr, dogDef, spot)
 		end
 	end)
 	playerDog[plr.UserId] = mdl
+	mdl:SetAttribute("Pay", dogDef.pay)
+	mdl:SetAttribute("DogName", dogDef.name)
 	
 	-- AI Wandering Loop
 	task.spawn(function()

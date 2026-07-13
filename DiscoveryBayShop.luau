@@ -1511,6 +1511,47 @@ local function hollowHouse(house)
 	cLight.Brightness = 0.8
 	cLight.Shadows = true
 	cLight.Parent = ceilingLight
+	
+	-- NEW MECHANIC: Auto Petter outside the front door
+	local apBtn = wall("AutoPetter", Vector3.new(2, 3, 2), CFrame.new(doorX + 5, -h / 2 + 1.5, -d / 2 - 1.5),
+		Color3.fromRGB(40, 150, 80), Enum.Material.SmoothPlastic)
+	local apPrompt = Instance.new("ProximityPrompt")
+	apPrompt.ActionText = "Buy Auto Petter"
+	apPrompt.ObjectText = "$500"
+	apPrompt.HoldDuration = 1
+	apPrompt.Parent = apBtn
+	
+	local hasAutoPetter = false
+	apPrompt.Triggered:Connect(function(who)
+		if who ~= plr then return end
+		if hasAutoPetter then return end
+		local cash = getCash(who)
+		if not cash or cash.Value < 500 then
+			TrickResult:FireClient(who, "Not enough cash for Auto Petter!", 0)
+			return
+		end
+		cash.Value = cash.Value - 500
+		hasAutoPetter = true
+		apPrompt.ActionText = "Auto Petter Active"
+		apPrompt.ObjectText = ""
+		apPrompt.Enabled = false
+		apBtn.Color = Color3.fromRGB(80, 220, 120)
+		
+		task.spawn(function()
+			while hasAutoPetter and who.Parent do
+				local mdl = playerDog[who.UserId]
+				if mdl then
+					local pay = mdl:GetAttribute("Pay")
+					local dogName = mdl:GetAttribute("DogName")
+					if pay and dogName and cash then
+						cash.Value = cash.Value + pay
+						TrickResult:FireClient(who, dogName .. " loves the Auto Petter!", pay)
+					end
+				end
+				task.wait(1)
+			end
+		end)
+	end)
 
 	-- where a hatched dog waits: on the dog bed, inside
 	house:SetAttribute("DogSpotInside", (cfB * CFrame.new(w * 0.28, -h / 2 + 1, -d * 0.22)).Position)
@@ -1647,6 +1688,8 @@ local function spawnDog(plr, dogDef, spot)
 		end
 	end)
 	playerDog[plr.UserId] = mdl
+	mdl:SetAttribute("Pay", dogDef.pay)
+	mdl:SetAttribute("DogName", dogDef.name)
 	
 	-- AI Wandering Loop
 	task.spawn(function()
