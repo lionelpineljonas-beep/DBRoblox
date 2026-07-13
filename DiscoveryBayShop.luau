@@ -990,8 +990,7 @@ local TRICKS = {
 	{ name = "360 Spin", pay = 6, fn = function(rig, hrp) end },
 	{ name = "Backflip", pay = 10, fn = function(rig, hrp) end },
 	{ name = "Frontflip", pay = 10, fn = function(rig, hrp) end },
-	{ name = "Superman", pay = 8, fn = function(rig, hrp) legsBack(rig, 0.55) end },
-	{ name = "No-Hander", pay = 5, fn = function(rig, hrp) armsBack(rig, 0.5) end },
+	{ name = "No-Hander", pay = 5, fn = function(rig, hrp) end },
 }
 local TRICK_BY_NAME = {}
 for _, t in ipairs(TRICKS) do
@@ -1660,8 +1659,13 @@ end
 
 local function clearCast(uid)
 	local st = castState[uid]
-	if st and st.bobber and st.bobber.Parent then
-		st.bobber:Destroy()
+	if st then
+		if st.bobber and st.bobber.Parent then
+			st.bobber:Destroy()
+		end
+		if st.a0 and st.a0.Parent then
+			st.a0:Destroy()
+		end
 	end
 	castState[uid] = nil
 end
@@ -1714,7 +1718,30 @@ local function hookRod(plr, tool)
 		bobber.CanCollide = false
 		bobber.CFrame = CFrame.new(waterPos + Vector3.new(0, 0.3, 0))
 		bobber.Parent = workspace
-		castState[uid] = { stage = "wait", bobber = bobber }
+		
+		-- Add the fishing string (Beam)
+		local handle = tool:FindFirstChild("Handle")
+		local a0, a1, beam
+		if handle then
+			a0 = Instance.new("Attachment")
+			a0.Position = Vector3.new(-2.8, 0, 0) -- tip of the 6-stud rod
+			a0.Parent = handle
+			a1 = Instance.new("Attachment")
+			a1.Parent = bobber
+			
+			beam = Instance.new("Beam")
+			beam.Color = ColorSequence.new(Color3.fromRGB(220, 220, 220))
+			beam.Width0 = 0.04
+			beam.Width1 = 0.04
+			beam.FaceCamera = true
+			beam.CurveSize0 = 1.5 -- slight droop
+			beam.CurveSize1 = 1.5
+			beam.Attachment0 = a0
+			beam.Attachment1 = a1
+			beam.Parent = bobber
+		end
+		
+		castState[uid] = { stage = "wait", bobber = bobber, a0 = a0 }
 		TrickResult:FireClient(plr, "Cast! Watch the bobber... (" .. (bait - 1) .. " bait left)", 0)
 		task.delay(rng:NextNumber(2, 6), function()
 			local st = castState[uid]

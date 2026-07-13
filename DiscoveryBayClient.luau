@@ -1192,6 +1192,37 @@ TrickResult.OnClientEvent:Connect(function(trickName, pay)
 				deckMount.C0 = origC0
 			end)
 		end
+	elseif trickName == "No-Hander" then
+		task.spawn(function()
+			-- R15 arms
+			local rs = char:FindFirstChild("RightUpperArm")
+			local ls = char:FindFirstChild("LeftUpperArm")
+			local rMotor = rs and rs:FindFirstChild("RightShoulder")
+			local lMotor = ls and ls:FindFirstChild("LeftShoulder")
+			
+			if rMotor and lMotor then
+				local origR = rMotor.C0
+				local origL = lMotor.C0
+				-- Fling arms straight back and slightly out (math.rad(-130) pitch)
+				local poseR = origR * CFrame.Angles(math.rad(-130), 0, math.rad(20))
+				local poseL = origL * CFrame.Angles(math.rad(-130), 0, math.rad(-20))
+				
+				local steps = 8
+				for i = 1, steps do
+					rMotor.C0 = origR:Lerp(poseR, i/steps)
+					lMotor.C0 = origL:Lerp(poseL, i/steps)
+					task.wait(0.03)
+				end
+				task.wait(0.15) -- hold the pose mid-air
+				for i = 1, steps do
+					rMotor.C0 = poseR:Lerp(origR, i/steps)
+					lMotor.C0 = poseL:Lerp(origL, i/steps)
+					task.wait(0.03)
+				end
+				rMotor.C0 = origR
+				lMotor.C0 = origL
+			end
+		end)
 	end
 end)
 
