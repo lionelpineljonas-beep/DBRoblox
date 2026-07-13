@@ -35,21 +35,57 @@ local DAY_LENGTH = 600
 
 local function initializeLighting()
 	pcall(function()
-		-- Revert to original normal state by destroying custom lighting effects
+		-- Clean up any existing custom lighting effects
 		for _, child in ipairs(Lighting:GetChildren()) do
-			if child.Name == "DiscoveryBaySky" or child.Name == "DiscoveryBayAtmosphere" 
-				or child.Name == "DiscoveryBayBloom" or child.Name == "DiscoveryBayColorCorrection" 
-				or child.Name == "DiscoveryBaySunRays" then
+			if child.Name == "DiscoveryBayAtmosphere" or child.Name == "DiscoveryBayBloom" 
+				or child.Name == "DiscoveryBayColorCorrection" or child.Name == "DiscoveryBaySunRays" then
 				child:Destroy()
 			end
 		end
 		
-		-- Reset back to standard Roblox settings
-		Lighting.Technology = Enum.Technology.ShadowMap
-		Lighting.ShadowSoftness = 0.5
-		Lighting.Brightness = 2
-		Lighting.Ambient = Color3.fromRGB(0, 0, 0)
-		Lighting.OutdoorAmbient = Color3.fromRGB(128, 128, 128)
+		-- High-end realistic settings
+		Lighting.Technology = Enum.Technology.Future
+		Lighting.ShadowSoftness = 0.2 -- sharper, realistic shadows
+		Lighting.Brightness = 2.5
+		Lighting.GlobalShadows = true
+		Lighting.Ambient = Color3.fromRGB(50, 50, 60)
+		Lighting.OutdoorAmbient = Color3.fromRGB(110, 120, 130)
+		Lighting.EnvironmentDiffuseScale = 0.5
+		Lighting.EnvironmentSpecularScale = 0.5
+
+		-- Subtle, realistic Atmosphere (Depth)
+		local atmo = Instance.new("Atmosphere")
+		atmo.Name = "DiscoveryBayAtmosphere"
+		atmo.Density = 0.25
+		atmo.Offset = 0.25
+		atmo.Color = Color3.fromRGB(180, 190, 200)
+		atmo.Decay = Color3.fromRGB(140, 150, 160)
+		atmo.Glare = 0
+		atmo.Haze = 0
+		atmo.Parent = Lighting
+
+		-- Very mild Bloom (Neon glow without blinding)
+		local bloom = Instance.new("BloomEffect")
+		bloom.Name = "DiscoveryBayBloom"
+		bloom.Intensity = 0.35
+		bloom.Size = 18
+		bloom.Threshold = 2.5
+		bloom.Parent = Lighting
+
+		-- Subtle Color Correction (Make colors pop safely)
+		local cc = Instance.new("ColorCorrectionEffect")
+		cc.Name = "DiscoveryBayColorCorrection"
+		cc.Contrast = 0.05
+		cc.Saturation = 0.1
+		cc.Brightness = 0
+		cc.Parent = Lighting
+
+		-- Soft Sun Rays
+		local sun = Instance.new("SunRaysEffect")
+		sun.Name = "DiscoveryBaySunRays"
+		sun.Intensity = 0.04 -- Very soft, realistic rays
+		sun.Spread = 0.8
+		sun.Parent = Lighting
 	end)
 end
 
@@ -1724,7 +1760,7 @@ local function hookRod(plr, tool)
 		local a0, a1, beam
 		if handle then
 			a0 = Instance.new("Attachment")
-			a0.Position = Vector3.new(-2.8, 0, 0) -- tip of the 6-stud rod
+			a0.Position = Vector3.new(2.8, 0, 0) -- tip of the 6-stud rod
 			a0.Parent = handle
 			a1 = Instance.new("Attachment")
 			a1.Parent = bobber

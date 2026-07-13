@@ -133,10 +133,11 @@ local function runIntro()
 	while town and not town:GetAttribute("BuildComplete") do
 		task.wait(0.25)
 	end
-	-- town ready: drop the spinner but KEEP the flat grey background (no world peek)
+	-- town ready: drop the spinner and fade the grey background so the town is visible
 	spinConn:Disconnect()
 	spinner:Destroy()
 	loadTxt:Destroy()
+	TweenService:Create(loadFrame, TweenInfo.new(1.0), { BackgroundTransparency = 1 }):Play()
 
 	local playBtn = Instance.new("TextButton")
 	playBtn.AnchorPoint = Vector2.new(0.5, 0.5)
