@@ -1422,8 +1422,8 @@ local function hollowHouse(house)
 	wall("Ceiling", Vector3.new(w, 0.4, d), CFrame.new(0, h / 2 - 0.2, 0),
 		Color3.fromRGB(238, 234, 224), Enum.Material.SmoothPlastic)
 	wall("BackWall", Vector3.new(w, h, 0.8), CFrame.new(0, 0, d / 2 - 0.4))
-	wall("SideL", Vector3.new(0.8, h, d), CFrame.new(-w / 2 + 0.4, 0, 0))
-	wall("SideR", Vector3.new(0.8, h, d), CFrame.new(w / 2 - 0.4, 0, 0))
+	wall("SideL", Vector3.new(0.8, h, d - 1.6), CFrame.new(-w / 2 + 0.4, 0, 0))
+	wall("SideR", Vector3.new(0.8, h, d - 1.6), CFrame.new(w / 2 - 0.4, 0, 0))
 	-- front wall with a doorway where the door visual stands
 	local doorX = 0
 	local door = house:FindFirstChild("Door")

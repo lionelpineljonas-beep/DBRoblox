@@ -499,20 +499,24 @@ local TRICKS = {
 	{ key = Enum.KeyCode.Z, label = "Z", name = "Tailwhip",  pay = 4 },
 	{ key = Enum.KeyCode.X, label = "X", name = "Kickflip",  pay = 3 },
 	{ key = Enum.KeyCode.C, label = "C", name = "360 Spin",  pay = 6 },
-	{ key = Enum.KeyCode.V, label = "V", name = "Superman",  pay = 8 },
-	{ key = Enum.KeyCode.B, label = "B", name = "No-Hander", pay = 5 },
+	{ key = Enum.KeyCode.V, label = "V", name = "Backflip",  pay = 10 },
+	{ key = Enum.KeyCode.B, label = "B", name = "Frontflip", pay = 10 },
+	{ key = Enum.KeyCode.N, label = "N", name = "No-Hander", pay = 5 },
 }
 
-local menu = Instance.new("Frame")
+local menu = Instance.new("ScrollingFrame")
 menu.Name = "TrickMenu"
 menu.AnchorPoint = Vector2.new(1, 1)
 menu.Position = UDim2.new(1, -16, 1, -16)
-menu.Size = UDim2.new(0, 170, 0, 5 * 40 + 64)
+menu.Size = UDim2.new(0, 180, 0, 4 * 40 + 64)
 menu.BackgroundTransparency = 1
+menu.BorderSizePixel = 0
+menu.ScrollBarThickness = 8
+menu.CanvasSize = UDim2.new(0, 0, 0, 7 * 40 + 64)
 menu.Parent = gui
 local layout = Instance.new("UIListLayout")
 layout.Padding = UDim.new(0, 4)
-layout.VerticalAlignment = Enum.VerticalAlignment.Bottom
+layout.VerticalAlignment = Enum.VerticalAlignment.Top
 layout.Parent = menu
 
 local trickButtons = {}
@@ -1140,22 +1144,22 @@ TrickResult.OnClientEvent:Connect(function(trickName, pay)
 	end)
 
 	-- Perform the flip/spin!
-	if trickName == "Backflip" then
-		task.spawn(function()
-			local steps = 18
-			for i = 1, steps do
-				hrp.CFrame = hrp.CFrame * CFrame.Angles(math.rad(360 / steps), 0, 0)
-				task.wait(0.025)
-			end
-		end)
-	elseif trickName == "Frontflip" then
-		task.spawn(function()
-			local steps = 18
-			for i = 1, steps do
-				hrp.CFrame = hrp.CFrame * CFrame.Angles(math.rad(-360 / steps), 0, 0)
-				task.wait(0.025)
-			end
-		end)
+	if trickName == "Backflip" or trickName == "Frontflip" then
+		local rootPart = char:FindFirstChild("LowerTorso") or char:FindFirstChild("Torso")
+		local rootJoint = rootPart and rootPart:FindFirstChild("Root") or (hrp and hrp:FindFirstChild("RootJoint"))
+		if rootJoint then
+			task.spawn(function()
+				local steps = 18
+				local origC0 = rootJoint.C0
+				local sign = trickName == "Backflip" and 1 or -1
+				for i = 1, steps do
+					local ang = (i / steps) * math.pi * 2 * sign
+					rootJoint.C0 = origC0 * CFrame.Angles(ang, 0, 0)
+					task.wait(0.025)
+				end
+				rootJoint.C0 = origC0
+			end)
+		end
 	elseif trickName == "360 Spin" then
 		task.spawn(function()
 			local dirSign = (math.random() > 0.5 and 1 or -1)
