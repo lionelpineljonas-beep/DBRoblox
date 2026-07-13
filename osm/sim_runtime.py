@@ -81,6 +81,11 @@ V3mt = {
 }
 Vector3 = { new = v3, zero = v3(0, 0, 0) }
 Vector2 = { new = function(x, y) return { X = x, Y = y } end }
+NumberSequenceKeypoint = { new = function(t, v) return { Time = t, Value = v } end }
+NumberSequence = { new = function(...) return { ... } end }
+ColorSequenceKeypoint = { new = function(t, c) return { Time = t, Color = c } end }
+ColorSequence = { new = function(...) return { ... } end }
+NumberRange = { new = function(a, b) return { Min = a, Max = b or a } end }
 
 local CFmt
 local function cf(x, y, z)

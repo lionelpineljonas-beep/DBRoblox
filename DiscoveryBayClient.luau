@@ -11,7 +11,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 
-local VERSION = "v40"
+local VERSION = "v41"
 local SPEED_PASS_ID = 0 -- paste the real Game Pass ID here (same one as in DiscoveryBayShop)
 local RunService = game:GetService("RunService")
 local plr = Players.LocalPlayer
@@ -1010,6 +1010,22 @@ HatchEgg.OnClientEvent:Connect(function(dogName)
 	end)
 end)
 
+local SoundService = game:GetService("SoundService")
+
+local function playSound(soundId, volume)
+	local sound = Instance.new("Sound")
+	sound.SoundId = soundId
+	sound.Volume = volume or 0.5
+	sound.Parent = SoundService
+	sound:Play()
+	sound.Ended:Connect(function()
+		sound:Destroy()
+	end)
+	task.delay(10, function()
+		if sound and sound.Parent then sound:Destroy() end
+	end)
+end
+
 -- trick popups -----------------------------------------------------------------------------------
 TrickResult.OnClientEvent:Connect(function(trickName, pay)
 	-- "WX|" prefix = weather announcement: big banner across the top instead of a popup
@@ -1052,9 +1068,37 @@ TrickResult.OnClientEvent:Connect(function(trickName, pay)
 	if pay and pay > 0 then
 		pop.Text = "+$" .. pay .. "  " .. trickName .. "!"
 		pop.TextColor3 = Color3.fromRGB(120, 230, 130)
+		pcall(playSound, "rbxassetid://9061556942", 0.4) -- landing chime
+
+		-- camera shake on landing a trick
+		task.spawn(function()
+			local cam = workspace.CurrentCamera
+			if cam then
+				local t = 0.15
+				local speed = 25
+				local size = 0.4
+				local t0 = os.clock()
+				while os.clock() - t0 < t do
+					local elapsed = os.clock() - t0
+					local offset = Vector3.new(
+						math.sin(elapsed * speed) * size * (1 - elapsed/t),
+						math.cos(elapsed * speed) * size * (1 - elapsed/t),
+						0
+					)
+					cam.CFrame = cam.CFrame * CFrame.new(offset)
+					task.wait()
+				end
+			end
+		end)
 	else
 		pop.Text = trickName
 		pop.TextColor3 = Color3.fromRGB(120, 200, 255)
+		local lowerMsg = string.lower(trickName)
+		if string.find(lowerMsg, "speed") or string.find(lowerMsg, "rush") or string.find(lowerMsg, "boost") then
+			pcall(playSound, "rbxassetid://9114222049", 0.5) -- speed boost swoosh
+		elseif string.find(lowerMsg, "cash") or string.find(lowerMsg, "purchase") or string.find(lowerMsg, "bought") or string.find(lowerMsg, "spent") or string.find(lowerMsg, "rent") then
+			pcall(playSound, "rbxassetid://9059737151", 0.45) -- shop purchase cash register
+		end
 	end
 	pop.Parent = gui
 	TweenService:Create(pop, TweenInfo.new(1.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
@@ -1065,11 +1109,68 @@ TrickResult.OnClientEvent:Connect(function(trickName, pay)
 	task.delay(1.2, function()
 		pop:Destroy()
 	end)
+
+	-- ==========================================
+	-- CLIENT-SIDE TRICK ANIMATION (Physics Authority)
+	-- ==========================================
+	local char = plr.Character
+	if not char then return end
+	local hrp = char:FindFirstChild("HumanoidRootPart")
+	if not hrp then return end
+
+	-- Add a cool neon trail to the root part for visual flair!
+	local trail = Instance.new("Trail")
+	trail.Color = ColorSequence.new(Color3.fromRGB(0, 255, 255))
+	trail.Lifetime = 0.4
+	trail.Transparency = NumberSequence.new(0, 1)
+	local a0 = Instance.new("Attachment")
+	a0.Position = Vector3.new(0, 2, 0)
+	local a1 = Instance.new("Attachment")
+	a1.Position = Vector3.new(0, -2, 0)
+	a0.Parent = hrp
+	a1.Parent = hrp
+	trail.Attachment0 = a0
+	trail.Attachment1 = a1
+	trail.Parent = hrp
+	task.delay(0.6, function()
+		trail:Destroy()
+		a0:Destroy()
+		a1:Destroy()
+	end)
+
+	-- Perform the flip/spin!
+	if trickName == "Backflip" then
+		task.spawn(function()
+			local steps = 18
+			for i = 1, steps do
+				hrp.CFrame = hrp.CFrame * CFrame.Angles(math.rad(360 / steps), 0, 0)
+				task.wait(0.025)
+			end
+		end)
+	elseif trickName == "Frontflip" then
+		task.spawn(function()
+			local steps = 18
+			for i = 1, steps do
+				hrp.CFrame = hrp.CFrame * CFrame.Angles(math.rad(-360 / steps), 0, 0)
+				task.wait(0.025)
+			end
+		end)
+	elseif trickName == "360 Spin" then
+		task.spawn(function()
+			local dirSign = (math.random() > 0.5 and 1 or -1)
+			local steps = 14
+			for i = 1, steps do
+				hrp.CFrame = hrp.CFrame * CFrame.Angles(0, math.rad((360 * dirSign) / steps), 0)
+				task.wait(0.025)
+			end
+		end)
+	end
 end)
 
 -- FISHING minigame: FISH ON! stop the swinging marker inside the green zone ----------------------
 local fishFrame = nil
 FishGame.OnClientEvent:Connect(function()
+	pcall(playSound, "rbxassetid://9061611394", 0.5) -- splash sound on fish hook
 	if fishFrame then
 		fishFrame:Destroy()
 		fishFrame = nil

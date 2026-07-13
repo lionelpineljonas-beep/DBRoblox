@@ -32,7 +32,29 @@ local SPEED_PASS_ID = 0
 
 -- day/night cycle: one full day every 10 minutes
 local DAY_LENGTH = 600
+
+local function initializeLighting()
+	pcall(function()
+		-- Revert to original normal state by destroying custom lighting effects
+		for _, child in ipairs(Lighting:GetChildren()) do
+			if child.Name == "DiscoveryBaySky" or child.Name == "DiscoveryBayAtmosphere" 
+				or child.Name == "DiscoveryBayBloom" or child.Name == "DiscoveryBayColorCorrection" 
+				or child.Name == "DiscoveryBaySunRays" then
+				child:Destroy()
+			end
+		end
+		
+		-- Reset back to standard Roblox settings
+		Lighting.Technology = Enum.Technology.ShadowMap
+		Lighting.ShadowSoftness = 0.5
+		Lighting.Brightness = 2
+		Lighting.Ambient = Color3.fromRGB(0, 0, 0)
+		Lighting.OutdoorAmbient = Color3.fromRGB(128, 128, 128)
+	end)
+end
+
 task.spawn(function()
+	initializeLighting()
 	Lighting.ClockTime = 9 -- start on a sunny morning
 	while true do
 		task.wait(1)
@@ -43,7 +65,7 @@ end)
 local START_CASH = 100
 local WALK_SPEED = 16
 local SCOOTER_SPEED = 30
-local VERSION = "v40"
+local VERSION = "v41"
 local TRICK_COOLDOWN = 1.2
 local TRAFFIC_CARS = 130
 local CAR_SPEED = 38
@@ -176,7 +198,7 @@ end
 local function poseStance(char, rig)
 	local upperTorso = char:FindFirstChild("UpperTorso")
 	local waist = upperTorso and upperTorso:FindFirstChild("Waist")
-	if waist then
+	if waist and waist:IsA("JointInstance") then
 		local orig = waist.C0
 		waist.C0 = orig * CFrame.Angles(math.rad(-8), 0, 0)
 		rig.waist = { motor = waist, orig = orig, rest = waist.C0 }
@@ -184,10 +206,16 @@ local function poseStance(char, rig)
 	-- whole-body root motor: guaranteed-visible 360 spins on any rig
 	local lowerTorso = char:FindFirstChild("LowerTorso")
 	local rootMotor = lowerTorso and lowerTorso:FindFirstChild("Root")
+	if rootMotor and not rootMotor:IsA("JointInstance") then
+		rootMotor = nil
+	end
 	local rootAxis = "y"
 	if not rootMotor then
 		local hrp = char:FindFirstChild("HumanoidRootPart")
 		rootMotor = hrp and hrp:FindFirstChild("RootJoint")
+		if rootMotor and not rootMotor:IsA("JointInstance") then
+			rootMotor = nil
+		end
 		rootAxis = "z"
 	end
 	if rootMotor then
@@ -198,10 +226,16 @@ local function poseStance(char, rig)
 	for side, deg in pairs(legPose) do
 		local upperLeg = char:FindFirstChild(side .. "UpperLeg")
 		local hip = upperLeg and upperLeg:FindFirstChild(side .. "Hip")
+		if hip and not hip:IsA("JointInstance") then
+			hip = nil
+		end
 		local pose = r15Pose
 		if not hip then
 			local torso = char:FindFirstChild("Torso")
 			hip = torso and torso:FindFirstChild(side .. " Hip")
+			if hip and not hip:IsA("JointInstance") then
+				hip = nil
+			end
 			local fw = (side == "Left") and 1 or -1
 			pose = function(rest, a)
 				return rest * CFrame.Angles(0, 0, math.rad(a * fw))
@@ -217,7 +251,7 @@ local function poseStance(char, rig)
 	for _, side in ipairs({ "Left", "Right" }) do
 		local upperArm = char:FindFirstChild(side .. "UpperArm")
 		local shoulder = upperArm and upperArm:FindFirstChild(side .. "Shoulder")
-		if shoulder then
+		if shoulder and shoulder:IsA("JointInstance") then
 			table.insert(rig.shoulders, { motor = shoulder, rest = shoulder.C0, pose = r15Pose })
 		end
 	end
@@ -337,13 +371,65 @@ function mountScooterBody(plr, char)
 	sPart("Battery", Vector3.new(1.2, 0.35, 1.6), CFrame.new(0, deckY + 0.3, 0.8), Color3.fromRGB(60, 160, 90), nil, deckRoot)
 	sPart("FrontWheel", Vector3.new(0.4, 1.1, 1.1), CFrame.new(0, wheelY, -2.2), Color3.fromRGB(25, 25, 25),
 		Enum.PartType.Cylinder, deckRoot)
-	sPart("RearWheel", Vector3.new(0.4, 1.1, 1.1), CFrame.new(0, wheelY, 2.4), Color3.fromRGB(25, 25, 25),
+	local rearWheel = sPart("RearWheel", Vector3.new(0.4, 1.1, 1.1), CFrame.new(0, wheelY, 2.4), Color3.fromRGB(25, 25, 25),
 		Enum.PartType.Cylinder, deckRoot)
 	local colH = 3.8
 	sPart("Column", Vector3.new(0.25, colH, 0.25), CFrame.new(0, deckY + colH / 2, -2.2) * CFrame.Angles(math.rad(8), 0, 0),
 		Color3.fromRGB(200, 200, 205))
 	local handlebar = sPart("Handlebar", Vector3.new(2.3, 0.22, 0.22), CFrame.new(0, deckY + colH - 0.1, -1.95),
 		Color3.fromRGB(40, 40, 45))
+
+	-- Add beautiful speed trail to the rear wheel
+	local attachment0 = Instance.new("Attachment")
+	attachment0.Name = "TrailAttachment0"
+	attachment0.Position = Vector3.new(0.2, 0, 0)
+	attachment0.Parent = rearWheel
+
+	local attachment1 = Instance.new("Attachment")
+	attachment1.Name = "TrailAttachment1"
+	attachment1.Position = Vector3.new(-0.2, 0, 0)
+	attachment1.Parent = rearWheel
+
+	local trail = Instance.new("Trail")
+	trail.Name = "ScooterSpeedTrail"
+	trail.Attachment0 = attachment0
+	trail.Attachment1 = attachment1
+	trail.Lifetime = 0.4
+	trail.WidthScale = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 1),
+		NumberSequenceKeypoint.new(1, 0)
+	})
+	trail.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(0, 240, 255)),
+		ColorSequenceKeypoint.new(0.5, Color3.fromRGB(150, 50, 250)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 0, 0))
+	})
+	trail.LightEmission = 0.8
+	trail.LightInfluence = 0
+	trail.Enabled = true
+	trail.Parent = rearWheel
+
+	-- Add spark emitter for trick effects
+	local sparkEmitter = Instance.new("ParticleEmitter")
+	sparkEmitter.Name = "SparkEmitter"
+	sparkEmitter.Enabled = false
+	sparkEmitter.Rate = 0
+	sparkEmitter.Lifetime = NumberRange.new(0.15, 0.45)
+	sparkEmitter.Speed = NumberRange.new(8, 18)
+	sparkEmitter.SpreadAngle = Vector2.new(45, 45)
+	sparkEmitter.Color = ColorSequence.new(Color3.fromRGB(255, 180, 50))
+	sparkEmitter.Size = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0.18),
+		NumberSequenceKeypoint.new(1, 0)
+	})
+	sparkEmitter.Acceleration = Vector3.new(0, -35, 0)
+	sparkEmitter.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0),
+		NumberSequenceKeypoint.new(0.8, 0),
+		NumberSequenceKeypoint.new(1, 1)
+	})
+	sparkEmitter.Parent = rearWheel
+
 	m.Parent = char
 
 	local rig = { char = char, deckMount = deckMount, deckBase = deckMount.C0, deckY = deckY, iks = {} }
@@ -618,6 +704,45 @@ local function ragdollOnDeath(char, humanoid)
 	end)
 end
 
+local function createNametag(char, displayName)
+	local head = char:WaitForChild("Head", 10)
+	local humanoid = char:WaitForChild("Humanoid", 10)
+	if not head then return end
+
+	-- Hide default Roblox nametag
+	if humanoid then
+		humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
+	end
+
+	-- Remove existing nametag if any
+	local existing = char:FindFirstChild("OverheadNametag")
+	if existing then existing:Destroy() end
+
+	local bGui = Instance.new("BillboardGui")
+	bGui.Name = "OverheadNametag"
+	bGui.Adornee = head
+	bGui.Size = UDim2.new(0, 300, 0, 50)
+	bGui.StudsOffset = Vector3.new(0, 4.0, 0)
+	bGui.AlwaysOnTop = true
+	bGui.ResetOnSpawn = false
+
+	local label = Instance.new("TextLabel")
+	label.Name = "PlayerName"
+	label.Size = UDim2.new(1, 0, 1, 0)
+	label.BackgroundTransparency = 1
+	label.Font = Enum.Font.FredokaOne
+	label.TextScaled = true
+	label.TextColor3 = Color3.fromRGB(255, 255, 255)
+	label.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+	label.TextStrokeTransparency = 0.2
+	label.Text = displayName
+	label.ZIndex = 10
+	label.Parent = bGui
+
+	bGui.Parent = char
+	print("[DiscoveryBayShop] Overhead nametag created for: " .. displayName)
+end
+
 local function onCharacter(plr, char)
 	charRigs[plr.UserId] = nil -- the previous character's rig is dead with it
 	clearParked(plr)          -- respawning brings your scooter back to you
@@ -636,6 +761,7 @@ local function onCharacter(plr, char)
 			end)
 		end
 	end)
+	task.spawn(createNametag, char, plr.DisplayName)
 	task.spawn(mountScooter, plr, char)
 	-- insurance: if the first mount got disturbed (e.g. a car interrupted the setup),
 	-- retry once so respawns ALWAYS come with a scooter
@@ -861,46 +987,9 @@ end
 local TRICKS = {
 	{ name = "Tailwhip", pay = 4, fn = function(rig, hrp) spinDeck(rig, "y", 0.45) end },
 	{ name = "Kickflip", pay = 3, fn = function(rig, hrp) spinDeck(rig, "z", 0.5, true) end },
-	{ name = "360 Spin", pay = 6, fn = function(rig, hrp)
-		local dirSign = (rng:NextInteger(0, 1) == 0 and 1 or -1)
-		-- crouch, then whip the whole rider a guaranteed full turn: spun through the
-		-- ROOT joint so it shows on every rig even though the client owns the physics
-		task.spawn(function()
-			local crouched = {}
-			if rig and rig.hips and not rig.posing and not rig.spinning then
-				for _, h in ipairs(rig.hips) do
-					if h.motor.Parent then
-						h.motor.C0 = h.pose(h.rest, -42)
-						crouched[#crouched + 1] = h
-					end
-				end
-			end
-			task.wait(0.08)
-			local steps = 14
-			local root = rig and rig.root
-			for i = 1, steps do
-				local ang = dirSign * (2 * math.pi / steps) * i
-				if root and root.motor.Parent then
-					if root.axis == "y" then
-						root.motor.C0 = root.rest * CFrame.Angles(0, ang, 0)
-					else
-						root.motor.C0 = root.rest * CFrame.Angles(0, 0, ang)
-					end
-				elseif hrp.Parent then
-					hrp.CFrame = hrp.CFrame * CFrame.Angles(0, dirSign * (2 * math.pi / steps), 0)
-				else
-					break
-				end
-				task.wait(0.035)
-			end
-			if root and root.motor.Parent then
-				root.motor.C0 = root.rest
-			end
-			for _, h in ipairs(crouched) do
-				if h.motor.Parent then h.motor.C0 = h.rest end
-			end
-		end)
-	end },
+	{ name = "360 Spin", pay = 6, fn = function(rig, hrp) end },
+	{ name = "Backflip", pay = 10, fn = function(rig, hrp) end },
+	{ name = "Frontflip", pay = 10, fn = function(rig, hrp) end },
 	{ name = "Superman", pay = 8, fn = function(rig, hrp) legsBack(rig, 0.55) end },
 	{ name = "No-Hander", pay = 5, fn = function(rig, hrp) armsBack(rig, 0.5) end },
 }
@@ -945,13 +1034,21 @@ DoTrick.OnServerEvent:Connect(function(plr, trickName)
 		local pay = trick.pay * (plr:GetAttribute("TrickMult") or 1)
 		cash.Value = cash.Value + pay
 		TrickResult:FireClient(plr, trick.name, pay)
+
+		-- Spawn a burst of sparks from the back wheel when executing a trick
+		local scooter = char:FindFirstChild("Scooter")
+		local rearWheel = scooter and scooter:FindFirstChild("RearWheel")
+		local emitter = rearWheel and rearWheel:FindFirstChild("SparkEmitter")
+		if emitter and pcall(function() return emitter.Emit end) then
+			pcall(function() emitter:Emit(40) end)
+		end
 	end
 
 	if humanoid.FloorMaterial == Enum.Material.Air then
 		perform()
 	else
 		local v = hrp.AssemblyLinearVelocity
-		hrp.AssemblyLinearVelocity = Vector3.new(v.X, 36, v.Z)
+		hrp.AssemblyLinearVelocity = Vector3.new(v.X, 48, v.Z)
 		task.delay(0.32, perform)
 	end
 end)
