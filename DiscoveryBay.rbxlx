@@ -3241,54 +3241,65 @@ local function initializeLighting()
 		-- Clean up any existing custom lighting effects
 		for _, child in ipairs(Lighting:GetChildren()) do
 			if child.Name == "DiscoveryBayAtmosphere" or child.Name == "DiscoveryBayBloom" 
-				or child.Name == "DiscoveryBayColorCorrection" or child.Name == "DiscoveryBaySunRays" then
+				or child.Name == "DiscoveryBayColorCorrection" or child.Name == "DiscoveryBaySunRays"
+				or child.Name == "DiscoveryBayDOF" then
 				child:Destroy()
 			end
 		end
 		
-		-- High-end realistic settings
+		-- High-end "Shaders" (RoShade style) settings
 		Lighting.Technology = Enum.Technology.Future
-		Lighting.ShadowSoftness = 0.2 -- sharper, realistic shadows
-		Lighting.Brightness = 2.5
+		Lighting.ShadowSoftness = 0.1 -- extremely sharp shadows
+		Lighting.Brightness = 3.5
 		Lighting.GlobalShadows = true
-		Lighting.Ambient = Color3.fromRGB(50, 50, 60)
-		Lighting.OutdoorAmbient = Color3.fromRGB(110, 120, 130)
-		Lighting.EnvironmentDiffuseScale = 0.5
-		Lighting.EnvironmentSpecularScale = 0.5
+		Lighting.Ambient = Color3.fromRGB(30, 30, 40)
+		Lighting.OutdoorAmbient = Color3.fromRGB(90, 100, 110)
+		-- Max specular makes all SmoothPlastic reflect the skybox (wet/shiny look)
+		Lighting.EnvironmentDiffuseScale = 1
+		Lighting.EnvironmentSpecularScale = 1
 
-		-- Subtle, realistic Atmosphere (Depth)
+		-- Cinematic Atmosphere (rich haze and glare)
 		local atmo = Instance.new("Atmosphere")
 		atmo.Name = "DiscoveryBayAtmosphere"
-		atmo.Density = 0.08
-		atmo.Offset = 0.5
-		atmo.Color = Color3.fromRGB(180, 190, 200)
-		atmo.Decay = Color3.fromRGB(140, 150, 160)
-		atmo.Glare = 0
-		atmo.Haze = 1.2
+		atmo.Density = 0.18
+		atmo.Offset = 0.4
+		atmo.Color = Color3.fromRGB(190, 200, 210)
+		atmo.Decay = Color3.fromRGB(130, 140, 160)
+		atmo.Glare = 1.5
+		atmo.Haze = 2.5
 		atmo.Parent = Lighting
 
-		-- Very mild Bloom (Neon glow without blinding)
+		-- Intense Bloom (glowing neon and bright surfaces)
 		local bloom = Instance.new("BloomEffect")
 		bloom.Name = "DiscoveryBayBloom"
-		bloom.Intensity = 0.35
-		bloom.Size = 18
-		bloom.Threshold = 2.5
+		bloom.Intensity = 1.2
+		bloom.Size = 24
+		bloom.Threshold = 1.5
 		bloom.Parent = Lighting
 
-		-- Subtle Color Correction (Make colors pop safely)
+		-- Strong Color Correction (vibrant, warm, high contrast)
 		local cc = Instance.new("ColorCorrectionEffect")
 		cc.Name = "DiscoveryBayColorCorrection"
-		cc.Contrast = 0.05
-		cc.Saturation = 0.1
-		cc.Brightness = 0
+		cc.Contrast = 0.25
+		cc.Saturation = 0.25
+		cc.TintColor = Color3.fromRGB(255, 250, 240)
 		cc.Parent = Lighting
 
-		-- Soft Sun Rays
+		-- God Rays
 		local sun = Instance.new("SunRaysEffect")
 		sun.Name = "DiscoveryBaySunRays"
-		sun.Intensity = 0.04 -- Very soft, realistic rays
-		sun.Spread = 0.8
+		sun.Intensity = 0.12
+		sun.Spread = 0.9
 		sun.Parent = Lighting
+		
+		-- Cinematic Depth of Field (blur distant background slightly)
+		local dof = Instance.new("DepthOfFieldEffect")
+		dof.Name = "DiscoveryBayDOF"
+		dof.FocusDistance = 50
+		dof.InFocusRadius = 60
+		dof.NearIntensity = 0
+		dof.FarIntensity = 0.15
+		dof.Parent = Lighting
 	end)
 end
 
