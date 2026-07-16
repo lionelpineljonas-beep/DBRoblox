@@ -31,14 +31,14 @@ local FishReel = remotes:WaitForChild("FishReel")
 -- DYNAMIC AUDIO CONTROLLER (Fisch-style zone music)
 --==============================================================================================
 local ZONES = {
-	{ name = "ShellBlox Gas Station", id = "rbxassetid://9037302484" }, -- generic radio pop
-	{ name = "Callahan's Coffee and Cones", id = "rbxassetid://9044238711" }, -- cafe bossa nova
-	{ name = "Discovery Bay Jiu Jitsu", id = "rbxassetid://9047055745" }, -- zen traditional
-	{ name = "Fish N Bait", id = "rbxassetid://9043876008" }, -- rustic country acoustic
-	{ name = "Discovery Bay Scooters", id = "rbxassetid://9048375005" }, -- upbeat synth
-	{ name = "Egg Shop", id = "rbxassetid://9044238711" }, -- share Callahan's vibe
+	{ name = "ShellBlox Gas Station", id = "rbxassetid://1837429188" }, -- pop
+	{ name = "Callahan's Coffee and Cones", id = "rbxassetid://1839886095" }, -- cafe bossa nova
+	{ name = "Discovery Bay Jiu Jitsu", id = "rbxassetid://1848135899" }, -- zen traditional
+	{ name = "Fish N Bait", id = "rbxassetid://1843389025" }, -- country acoustic
+	{ name = "Discovery Bay Scooters", id = "rbxassetid://1837943564" }, -- upbeat synth
+	{ name = "Egg Shop", id = "rbxassetid://1839886095" }, -- share Callahan's vibe
 }
-local OUTDOOR_MUSIC = "rbxassetid://9047113110" -- upbeat tropical marine
+local OUTDOOR_MUSIC = "rbxassetid://1837879082" -- tropical marine
 local currentZone = "Outdoor"
 local activeTrack = nil
 
@@ -580,7 +580,7 @@ end)
 for _, child in ipairs(gui:GetDescendants()) do
 	if child:IsA("TextButton") then
 		child.MouseEnter:Connect(function()
-			pcall(playSound, "rbxassetid://8935292419", 0.3) -- soft hover
+			pcall(playSound, "rbxassetid://9114222049", 0.15) -- soft hover
 		end)
 		child.MouseButton1Down:Connect(function()
 			pcall(playSound, "rbxassetid://9065609404", 0.5) -- crisp click
