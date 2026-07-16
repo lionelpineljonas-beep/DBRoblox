@@ -5945,14 +5945,15 @@ local FishReel = remotes:WaitForChild("FishReel")
 -- DYNAMIC AUDIO CONTROLLER (Fisch-style zone music)
 --==============================================================================================
 local ZONES = {
-	{ name = "ShellBlox Gas Station", id = "rbxassetid://1837429188" }, -- pop
-	{ name = "Callahan's Coffee and Cones", id = "rbxassetid://1839886095" }, -- cafe bossa nova
-	{ name = "Discovery Bay Jiu Jitsu", id = "rbxassetid://1848135899" }, -- zen traditional
-	{ name = "Fish N Bait", id = "rbxassetid://1843389025" }, -- country acoustic
-	{ name = "Discovery Bay Scooters", id = "rbxassetid://1837943564" }, -- upbeat synth
-	{ name = "Egg Shop", id = "rbxassetid://1839886095" }, -- share Callahan's vibe
+	{ name = "ShellBlox Gas Station", id = "rbxassetid://9043887091", speed = 1.15 },
+	{ name = "Callahan's Coffee and Cones", id = "rbxassetid://9043887091", speed = 0.9 },
+	{ name = "Discovery Bay Jiu Jitsu", id = "rbxassetid://9043887091", speed = 0.65 },
+	{ name = "Fish N Bait", id = "rbxassetid://9043887091", speed = 0.85 },
+	{ name = "Discovery Bay Scooters", id = "rbxassetid://9043887091", speed = 1.35 },
+	{ name = "Egg Shop", id = "rbxassetid://9043887091", speed = 0.9 },
 }
-local OUTDOOR_MUSIC = "rbxassetid://1837879082" -- tropical marine
+local OUTDOOR_MUSIC = "rbxassetid://9043887091"
+local OUTDOOR_SPEED = 1.0
 local currentZone = "Outdoor"
 local activeTrack = nil
 
@@ -5975,9 +5976,10 @@ end
 task.spawn(function()
 	local SoundService = game:GetService("SoundService")
 	local town = workspace:WaitForChild("DiscoveryBay", 60)
+	if not town then return end
 	
-	local function playTrack(id, vol)
-		if activeTrack and activeTrack.SoundId == id then return end
+	local function playTrack(id, vol, speed)
+		if activeTrack and activeTrack.SoundId == id and activeTrack.PlaybackSpeed == speed then return end
 		local oldTrack = activeTrack
 		if oldTrack then
 			TweenService:Create(oldTrack, TweenInfo.new(1.5), {Volume = 0}):Play()
@@ -5989,13 +5991,14 @@ task.spawn(function()
 		newTrack.SoundId = id
 		newTrack.Looped = true
 		newTrack.Volume = 0
+		newTrack.PlaybackSpeed = speed or 1.0
 		newTrack.Parent = SoundService
 		newTrack:Play()
 		TweenService:Create(newTrack, TweenInfo.new(1.5), {Volume = vol}):Play()
 		activeTrack = newTrack
 	end
 	
-	playTrack(OUTDOOR_MUSIC, 0.4)
+	playTrack(OUTDOOR_MUSIC, 0.4, OUTDOOR_SPEED)
 	
 	while true do
 		task.wait(1)
@@ -6004,6 +6007,7 @@ task.spawn(function()
 		if town and hrp then
 			local foundZone = "Outdoor"
 			local targetId = OUTDOOR_MUSIC
+			local targetSpeed = OUTDOOR_SPEED
 			for _, z in ipairs(ZONES) do
 				local shop = town:FindFirstChild(z.name, true)
 				if shop then
@@ -6018,6 +6022,7 @@ task.spawn(function()
 							if hrp.Position.Y >= shopPart.Position.Y - 5 and hrp.Position.Y <= shopPart.Position.Y + 30 then
 								foundZone = z.name
 								targetId = z.id
+								targetSpeed = z.speed or 1.0
 								break
 							end
 						end
@@ -6026,7 +6031,7 @@ task.spawn(function()
 			end
 			if currentZone ~= foundZone then
 				currentZone = foundZone
-				playTrack(targetId, 0.4)
+				playTrack(targetId, 0.4, targetSpeed)
 			end
 		end
 	end
