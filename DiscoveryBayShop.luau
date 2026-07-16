@@ -175,7 +175,8 @@ local function updateSpeed(plr)
 	local humanoid = char and char:FindFirstChildOfClass("Humanoid")
 	if not humanoid then return end
 	if plr:GetAttribute("Mounted") then
-		local speed = SCOOTER_SPEED + (plr:GetAttribute("SodaBoost") or 0)
+		local baseSpeed = SCOOTER_SPEED + (plr:GetAttribute("FastScooter") and 20 or 0)
+		local speed = baseSpeed + (plr:GetAttribute("SodaBoost") or 0)
 			+ (plr:GetAttribute("VanillaBoost") or 0) + (plr:GetAttribute("EduBoost") or 0)
 			+ (plr:GetAttribute("WeatherBoost") or 0)
 		if plr:GetAttribute("SpeedPass") then
@@ -414,9 +415,13 @@ function mountScooterBody(plr, char)
 	deckMount.Part0 = hrp
 	deckMount.Part1 = deckRoot
 	deckMount.Parent = deckRoot
+	
+	local hasFast = plr:GetAttribute("FastScooter")
+	local deckColor = hasFast and Color3.fromRGB(150, 30, 30) or Color3.fromRGB(40, 40, 45)
+	local batColor = hasFast and Color3.fromRGB(250, 200, 30) or Color3.fromRGB(60, 160, 90)
 
-	sPart("Deck", Vector3.new(1.6, 0.25, 4.6), CFrame.new(0, deckY, 0.2), Color3.fromRGB(40, 40, 45), nil, deckRoot)
-	sPart("Battery", Vector3.new(1.2, 0.35, 1.6), CFrame.new(0, deckY + 0.3, 0.8), Color3.fromRGB(60, 160, 90), nil, deckRoot)
+	sPart("Deck", Vector3.new(1.6, 0.25, 4.6), CFrame.new(0, deckY, 0.2), deckColor, nil, deckRoot)
+	sPart("Battery", Vector3.new(1.2, 0.35, 1.6), CFrame.new(0, deckY + 0.3, 0.8), batColor, nil, deckRoot)
 	sPart("FrontWheel", Vector3.new(0.4, 1.1, 1.1), CFrame.new(0, wheelY, -2.2), Color3.fromRGB(25, 25, 25),
 		Enum.PartType.Cylinder, deckRoot)
 	local rearWheel = sPart("RearWheel", Vector3.new(0.4, 1.1, 1.1), CFrame.new(0, wheelY, 2.4), Color3.fromRGB(25, 25, 25),
@@ -2526,6 +2531,30 @@ local function startTraffic(town)
 	print("[DiscoveryBayShop] traffic: " .. count .. " NPC cars on the road. Watch out!")
 end
 
+local function hookScooterShop(deck)
+	local prompt = deck:FindFirstChildOfClass("ProximityPrompt")
+	if not prompt then return end
+	prompt.Triggered:Connect(function(plr)
+		if plr:GetAttribute("FastScooter") then
+			TrickResult:FireClient(plr, "You already own the Fast Scooter!", 0)
+			return
+		end
+		local cash = getCash(plr)
+		if not cash or cash.Value < 1000 then
+			TrickResult:FireClient(plr, "Not enough cash! The Fast Scooter costs $1000.", 0)
+			return
+		end
+		cash.Value = cash.Value - 1000
+		plr:SetAttribute("FastScooter", true)
+		TrickResult:FireClient(plr, "Fast Scooter unlocked! Press G to ride in style.", 0)
+		-- if already mounted, update their speed & color by respawning the scooter
+		if plr:GetAttribute("Mounted") then
+			updateSpeed(plr)
+			spawnScooter(plr)
+		end
+	end)
+end
+
 --==============================================================================================
 -- WIRE UP (waits for the build's BuildComplete attribute)
 --==============================================================================================
@@ -2556,6 +2585,8 @@ task.spawn(function()
 				hookEgg(d)
 			elseif d:GetAttribute("FishSell") then
 				hookFishSell(d)
+			elseif d:GetAttribute("ScooterShop") then
+				hookScooterShop(d)
 			end
 		end
 	end

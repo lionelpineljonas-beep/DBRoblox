@@ -1625,6 +1625,74 @@ local function buildPlaza()
 			{ { "Any secret fish?",
 				"They whisper of THE LIONEL. One cast in a hundred. Worth five hundred bucks. Never landed it myself... yet." } })
 	end
+	
+	-- Discovery Bay Scooters: a walk-in shop selling the $1000 Fast Scooter upgrade
+	do
+		local sSh = rowCf * CFrame.new(-140 * S, 0, 18 * S) -- local -Z = storefront
+		local mS = newModel(m, "Discovery Bay Scooters")
+		local w, d, h = 30, 24, 12
+		local wallS = Color3.fromRGB(40, 40, 45) -- sleek dark grey exterior
+		newPart(mS, "Floor", Vector3.new(w, 0.4, d) * S, sSh * CFrame.new(0, 0.2 * S, 0),
+			Color3.fromRGB(220, 220, 225), Enum.Material.Marble)
+		newPart(mS, "Back", Vector3.new(w, h, 0.6) * S, sSh * CFrame.new(0, h / 2 * S, (d / 2 - 0.3) * S),
+			wallS, Enum.Material.Concrete)
+		for _, sx in ipairs({ -1, 1 }) do
+			newPart(mS, "Side", Vector3.new(0.6, h, d) * S,
+				sSh * CFrame.new(sx * (w / 2 - 0.3) * S, h / 2 * S, 0), wallS, Enum.Material.Concrete)
+			-- front wall segments beside a central door opening
+			newPart(mS, "FrontWall", Vector3.new(12.5, h, 0.6) * S,
+				sSh * CFrame.new(sx * 8.75 * S, h / 2 * S, (-d / 2 + 0.3) * S), wallS, Enum.Material.Concrete)
+			newPart(mS, "Window", Vector3.new(7, 4.5, 0.3) * S,
+				sSh * CFrame.new(sx * 8.75 * S, 5.6 * S, (-d / 2 + 0.15) * S),
+				Color3.fromRGB(255, 200, 50), Enum.Material.Glass, 0.3) -- tinted gold windows
+		end
+		local sDoor = newPart(mS, "AutoDoor", Vector3.new(4.6, 8, 0.25) * S,
+			sSh * CFrame.new(0, 4 * S, (-d / 2 + 0.3) * S),
+			Color3.fromRGB(255, 200, 50), Enum.Material.Glass, 0.35)
+		sDoor:SetAttribute("AutoDoor", true)
+		sDoor:SetAttribute("SlideDist", 4.6 * S)
+		newPart(mS, "Header", Vector3.new(5, h - 8, 0.6) * S,
+			sSh * CFrame.new(0, (8 + (h - 8) / 2) * S, (-d / 2 + 0.3) * S), wallS, Enum.Material.Concrete)
+		newPart(mS, "Roof", Vector3.new(w + 1.5, 1, d + 1.5) * S, sSh * CFrame.new(0, (h + 0.5) * S, 0),
+			Color3.fromRGB(20, 20, 25))
+		local sBoard = newPart(mS, "SignBoard", Vector3.new(w * 0.88, 2.8, 0.4) * S,
+			sSh * CFrame.new(0, (h - 1.4) * S, (-d / 2 - 0.25) * S), Color3.fromRGB(250, 200, 30))
+		makeSign(sBoard, Enum.NormalId.Front, "DB SCOOTERS", Color3.fromRGB(250, 200, 30), Color3.fromRGB(20, 20, 25))
+		
+		-- interior light
+		local sLight = newPart(mS, "ShopLight", Vector3.new(5, 0.2, 5) * S,
+			sSh * CFrame.new(0, (h - 0.3) * S, 0), Color3.fromRGB(255, 250, 235), Enum.Material.Neon)
+		local sPoint = Instance.new("PointLight")
+		sPoint.Range = 22
+		sPoint.Brightness = 1.1
+		sPoint.Parent = sLight
+		
+		-- Display Pedestal for the Fast Scooter
+		local dispBase = sSh * CFrame.new(0, 0, 2 * S)
+		newDisc(mS, "Pedestal", 10 * S, 1 * S, dispBase * CFrame.new(0, 0.5 * S, 0),
+			Color3.fromRGB(20, 20, 25), Enum.Material.Concrete)
+		
+		-- Fake Display Scooter (just a few parts to look like the real one)
+		local dDeck = newPart(mS, "DisplayScooterDeck", Vector3.new(1.6, 0.25, 4.6) * S, dispBase * CFrame.new(0, 1.5 * S, 0),
+			Color3.fromRGB(150, 30, 30), Enum.Material.Metal)
+		newPart(mS, "DisplayScooterBat", Vector3.new(1.2, 0.35, 1.6) * S, dispBase * CFrame.new(0, 1.8 * S, 0.6 * S),
+			Color3.fromRGB(250, 200, 30), Enum.Material.Metal) -- Gold Battery!
+		
+		dDeck:SetAttribute("ScooterShop", true)
+		local sPrompt = Instance.new("ProximityPrompt")
+		sPrompt.ActionText = "Buy"
+		sPrompt.ObjectText = "Fast Scooter - $1000"
+		sPrompt.HoldDuration = 1
+		sPrompt.MaxActivationDistance = 15
+		sPrompt.RequiresLineOfSight = false
+		sPrompt.Parent = dDeck
+		
+		buildNPC(mS, "Rider Rick", sSh * CFrame.new(-8 * S, 0.4 * S, -4 * S),
+			Color3.fromRGB(250, 50, 50),
+			"Looking to upgrade? The Fast Scooter bumps your base speed up by 20. And yes, it stacks with the Speed Pass. Pure adrenaline.",
+			{ { "Why gold?",
+				"Because you want everyone to know you're rich and fast. Mostly fast." } })
+	end
 
 	-- Callahan's Coffee and Cones (REQUIRED): a walk-in ice cream shop
 	do
