@@ -6005,7 +6005,7 @@ task.spawn(function()
 			local foundZone = "Outdoor"
 			local targetId = OUTDOOR_MUSIC
 			for _, z in ipairs(ZONES) do
-				local shop = town:FindFirstChild(z.name)
+				local shop = town:FindFirstChild(z.name, true)
 				if shop then
 					local center = shop:GetPivot().Position
 					-- Y check (ensure they aren't flying high above it)
@@ -6494,10 +6494,10 @@ end)
 for _, child in ipairs(gui:GetDescendants()) do
 	if child:IsA("TextButton") then
 		child.MouseEnter:Connect(function()
-			pcall(playSound, "rbxassetid://9114222049", 0.15) -- soft hover
+			pcall(playSound, "rbxassetid://9114222049", 0.25) -- soft hover
 		end)
-		child.MouseButton1Down:Connect(function()
-			pcall(playSound, "rbxassetid://9065609404", 0.5) -- crisp click
+		child.Activated:Connect(function()
+			pcall(playSound, "rbxassetid://9065609404", 1.0) -- crisp click
 		end)
 	end
 end
