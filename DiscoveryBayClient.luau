@@ -27,22 +27,91 @@ local InfiniteMoney = remotes:WaitForChild("InfiniteMoney", 5) -- optional for t
 local FishGame = remotes:WaitForChild("FishGame")
 local FishReel = remotes:WaitForChild("FishReel")
 
--- background music: Roblox's own licensed "Lofi Chill A" (free-to-use library track),
--- looping softly from the moment you join
+--==============================================================================================
+-- DYNAMIC AUDIO CONTROLLER (Fisch-style zone music)
+--==============================================================================================
+local ZONES = {
+	{ name = "ShellBlox Gas Station", id = "rbxassetid://9037302484" }, -- generic radio pop
+	{ name = "Callahan's Coffee and Cones", id = "rbxassetid://9044238711" }, -- cafe bossa nova
+	{ name = "Discovery Bay Jiu Jitsu", id = "rbxassetid://9047055745" }, -- zen traditional
+	{ name = "Fish N Bait", id = "rbxassetid://9043876008" }, -- rustic country acoustic
+	{ name = "Discovery Bay Scooters", id = "rbxassetid://9048375005" }, -- upbeat synth
+	{ name = "Egg Shop", id = "rbxassetid://9044238711" }, -- share Callahan's vibe
+}
+local OUTDOOR_MUSIC = "rbxassetid://9047113110" -- upbeat tropical marine
+local currentZone = "Outdoor"
+local activeTrack = nil
+
+local SoundService = game:GetService("SoundService")
+
+local function playSound(soundId, volume)
+	local sound = Instance.new("Sound")
+	sound.SoundId = soundId
+	sound.Volume = volume or 0.5
+	sound.Parent = SoundService
+	sound:Play()
+	sound.Ended:Connect(function()
+		sound:Destroy()
+	end)
+	task.delay(10, function()
+		if sound and sound.Parent then sound:Destroy() end
+	end)
+end
+
 task.spawn(function()
 	local SoundService = game:GetService("SoundService")
-	local music = Instance.new("Sound")
-	music.Name = "DiscoveryBayMusic"
-	music.SoundId = "rbxassetid://9043887091"
-	music.Looped = true
-	music.Volume = 0.35
-	music.Parent = SoundService
-	music:Play()
-	task.delay(10, function()
-		if not music.IsLoaded then
-			music:Destroy() -- failed to load: leave silence rather than a broken player
+	local town = workspace:WaitForChild("DiscoveryBay", 60)
+	
+	local function playTrack(id, vol)
+		if activeTrack and activeTrack.SoundId == id then return end
+		local oldTrack = activeTrack
+		if oldTrack then
+			TweenService:Create(oldTrack, TweenInfo.new(1.5), {Volume = 0}):Play()
+			task.delay(1.5, function() oldTrack:Destroy() end)
 		end
-	end)
+		
+		local newTrack = Instance.new("Sound")
+		newTrack.Name = "ZoneMusic"
+		newTrack.SoundId = id
+		newTrack.Looped = true
+		newTrack.Volume = 0
+		newTrack.Parent = SoundService
+		newTrack:Play()
+		TweenService:Create(newTrack, TweenInfo.new(1.5), {Volume = vol}):Play()
+		activeTrack = newTrack
+	end
+	
+	playTrack(OUTDOOR_MUSIC, 0.4)
+	
+	while true do
+		task.wait(1)
+		local char = plr.Character
+		local hrp = char and char:FindFirstChild("HumanoidRootPart")
+		if town and hrp then
+			local foundZone = "Outdoor"
+			local targetId = OUTDOOR_MUSIC
+			for _, z in ipairs(ZONES) do
+				local shop = town:FindFirstChild(z.name)
+				if shop then
+					local center = shop:GetPivot().Position
+					-- Y check (ensure they aren't flying high above it)
+					if math.abs(hrp.Position.Y - center.Y) < 15 then
+						-- XZ distance
+						local dist = Vector2.new(hrp.Position.X - center.X, hrp.Position.Z - center.Z).Magnitude
+						if dist < 22 then
+							foundZone = z.name
+							targetId = z.id
+							break
+						end
+					end
+				end
+			end
+			if currentZone ~= foundZone then
+				currentZone = foundZone
+				playTrack(targetId, 0.4)
+			end
+		end
+	end
 end)
 
 -- HUD ------------------------------------------------------------------------------------------
@@ -506,6 +575,19 @@ end)
 shopClose.Activated:Connect(function()
 	shopPage.Visible = false
 end)
+
+-- Global UI sound effects
+for _, child in ipairs(gui:GetDescendants()) do
+	if child:IsA("TextButton") then
+		child.MouseEnter:Connect(function()
+			pcall(playSound, "rbxassetid://8935292419", 0.3) -- soft hover
+		end)
+		child.MouseButton1Down:Connect(function()
+			pcall(playSound, "rbxassetid://9065609404", 0.5) -- crisp click
+		end)
+	end
+end
+
 buyBtn.Activated:Connect(function()
 	if plr:GetAttribute("SpeedPass") then return end
 	if SPEED_PASS_ID > 0 then
@@ -1064,22 +1146,6 @@ HatchEgg.OnClientEvent:Connect(function(dogName)
 		if hatchOverlay == overlay then hatchOverlay = nil end
 	end)
 end)
-
-local SoundService = game:GetService("SoundService")
-
-local function playSound(soundId, volume)
-	local sound = Instance.new("Sound")
-	sound.SoundId = soundId
-	sound.Volume = volume or 0.5
-	sound.Parent = SoundService
-	sound:Play()
-	sound.Ended:Connect(function()
-		sound:Destroy()
-	end)
-	task.delay(10, function()
-		if sound and sound.Parent then sound:Destroy() end
-	end)
-end
 
 -- trick popups -----------------------------------------------------------------------------------
 TrickResult.OnClientEvent:Connect(function(trickName, pay)
