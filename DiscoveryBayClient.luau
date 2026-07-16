@@ -23,6 +23,7 @@ local ToggleScooter = remotes:WaitForChild("ToggleScooter")
 local HatchEgg = remotes:WaitForChild("HatchEgg")
 local UpdatePity = remotes:WaitForChild("UpdatePity")
 local ForceWeather = remotes:WaitForChild("ForceWeather", 5) -- optional for testing
+local InfiniteMoney = remotes:WaitForChild("InfiniteMoney", 5) -- optional for testing
 local FishGame = remotes:WaitForChild("FishGame")
 local FishReel = remotes:WaitForChild("FishReel")
 
@@ -340,11 +341,33 @@ local mbCorner = Instance.new("UICorner")
 mbCorner.CornerRadius = UDim.new(0, 10)
 mbCorner.Parent = mapBtn
 
--- Robux shop toggle, stacked above the map button
+-- inf money debug button
+local moneyBtn = Instance.new("TextButton")
+moneyBtn.Name = "DebugMoney"
+moneyBtn.AnchorPoint = Vector2.new(0, 1)
+moneyBtn.Position = UDim2.new(0, 16, 1, -214)
+moneyBtn.Size = UDim2.new(0, 190, 0, 36)
+moneyBtn.BackgroundColor3 = Color3.fromRGB(20, 120, 40)
+moneyBtn.TextColor3 = Color3.new(1, 1, 1)
+moneyBtn.Font = Enum.Font.FredokaOne
+moneyBtn.TextSize = 15
+moneyBtn.Text = "Debug: Inf Money"
+moneyBtn.Parent = gui
+local mb2Corner = Instance.new("UICorner")
+mb2Corner.CornerRadius = UDim.new(0, 8)
+mb2Corner.Parent = moneyBtn
+
+moneyBtn.Activated:Connect(function()
+	if InfiniteMoney then
+		InfiniteMoney:FireServer()
+	end
+end)
+
+-- Robux shop toggle, stacked above the money debug button
 local shopBtn = Instance.new("TextButton")
 shopBtn.Name = "ShopToggle"
 shopBtn.AnchorPoint = Vector2.new(0, 1)
-shopBtn.Position = UDim2.new(0, 16, 1, -214)
+shopBtn.Position = UDim2.new(0, 16, 1, -258)
 shopBtn.Size = UDim2.new(0, 190, 0, 42)
 shopBtn.BackgroundColor3 = Color3.fromRGB(190, 120, 40)
 shopBtn.TextColor3 = Color3.new(1, 1, 1)

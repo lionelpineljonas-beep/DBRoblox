@@ -2349,6 +2349,15 @@ ForceWeather.OnServerEvent:Connect(function(plr)
 	end)
 end)
 
+local InfiniteMoney = remote("InfiniteMoney")
+InfiniteMoney.OnServerEvent:Connect(function(plr)
+	-- only for testing!
+	local cash = getCash(plr)
+	if cash then
+		cash.Value = 999999999
+	end
+end)
+
 --==============================================================================================
 -- NPC TRAFFIC
 --==============================================================================================
