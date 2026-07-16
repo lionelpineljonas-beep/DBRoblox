@@ -6007,12 +6007,13 @@ task.spawn(function()
 			for _, z in ipairs(ZONES) do
 				local shop = town:FindFirstChild(z.name, true)
 				if shop then
-					local center = shop:GetPivot().Position
+					local shopPart = shop:FindFirstChild("Floor") or shop:FindFirstChild("KioskFloor") or shop:FindFirstChild("Body") or shop
+					local center = shopPart:GetPivot().Position
 					-- Y check (ensure they aren't flying high above it)
 					if math.abs(hrp.Position.Y - center.Y) < 15 then
 						-- XZ distance
 						local dist = Vector2.new(hrp.Position.X - center.X, hrp.Position.Z - center.Z).Magnitude
-						if dist < 22 then
+						if dist < 25 then
 							foundZone = z.name
 							targetId = z.id
 							break
