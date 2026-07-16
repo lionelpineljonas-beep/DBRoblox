@@ -93,16 +93,19 @@ task.spawn(function()
 			for _, z in ipairs(ZONES) do
 				local shop = town:FindFirstChild(z.name, true)
 				if shop then
-					local shopPart = shop:FindFirstChild("Floor") or shop:FindFirstChild("KioskFloor") or shop:FindFirstChild("Body") or shop
-					local center = shopPart:GetPivot().Position
-					-- Y check (ensure they aren't flying high above it)
-					if math.abs(hrp.Position.Y - center.Y) < 15 then
-						-- XZ distance
-						local dist = Vector2.new(hrp.Position.X - center.X, hrp.Position.Z - center.Z).Magnitude
-						if dist < 25 then
-							foundZone = z.name
-							targetId = z.id
-							break
+					local shopPart = shop:FindFirstChild("Floor") or shop:FindFirstChild("KioskFloor") or shop:FindFirstChild("Body") or shop.PrimaryPart or shop:FindFirstChildWhichIsA("BasePart")
+					if shopPart and shopPart:IsA("BasePart") then
+						local localPos = shopPart.CFrame:PointToObjectSpace(hrp.Position)
+						local halfSize = shopPart.Size / 2
+						
+						-- Check if player is inside the XZ bounding box of the floor (with a small margin)
+						-- and within a reasonable vertical range (Y) above the floor
+						if math.abs(localPos.X) <= halfSize.X + 10 and math.abs(localPos.Z) <= halfSize.Z + 10 then
+							if hrp.Position.Y >= shopPart.Position.Y - 5 and hrp.Position.Y <= shopPart.Position.Y + 30 then
+								foundZone = z.name
+								targetId = z.id
+								break
+							end
 						end
 					end
 				end
