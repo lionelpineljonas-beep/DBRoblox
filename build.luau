@@ -1547,16 +1547,16 @@ local function buildPlaza()
 		local wallF = Color3.fromRGB(200, 214, 224)
 		newPart(mF, "Floor", Vector3.new(w, 0.4, d) * S, fSh * CFrame.new(0, 0.22 * S, 0),
 			Color3.fromRGB(150, 130, 105), Enum.Material.WoodPlanks)
-		newPart(mF, "Back", Vector3.new(w, h, 0.6) * S, fSh * CFrame.new(0, h / 2 * S, (d / 2 - 0.3) * S),
+		newPart(mF, "Back", Vector3.new(w - 1.2, h, 0.6) * S, fSh * CFrame.new(0, h / 2 * S, (d / 2 - 0.3) * S),
 			wallF, Enum.Material.WoodPlanks)
 		for _, sx in ipairs({ -1, 1 }) do
 			newPart(mF, "Side", Vector3.new(0.6, h, d) * S,
 				fSh * CFrame.new(sx * (w / 2 - 0.3) * S, h / 2 * S, 0), wallF, Enum.Material.WoodPlanks)
 			-- front wall segments beside a central door opening
-			newPart(mF, "FrontWall", Vector3.new(12.5, h, 0.6) * S,
-				fSh * CFrame.new(sx * 8.75 * S, h / 2 * S, (-d / 2 + 0.3) * S), wallF, Enum.Material.WoodPlanks)
+			newPart(mF, "FrontWall", Vector3.new(11.9, h, 0.6) * S,
+				fSh * CFrame.new(sx * 8.45 * S, h / 2 * S, (-d / 2 + 0.3) * S), wallF, Enum.Material.WoodPlanks)
 			newPart(mF, "Window", Vector3.new(7, 4.5, 0.3) * S,
-				fSh * CFrame.new(sx * 8.75 * S, 5.6 * S, (-d / 2 + 0.15) * S),
+				fSh * CFrame.new(sx * 8.45 * S, 5.6 * S, (-d / 2 + 0.1) * S),
 				Color3.fromRGB(140, 195, 215), Enum.Material.Glass, 0.3)
 		end
 		local fDoor = newPart(mF, "AutoDoor", Vector3.new(4.6, 8, 0.25) * S,
@@ -1638,16 +1638,16 @@ local function buildPlaza()
 		local wallS = Color3.fromRGB(40, 40, 45) -- sleek dark grey exterior
 		newPart(mS, "Floor", Vector3.new(w, 0.4, d) * S, sSh * CFrame.new(0, 0.22 * S, 0),
 			Color3.fromRGB(220, 220, 225), Enum.Material.Marble)
-		newPart(mS, "Back", Vector3.new(w, h, 0.6) * S, sSh * CFrame.new(0, h / 2 * S, (d / 2 - 0.3) * S),
+		newPart(mS, "Back", Vector3.new(w - 1.2, h, 0.6) * S, sSh * CFrame.new(0, h / 2 * S, (d / 2 - 0.3) * S),
 			wallS, Enum.Material.Concrete)
 		for _, sx in ipairs({ -1, 1 }) do
 			newPart(mS, "Side", Vector3.new(0.6, h, d) * S,
 				sSh * CFrame.new(sx * (w / 2 - 0.3) * S, h / 2 * S, 0), wallS, Enum.Material.Concrete)
 			-- front wall segments beside a central door opening
-			newPart(mS, "FrontWall", Vector3.new(12.5, h, 0.6) * S,
-				sSh * CFrame.new(sx * 8.75 * S, h / 2 * S, (-d / 2 + 0.3) * S), wallS, Enum.Material.Concrete)
+			newPart(mS, "FrontWall", Vector3.new(11.9, h, 0.6) * S,
+				sSh * CFrame.new(sx * 8.45 * S, h / 2 * S, (-d / 2 + 0.3) * S), wallS, Enum.Material.Concrete)
 			newPart(mS, "Window", Vector3.new(7, 4.5, 0.3) * S,
-				sSh * CFrame.new(sx * 8.75 * S, 5.6 * S, (-d / 2 + 0.15) * S),
+				sSh * CFrame.new(sx * 8.45 * S, 5.6 * S, (-d / 2 + 0.1) * S),
 				Color3.fromRGB(255, 200, 50), Enum.Material.Glass, 0.3) -- tinted gold windows
 		end
 		local sDoor = newPart(mS, "AutoDoor", Vector3.new(4.6, 8, 0.25) * S,
@@ -1706,16 +1706,16 @@ local function buildPlaza()
 		local wallC = Color3.fromRGB(240, 224, 214)
 		newPart(mC, "Floor", Vector3.new(w, 0.4, d) * S, cSh * CFrame.new(0, 0.22 * S, 0),
 			Color3.fromRGB(238, 214, 205), Enum.Material.Concrete)
-		newPart(mC, "Back", Vector3.new(w, h, 0.6) * S, cSh * CFrame.new(0, h / 2 * S, (d / 2 - 0.3) * S),
+		newPart(mC, "Back", Vector3.new(w - 1.2, h, 0.6) * S, cSh * CFrame.new(0, h / 2 * S, (d / 2 - 0.3) * S),
 			wallC, Enum.Material.Brick)
 		for _, sx in ipairs({ -1, 1 }) do
 			newPart(mC, "Side", Vector3.new(0.6, h, d) * S, cSh * CFrame.new(sx * (w / 2 - 0.3) * S, h / 2 * S, 0),
 				wallC, Enum.Material.Brick)
 			-- front wall segments beside a 5-stud door opening
-			newPart(mC, "FrontWall", Vector3.new(12.5, h, 0.6) * S,
-				cSh * CFrame.new(sx * 8.75 * S, h / 2 * S, (-d / 2 + 0.3) * S), wallC, Enum.Material.Brick)
+			newPart(mC, "FrontWall", Vector3.new(11.9, h, 0.6) * S,
+				cSh * CFrame.new(sx * 8.45 * S, h / 2 * S, (-d / 2 + 0.3) * S), wallC, Enum.Material.Brick)
 			newPart(mC, "Window", Vector3.new(7, 4.5, 0.3) * S,
-				cSh * CFrame.new(sx * 8.75 * S, 5.6 * S, (-d / 2 + 0.15) * S),
+				cSh * CFrame.new(sx * 8.45 * S, 5.6 * S, (-d / 2 + 0.1) * S),
 				Color3.fromRGB(140, 195, 215), Enum.Material.Glass, 0.3)
 			local doorP = newPart(mC, "AutoDoor", Vector3.new(2.5, 7, 0.25) * S,
 				cSh * CFrame.new(sx * 1.25 * S, 3.5 * S, (-d / 2 + 0.3) * S),
@@ -1768,16 +1768,16 @@ local function buildPlaza()
 		local wallJ = Color3.fromRGB(60, 64, 70)
 		newPart(mJ, "Floor", Vector3.new(w, 0.4, d) * S, jSh * CFrame.new(0, 0.22 * S, 0),
 			Color3.fromRGB(120, 90, 65), Enum.Material.WoodPlanks)
-		newPart(mJ, "Back", Vector3.new(w, h, 0.6) * S, jSh * CFrame.new(0, h / 2 * S, (d / 2 - 0.3) * S),
+		newPart(mJ, "Back", Vector3.new(w - 1.2, h, 0.6) * S, jSh * CFrame.new(0, h / 2 * S, (d / 2 - 0.3) * S),
 			wallJ, Enum.Material.Concrete)
 		for _, sx in ipairs({ -1, 1 }) do
 			newPart(mJ, "Side", Vector3.new(0.6, h, d) * S, jSh * CFrame.new(sx * (w / 2 - 0.3) * S, h / 2 * S, 0),
 				wallJ, Enum.Material.Concrete)
-			newPart(mJ, "FrontWall", Vector3.new((w - 5) / 2, h, 0.6) * S,
-				jSh * CFrame.new(sx * ((w - 5) / 4 + 1.25) * S, h / 2 * S, (-d / 2 + 0.3) * S),
+			newPart(mJ, "FrontWall", Vector3.new(12.9, h, 0.6) * S,
+				jSh * CFrame.new(sx * 8.95 * S, h / 2 * S, (-d / 2 + 0.3) * S),
 				wallJ, Enum.Material.Concrete)
 			newPart(mJ, "Window", Vector3.new(6, 4.5, 0.3) * S,
-				jSh * CFrame.new(sx * ((w - 5) / 4 + 1.25) * S, 6 * S, (-d / 2 + 0.15) * S),
+				jSh * CFrame.new(sx * 8.95 * S, 6 * S, (-d / 2 + 0.1) * S),
 				Color3.fromRGB(120, 160, 180), Enum.Material.Glass, 0.35)
 			local doorJ = newPart(mJ, "AutoDoor", Vector3.new(2.5, 7, 0.25) * S,
 				jSh * CFrame.new(sx * 1.25 * S, 3.5 * S, (-d / 2 + 0.3) * S),
@@ -2098,16 +2098,16 @@ local function buildBloxway()
 	local wallB = Color3.fromRGB(228, 224, 216)
 	newPart(m, "Floor", Vector3.new(w, 0.4, d) * S, cf * CFrame.new(0, 0.22 * S, 0),
 		Color3.fromRGB(205, 202, 196), Enum.Material.Concrete)
-	newPart(m, "Back", Vector3.new(w, h, 0.8) * S, cf * CFrame.new(0, h / 2 * S, (d / 2 - 0.4) * S),
+	newPart(m, "Back", Vector3.new(w - 1.6, h, 0.8) * S, cf * CFrame.new(0, h / 2 * S, (d / 2 - 0.4) * S),
 		wallB, Enum.Material.Concrete)
 	for _, sx in ipairs({ -1, 1 }) do
 		newPart(m, "Side", Vector3.new(0.8, h, d) * S, cf * CFrame.new(sx * (w / 2 - 0.4) * S, h / 2 * S, 0),
 			wallB, Enum.Material.Concrete)
-		newPart(m, "FrontWall", Vector3.new((w - 14) / 2, h, 0.8) * S,
-			cf * CFrame.new(sx * ((w - 14) / 4 + 3.5) * S, h / 2 * S, (-d / 2 + 0.4) * S),
+		newPart(m, "FrontWall", Vector3.new((w - 15.6) / 2, h, 0.8) * S,
+			cf * CFrame.new(sx * ((w - 15.6) / 4 + 3.5) * S, h / 2 * S, (-d / 2 + 0.4) * S),
 			wallB, Enum.Material.Concrete)
-		newPart(m, "FrontGlass", Vector3.new((w - 14) / 2 - 8, 6, 0.3) * S,
-			cf * CFrame.new(sx * ((w - 14) / 4 + 3.5) * S, 6 * S, (-d / 2 + 0.2) * S),
+		newPart(m, "FrontGlass", Vector3.new((w - 15.6) / 2 - 8, 6, 0.3) * S,
+			cf * CFrame.new(sx * ((w - 15.6) / 4 + 3.5) * S, 6 * S, (-d / 2 + 0.1) * S),
 			Color3.fromRGB(140, 195, 215), Enum.Material.Glass, 0.3)
 		local doorB = newPart(m, "AutoDoor", Vector3.new(7, 10, 0.3) * S,
 			cf * CFrame.new(sx * 3.5 * S, 5 * S, (-d / 2 + 0.4) * S),

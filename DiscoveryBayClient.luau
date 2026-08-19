@@ -241,8 +241,21 @@ for i = 1, 9 do
 	hotbarSlots[i].btn.Activated:Connect(function() equipSlot(i) end)
 end
 
-plr:WaitForChild("Backpack").ChildAdded:Connect(refreshHotbar)
-plr.Backpack.ChildRemoved:Connect(refreshHotbar)
+local function hookBackpack(bp)
+	bp.ChildAdded:Connect(refreshHotbar)
+	bp.ChildRemoved:Connect(refreshHotbar)
+	refreshHotbar()
+end
+
+if plr:FindFirstChildOfClass("Backpack") then
+	hookBackpack(plr:FindFirstChildOfClass("Backpack"))
+end
+plr.ChildAdded:Connect(function(child)
+	if child:IsA("Backpack") then
+		hookBackpack(child)
+	end
+end)
+
 plr.CharacterAdded:Connect(function(char)
 	char.ChildAdded:Connect(function(c) if c:IsA("Tool") then refreshHotbar() end end)
 	char.ChildRemoved:Connect(function(c) if c:IsA("Tool") then refreshHotbar() end end)
