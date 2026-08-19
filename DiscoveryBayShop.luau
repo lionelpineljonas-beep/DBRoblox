@@ -144,6 +144,7 @@ end
 local DoTrick = remote("DoTrick")
 local TrickResult = remote("TrickResult")
 local ToggleScooter = remote("ToggleScooter")
+local BuyCustomItem = remote("BuyCustomItem")
 local HatchEgg = remote("HatchEgg") -- server -> client: play the on-screen hatch cinematic
 local UpdatePity = remote("UpdatePity") -- server -> client: updates pity tracker
 local FishGame = remote("FishGame") -- server -> client: FISH ON! start the reel minigame
@@ -719,6 +720,24 @@ ToggleScooter.OnServerEvent:Connect(function(plr)
 	end
 end)
 
+BuyCustomItem.OnServerEvent:Connect(function(plr, itemName)
+	local PRICING = { ["Pizza Slice"] = 20, ["Energy Drink"] = 15, ["Burrito"] = 25 }
+	local price = PRICING[itemName]
+	if not price then return end
+	local cash = getCash(plr)
+	if cash and cash.Value >= price then
+		cash.Value = cash.Value - price
+		local kit = ReplicatedStorage:FindFirstChild("DiscoveryBayKit")
+		local tools = kit and kit:FindFirstChild("Products")
+		local tool = tools and tools:FindFirstChild(itemName)
+		if tool then
+			tool:Clone().Parent = plr:FindFirstChildOfClass("Backpack") or plr.Character
+			TrickResult:FireClient(plr, "Bought " .. itemName .. " for $" .. price .. "!", 0)
+		end
+	else
+		TrickResult:FireClient(plr, "Not enough cash for " .. itemName .. "!", 0)
+	end
+end)
 -- Ragdoll deaths: keep the body in one piece and convert its joints to ball sockets
 -- so it flops and tumbles (the traffic fling velocity carries straight into it).
 local function ragdollOnDeath(char, humanoid)
@@ -1084,6 +1103,7 @@ DoTrick.OnServerEvent:Connect(function(plr, trickName)
 		if not cash or humanoid.Health <= 0 then return end
 		trick.fn(rig, hrp)
 		local pay = trick.pay * (plr:GetAttribute("TrickMult") or 1)
+		if plr:GetAttribute("CarbLoad") then pay = math.floor(pay * 1.25) end
 		cash.Value = cash.Value + pay
 		TrickResult:FireClient(plr, trick.name, pay)
 
@@ -1100,7 +1120,10 @@ DoTrick.OnServerEvent:Connect(function(plr, trickName)
 		perform()
 	else
 		local v = hrp.AssemblyLinearVelocity
-		hrp.AssemblyLinearVelocity = Vector3.new(v.X, 48, v.Z)
+		local jumpV = 48
+		if plr:GetAttribute("CarbLoad") then jumpV = 35 end
+		if plr:GetAttribute("BeanPower") then jumpV = 85 end
+		hrp.AssemblyLinearVelocity = Vector3.new(v.X, jumpV, v.Z)
 		task.delay(0.32, perform)
 	end
 end)
@@ -2048,29 +2071,81 @@ local function hookFishSell(part)
 	end)
 end
 
-local function watchRods(char, plr)
+local CONSUME_EFFECTS = {
+	["Pizza Slice"] = function(plr)
+		plr:SetAttribute("CarbLoad", true)
+		task.delay(30, function() plr:SetAttribute("CarbLoad", nil) end)
+		return "CARB LOAD! +25% Trick Money and Heavy Mass for 30s!"
+	end,
+	["Energy Drink"] = function(plr)
+		plr:SetAttribute("SugarRush", true)
+		local hum = plr.Character and plr.Character:FindFirstChildOfClass("Humanoid")
+		if hum then hum.WalkSpeed = hum.WalkSpeed + 40 end
+		task.delay(10, function() 
+			plr:SetAttribute("SugarRush", nil) 
+			local h2 = plr.Character and plr.Character:FindFirstChildOfClass("Humanoid")
+			if h2 then h2.WalkSpeed = h2.WalkSpeed - 40 end
+		end)
+		return "SUGAR RUSH! Insane sprint speed for 10s!"
+	end,
+	["Burrito"] = function(plr)
+		plr:SetAttribute("BeanPower", true)
+		local hum = plr.Character and plr.Character:FindFirstChildOfClass("Humanoid")
+		if hum then hum.JumpPower = 100 hum.UseJumpPower = true end
+		task.delay(20, function()
+			plr:SetAttribute("BeanPower", nil)
+			local h2 = plr.Character and plr.Character:FindFirstChildOfClass("Humanoid")
+			if h2 then h2.JumpPower = 50 end
+		end)
+		return "BEAN POWER! Massive jump height for 20s!"
+	end,
+	["Mint Cone"] = function(plr)
+		plr:SetAttribute("TrickMult", 2)
+		task.delay(60, function() plr:SetAttribute("TrickMult", 1) end)
+		return "MINTY FRESH! 2x Trick Payouts for 60s!"
+	end,
+	["Vanilla Cone"] = function(plr)
+		bumpAttribute(plr, "VanillaBoost", 10, 30)
+		updateSpeed(plr)
+		return "Vanilla! Permanent +10 Scooter Speed"
+	end,
+	["Chocolate Cone"] = function(plr)
+		bumpAttribute(plr, "WalkBoost", 5, 20)
+		updateSpeed(plr)
+		return "Chocolate! Permanent +5 Walk Speed"
+	end
+}
+
+local function watchTools(char, plr)
 	local ev = char.ChildAdded
 	if not ev then return end -- (mock sim characters have no ChildAdded)
 	ev:Connect(function(child)
-		if child.Name == "Fishing Rod" and child:IsA("Tool")
-			and not child:GetAttribute("RodHooked") then
-			child:SetAttribute("RodHooked", true)
-			hookRod(plr, child)
+		if child:IsA("Tool") and not child:GetAttribute("Hooked") then
+			child:SetAttribute("Hooked", true)
+			if child.Name == "Fishing Rod" then
+				hookRod(plr, child)
+			elseif CONSUME_EFFECTS[child.Name] then
+				child.Activated:Connect(function()
+					local msg = CONSUME_EFFECTS[child.Name](plr)
+					if msg then TrickResult:FireClient(plr, msg, 0) end
+					child:Destroy()
+				end)
+			end
 		end
 	end)
 end
 
 Players.PlayerAdded:Connect(function(plr)
 	plr.CharacterAdded:Connect(function(char)
-		watchRods(char, plr)
+		watchTools(char, plr)
 	end)
 end)
 for _, plr in ipairs(Players:GetPlayers()) do
 	plr.CharacterAdded:Connect(function(char)
-		watchRods(char, plr)
+		watchTools(char, plr)
 	end)
 	if plr.Character then
-		watchRods(plr.Character, plr)
+		watchTools(plr.Character, plr)
 	end
 end
 Players.PlayerRemoving:Connect(function(plr)

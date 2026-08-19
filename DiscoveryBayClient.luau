@@ -124,11 +124,265 @@ task.spawn(function()
 end)
 
 -- HUD ------------------------------------------------------------------------------------------
+pcall(function() game:GetService("StarterGui"):SetCoreGuiEnabled(Enum.CoreGuiType.Backpack, false) end)
+
 local gui = Instance.new("ScreenGui")
 gui.Name = "DiscoveryBayHUD"
 gui.ResetOnSpawn = false
 gui.Enabled = false -- hidden until the intro's PLAY button is pressed
 gui.Parent = plr:WaitForChild("PlayerGui")
+
+local hotbar = Instance.new("Frame")
+hotbar.Name = "CustomHotbar"
+hotbar.AnchorPoint = Vector2.new(0.5, 1)
+hotbar.Position = UDim2.new(0.5, 0, 1, -10)
+hotbar.Size = UDim2.new(0, 480, 0, 60)
+hotbar.BackgroundTransparency = 1
+hotbar.Parent = gui
+
+local hbList = Instance.new("UIListLayout")
+hbList.FillDirection = Enum.FillDirection.Horizontal
+hbList.HorizontalAlignment = Enum.HorizontalAlignment.Center
+hbList.VerticalAlignment = Enum.VerticalAlignment.Center
+hbList.Padding = UDim.new(0, 8)
+hbList.Parent = hotbar
+
+local hotbarSlots = {}
+for i = 1, 9 do
+	local slot = Instance.new("TextButton")
+	slot.Name = "Slot" .. i
+	slot.Size = UDim2.new(0, 45, 0, 45)
+	slot.BackgroundColor3 = Color3.fromRGB(40, 45, 55)
+	slot.BackgroundTransparency = 0.4
+	slot.Text = ""
+	slot.AutoButtonColor = false
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0.3, 0)
+	corner.Parent = slot
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = Color3.fromRGB(100, 110, 120)
+	stroke.Thickness = 2
+	stroke.Parent = slot
+	
+	local numLbl = Instance.new("TextLabel")
+	numLbl.Position = UDim2.new(0, 4, 0, 4)
+	numLbl.Size = UDim2.new(0, 12, 0, 12)
+	numLbl.BackgroundTransparency = 1
+	numLbl.Text = tostring(i)
+	numLbl.TextColor3 = Color3.fromRGB(200, 200, 200)
+	numLbl.Font = Enum.Font.FredokaOne
+	numLbl.TextSize = 12
+	numLbl.Parent = slot
+	
+	local itemLbl = Instance.new("TextLabel")
+	itemLbl.Size = UDim2.new(1, 0, 1, 0)
+	itemLbl.BackgroundTransparency = 1
+	itemLbl.Text = ""
+	itemLbl.TextColor3 = Color3.new(1, 1, 1)
+	itemLbl.Font = Enum.Font.FredokaOne
+	itemLbl.TextSize = 10
+	itemLbl.TextWrapped = true
+	itemLbl.Parent = slot
+	
+	slot.Parent = hotbar
+	hotbarSlots[i] = { btn = slot, stroke = stroke, name = itemLbl, tool = nil }
+end
+
+local function getTools()
+	local tools = {}
+	for _, t in ipairs(plr:WaitForChild("Backpack"):GetChildren()) do
+		if t:IsA("Tool") then table.insert(tools, t) end
+	end
+	if plr.Character then
+		for _, t in ipairs(plr.Character:GetChildren()) do
+			if t:IsA("Tool") then table.insert(tools, t) end
+		end
+	end
+	return tools
+end
+
+local function refreshHotbar()
+	local tools = getTools()
+	for i = 1, 9 do
+		local slotData = hotbarSlots[i]
+		local tool = tools[i]
+		slotData.tool = tool
+		if tool then
+			slotData.name.Text = tool.Name
+			if tool.Parent == plr.Character then
+				slotData.stroke.Color = Color3.fromRGB(255, 200, 50)
+				slotData.stroke.Thickness = 3
+			else
+				slotData.stroke.Color = Color3.fromRGB(150, 160, 170)
+				slotData.stroke.Thickness = 2
+			end
+		else
+			slotData.name.Text = ""
+			slotData.stroke.Color = Color3.fromRGB(100, 110, 120)
+			slotData.stroke.Thickness = 2
+		end
+	end
+end
+
+local function equipSlot(i)
+	local slotData = hotbarSlots[i]
+	if not slotData.tool then return end
+	local hum = plr.Character and plr.Character:FindFirstChildOfClass("Humanoid")
+	if not hum then return end
+	if slotData.tool.Parent == plr.Character then
+		hum:UnequipTools()
+	else
+		hum:EquipTool(slotData.tool)
+	end
+	refreshHotbar()
+end
+
+for i = 1, 9 do
+	hotbarSlots[i].btn.Activated:Connect(function() equipSlot(i) end)
+end
+
+plr:WaitForChild("Backpack").ChildAdded:Connect(refreshHotbar)
+plr.Backpack.ChildRemoved:Connect(refreshHotbar)
+plr.CharacterAdded:Connect(function(char)
+	char.ChildAdded:Connect(function(c) if c:IsA("Tool") then refreshHotbar() end end)
+	char.ChildRemoved:Connect(function(c) if c:IsA("Tool") then refreshHotbar() end end)
+	refreshHotbar()
+end)
+if plr.Character then
+	plr.Character.ChildAdded:Connect(function(c) if c:IsA("Tool") then refreshHotbar() end end)
+	plr.Character.ChildRemoved:Connect(function(c) if c:IsA("Tool") then refreshHotbar() end end)
+end
+
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+	if gameProcessed then return end
+	if input.KeyCode.Value >= Enum.KeyCode.One.Value and input.KeyCode.Value <= Enum.KeyCode.Nine.Value then
+		equipSlot(input.KeyCode.Value - Enum.KeyCode.One.Value + 1)
+	end
+end)
+
+--==============================================================================================
+-- CUSTOM DIALOGUE UI
+--==============================================================================================
+local dlgFrame = Instance.new("Frame")
+dlgFrame.Name = "DialogueUI"
+dlgFrame.AnchorPoint = Vector2.new(0.5, 1)
+dlgFrame.Position = UDim2.new(0.5, 0, 1, -80)
+dlgFrame.Size = UDim2.new(0, 600, 0, 140)
+dlgFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+dlgFrame.BackgroundTransparency = 0.2
+dlgFrame.Visible = false
+dlgFrame.Parent = gui
+
+local dlgCorner = Instance.new("UICorner")
+dlgCorner.CornerRadius = UDim.new(0, 12)
+dlgCorner.Parent = dlgFrame
+
+local dlgName = Instance.new("TextLabel")
+dlgName.Position = UDim2.new(0, 20, 0, 10)
+dlgName.Size = UDim2.new(1, -40, 0, 24)
+dlgName.BackgroundTransparency = 1
+dlgName.Font = Enum.Font.FredokaOne
+dlgName.TextSize = 22
+dlgName.TextColor3 = Color3.fromRGB(250, 200, 50)
+dlgName.TextXAlignment = Enum.TextXAlignment.Left
+dlgName.Parent = dlgFrame
+
+local dlgText = Instance.new("TextLabel")
+dlgText.Position = UDim2.new(0, 20, 0, 40)
+dlgText.Size = UDim2.new(1, -40, 0, 50)
+dlgText.BackgroundTransparency = 1
+dlgText.Font = Enum.Font.SourceSansSemibold
+dlgText.TextSize = 20
+dlgText.TextColor3 = Color3.new(1, 1, 1)
+dlgText.TextWrapped = true
+dlgText.TextXAlignment = Enum.TextXAlignment.Left
+dlgText.TextYAlignment = Enum.TextYAlignment.Top
+dlgText.Parent = dlgFrame
+
+local choicesFrame = Instance.new("Frame")
+choicesFrame.Position = UDim2.new(0, 20, 0, 95)
+choicesFrame.Size = UDim2.new(1, -40, 0, 40)
+choicesFrame.BackgroundTransparency = 1
+choicesFrame.Parent = dlgFrame
+
+local chList = Instance.new("UIListLayout")
+chList.FillDirection = Enum.FillDirection.Horizontal
+chList.HorizontalAlignment = Enum.HorizontalAlignment.Center
+chList.Padding = UDim.new(0, 10)
+chList.Parent = choicesFrame
+
+local activeTypewriter = nil
+
+local function showDialogue(npcName, text, choicesArray, callback)
+	dlgFrame.Visible = true
+	dlgName.Text = npcName
+	dlgText.Text = ""
+	for _, c in ipairs(choicesFrame:GetChildren()) do
+		if c:IsA("TextButton") then c:Destroy() end
+	end
+	
+	activeTypewriter = tick()
+	local myType = activeTypewriter
+	
+	task.spawn(function()
+		for i = 1, #text do
+			if activeTypewriter ~= myType then return end
+			dlgText.Text = string.sub(text, 1, i)
+			task.wait(0.02)
+		end
+		
+		for _, ch in ipairs(choicesArray) do
+			local btn = Instance.new("TextButton")
+			btn.Size = UDim2.new(0, 160, 0, 36)
+			btn.BackgroundColor3 = Color3.fromRGB(50, 55, 65)
+			btn.TextColor3 = Color3.new(1, 1, 1)
+			btn.Font = Enum.Font.FredokaOne
+			btn.TextSize = 14
+			btn.Text = ch.text
+			local cCorner = Instance.new("UICorner")
+			cCorner.CornerRadius = UDim.new(0, 8)
+			cCorner.Parent = btn
+			btn.Parent = choicesFrame
+			
+			btn.Activated:Connect(function()
+				dlgFrame.Visible = false
+				if callback then callback(ch.id) end
+			end)
+		end
+		
+		local closeBtn = Instance.new("TextButton")
+		closeBtn.Size = UDim2.new(0, 100, 0, 36)
+		closeBtn.BackgroundColor3 = Color3.fromRGB(150, 40, 40)
+		closeBtn.TextColor3 = Color3.new(1, 1, 1)
+		closeBtn.Font = Enum.Font.FredokaOne
+		closeBtn.TextSize = 14
+		closeBtn.Text = "Leave"
+		local cCorner = Instance.new("UICorner")
+		cCorner.CornerRadius = UDim.new(0, 8)
+		cCorner.Parent = closeBtn
+		closeBtn.Parent = choicesFrame
+		closeBtn.Activated:Connect(function() dlgFrame.Visible = false end)
+	end)
+end
+
+local function hookBob(prompt)
+	prompt.Triggered:Connect(function()
+		showDialogue("Manager Bob", "Welcome to the empty void of Bloxway. We sold the aisles. What do you want?", {
+			{ id = "Pizza Slice", text = "Buy Pizza ($20)" },
+			{ id = "Energy Drink", text = "Buy Energy Drink ($15)" },
+			{ id = "Burrito", text = "Buy Burrito ($25)" },
+		}, function(choiceId)
+			remotes:WaitForChild("BuyCustomItem"):FireServer(choiceId)
+		end)
+	end)
+end
+
+workspace.DescendantAdded:Connect(function(desc)
+	if desc:IsA("ProximityPrompt") and desc.Name == "BobPrompt" then hookBob(desc) end
+end)
+for _, desc in ipairs(workspace:GetDescendants()) do
+	if desc:IsA("ProximityPrompt") and desc.Name == "BobPrompt" then hookBob(desc) end
+end
 
 --==============================================================================================
 -- INTRO: aerial camera over the town, then a PLAY button

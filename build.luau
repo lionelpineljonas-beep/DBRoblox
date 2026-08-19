@@ -1543,7 +1543,7 @@ local function buildPlaza()
 		local mF = newModel(m, "Fish N Bait")
 		local w, d, h = 30, 24, 12
 		local wallF = Color3.fromRGB(200, 214, 224)
-		newPart(mF, "Floor", Vector3.new(w, 0.4, d) * S, fSh * CFrame.new(0, 0.2 * S, 0),
+		newPart(mF, "Floor", Vector3.new(w, 0.4, d) * S, fSh * CFrame.new(0, 0.22 * S, 0),
 			Color3.fromRGB(150, 130, 105), Enum.Material.WoodPlanks)
 		newPart(mF, "Back", Vector3.new(w, h, 0.6) * S, fSh * CFrame.new(0, h / 2 * S, (d / 2 - 0.3) * S),
 			wallF, Enum.Material.WoodPlanks)
@@ -1634,7 +1634,7 @@ local function buildPlaza()
 		local mS = newModel(m, "Discovery Bay Scooters")
 		local w, d, h = 30, 24, 12
 		local wallS = Color3.fromRGB(40, 40, 45) -- sleek dark grey exterior
-		newPart(mS, "Floor", Vector3.new(w, 0.4, d) * S, sSh * CFrame.new(0, 0.2 * S, 0),
+		newPart(mS, "Floor", Vector3.new(w, 0.4, d) * S, sSh * CFrame.new(0, 0.22 * S, 0),
 			Color3.fromRGB(220, 220, 225), Enum.Material.Marble)
 		newPart(mS, "Back", Vector3.new(w, h, 0.6) * S, sSh * CFrame.new(0, h / 2 * S, (d / 2 - 0.3) * S),
 			wallS, Enum.Material.Concrete)
@@ -1702,7 +1702,7 @@ local function buildPlaza()
 		local mC = newModel(m, "Callahan's Coffee and Cones")
 		local w, d, h = 30, 24, 12
 		local wallC = Color3.fromRGB(240, 224, 214)
-		newPart(mC, "Floor", Vector3.new(w, 0.4, d) * S, cSh * CFrame.new(0, 0.2 * S, 0),
+		newPart(mC, "Floor", Vector3.new(w, 0.4, d) * S, cSh * CFrame.new(0, 0.22 * S, 0),
 			Color3.fromRGB(238, 214, 205), Enum.Material.Concrete)
 		newPart(mC, "Back", Vector3.new(w, h, 0.6) * S, cSh * CFrame.new(0, h / 2 * S, (d / 2 - 0.3) * S),
 			wallC, Enum.Material.Brick)
@@ -1764,7 +1764,7 @@ local function buildPlaza()
 		local mJ = newModel(m, "Discovery Bay Jiu Jitsu")
 		local w, d, h = 32, 24, 13
 		local wallJ = Color3.fromRGB(60, 64, 70)
-		newPart(mJ, "Floor", Vector3.new(w, 0.4, d) * S, jSh * CFrame.new(0, 0.2 * S, 0),
+		newPart(mJ, "Floor", Vector3.new(w, 0.4, d) * S, jSh * CFrame.new(0, 0.22 * S, 0),
 			Color3.fromRGB(120, 90, 65), Enum.Material.WoodPlanks)
 		newPart(mJ, "Back", Vector3.new(w, h, 0.6) * S, jSh * CFrame.new(0, h / 2 * S, (d / 2 - 0.3) * S),
 			wallJ, Enum.Material.Concrete)
@@ -1861,7 +1861,7 @@ local function buildBigSchool(parent, lm)
 	local cf = CFrame.lookAt(pos, toWorld(lm.x, lm.z, Y_LAND))
 	local w, d, h = 170, 100, 15
 	local wallS = Color3.fromRGB(222, 214, 196)
-	newPart(m, "Floor", Vector3.new(w, 0.4, d) * S, cf * CFrame.new(0, 0.2 * S, 0),
+	newPart(m, "Floor", Vector3.new(w, 0.4, d) * S, cf * CFrame.new(0, 0.22 * S, 0),
 		Color3.fromRGB(196, 190, 180), Enum.Material.Concrete)
 	newPart(m, "Back", Vector3.new(w, h, 0.8) * S, cf * CFrame.new(0, h / 2 * S, (d / 2 - 0.4) * S),
 		wallS, Enum.Material.Brick)
@@ -2094,7 +2094,7 @@ local function buildBloxway()
 		markBuilding(bx + off[1], bz + off[2])
 	end
 	local wallB = Color3.fromRGB(228, 224, 216)
-	newPart(m, "Floor", Vector3.new(w, 0.4, d) * S, cf * CFrame.new(0, 0.2 * S, 0),
+	newPart(m, "Floor", Vector3.new(w, 0.4, d) * S, cf * CFrame.new(0, 0.22 * S, 0),
 		Color3.fromRGB(205, 202, 196), Enum.Material.Concrete)
 	newPart(m, "Back", Vector3.new(w, h, 0.8) * S, cf * CFrame.new(0, h / 2 * S, (d / 2 - 0.4) * S),
 		wallB, Enum.Material.Concrete)
@@ -2141,37 +2141,16 @@ local function buildBloxway()
 		newPart(m, "Register", Vector3.new(1.2, 1.3, 1) * S,
 			cf * CFrame.new(cx * S, 4.1 * S, (-d / 2 + 14) * S), Color3.fromRGB(50, 50, 55))
 	end
-	buildNPC(m, "Manager Bob", cf * CFrame.new(26 * S, 0.4 * S, (-d / 2 + 18) * S),
-		Color3.fromRGB(200, 60, 55),
-		"Welcome to BLOXWAY! Thirty aisles, and everything is edible. Even aisle 27 - that's watermelons.",
-		{ { "Where's the pizza?",
-			"Aisle 7, next to Pasta. Tell them Bob sent you. Changes nothing, but it feels nice." } })
-	-- 30 aisles in two banks of 15, each with a hanging sign and buyable food
-	local perBank = 15
-	local spacing = (w - 24) / perBank
-	local shelfLen = (d - 60) / 2
-	local aisleNum = 0
-	for bank = 0, 1 do
-		local bz = (bank == 0) and (-shelfLen / 2 - 4) or (shelfLen / 2 + 10)
-		for i = 1, perBank do
-			aisleNum = aisleNum + 1
-			local a = BLOXWAY_AISLES[aisleNum]
-			local ax = -w / 2 + 12 + (i - 0.5) * spacing
-			local shelf = newPart(m, "Aisle" .. aisleNum, Vector3.new(3.5, 7, shelfLen) * S,
-				cf * CFrame.new(ax * S, 3.9 * S, bz * S), Color3.fromRGB(175, 170, 160), Enum.Material.Metal)
-			local hang = newPart(m, "AisleSign", Vector3.new(3.2, 1.8, 0.3) * S,
-				cf * CFrame.new(ax * S, 11.5 * S, bz * S), Color3.fromRGB(35, 60, 90))
-			makeSign(hang, Enum.NormalId.Front, aisleNum .. " · " .. a[1],
-				Color3.fromRGB(35, 60, 90), Color3.new(1, 1, 1))
-			makeSign(hang, Enum.NormalId.Back, aisleNum .. " · " .. a[1],
-				Color3.fromRGB(35, 60, 90), Color3.new(1, 1, 1))
-			local pr = PRODUCT_BY_NAME[a[2]]
-			if pr then
-				for _, oz in ipairs({ -shelfLen * 0.25, shelfLen * 0.25 }) do
-					addProductDisplay(m, pr, cf * CFrame.new(ax * S, 7.4 * S + 0.7, (bz + oz) * S))
-				end
-			end
-		end
+	local bob = buildNPC(m, "Manager Bob", cf * CFrame.new(26 * S, 0.4 * S, (-d / 2 + 18) * S),
+		Color3.fromRGB(200, 60, 55))
+	if bob then
+		local bobPrompt = Instance.new("ProximityPrompt")
+		bobPrompt.Name = "BobPrompt"
+		bobPrompt.ActionText = "Talk"
+		bobPrompt.ObjectText = "Manager Bob"
+		bobPrompt.MaxActivationDistance = 15
+		bobPrompt.RequiresLineOfSight = false
+		bobPrompt.Parent = bob:FindFirstChild("Head")
 	end
 end
 

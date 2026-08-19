@@ -2435,7 +2435,7 @@ local function buildPlaza()
 		local mF = newModel(m, "Fish N Bait")
 		local w, d, h = 30, 24, 12
 		local wallF = Color3.fromRGB(200, 214, 224)
-		newPart(mF, "Floor", Vector3.new(w, 0.4, d) * S, fSh * CFrame.new(0, 0.2 * S, 0),
+		newPart(mF, "Floor", Vector3.new(w, 0.4, d) * S, fSh * CFrame.new(0, 0.22 * S, 0),
 			Color3.fromRGB(150, 130, 105), Enum.Material.WoodPlanks)
 		newPart(mF, "Back", Vector3.new(w, h, 0.6) * S, fSh * CFrame.new(0, h / 2 * S, (d / 2 - 0.3) * S),
 			wallF, Enum.Material.WoodPlanks)
@@ -2526,7 +2526,7 @@ local function buildPlaza()
 		local mS = newModel(m, "Discovery Bay Scooters")
 		local w, d, h = 30, 24, 12
 		local wallS = Color3.fromRGB(40, 40, 45) -- sleek dark grey exterior
-		newPart(mS, "Floor", Vector3.new(w, 0.4, d) * S, sSh * CFrame.new(0, 0.2 * S, 0),
+		newPart(mS, "Floor", Vector3.new(w, 0.4, d) * S, sSh * CFrame.new(0, 0.22 * S, 0),
 			Color3.fromRGB(220, 220, 225), Enum.Material.Marble)
 		newPart(mS, "Back", Vector3.new(w, h, 0.6) * S, sSh * CFrame.new(0, h / 2 * S, (d / 2 - 0.3) * S),
 			wallS, Enum.Material.Concrete)
@@ -2594,7 +2594,7 @@ local function buildPlaza()
 		local mC = newModel(m, "Callahan's Coffee and Cones")
 		local w, d, h = 30, 24, 12
 		local wallC = Color3.fromRGB(240, 224, 214)
-		newPart(mC, "Floor", Vector3.new(w, 0.4, d) * S, cSh * CFrame.new(0, 0.2 * S, 0),
+		newPart(mC, "Floor", Vector3.new(w, 0.4, d) * S, cSh * CFrame.new(0, 0.22 * S, 0),
 			Color3.fromRGB(238, 214, 205), Enum.Material.Concrete)
 		newPart(mC, "Back", Vector3.new(w, h, 0.6) * S, cSh * CFrame.new(0, h / 2 * S, (d / 2 - 0.3) * S),
 			wallC, Enum.Material.Brick)
@@ -2656,7 +2656,7 @@ local function buildPlaza()
 		local mJ = newModel(m, "Discovery Bay Jiu Jitsu")
 		local w, d, h = 32, 24, 13
 		local wallJ = Color3.fromRGB(60, 64, 70)
-		newPart(mJ, "Floor", Vector3.new(w, 0.4, d) * S, jSh * CFrame.new(0, 0.2 * S, 0),
+		newPart(mJ, "Floor", Vector3.new(w, 0.4, d) * S, jSh * CFrame.new(0, 0.22 * S, 0),
 			Color3.fromRGB(120, 90, 65), Enum.Material.WoodPlanks)
 		newPart(mJ, "Back", Vector3.new(w, h, 0.6) * S, jSh * CFrame.new(0, h / 2 * S, (d / 2 - 0.3) * S),
 			wallJ, Enum.Material.Concrete)
@@ -2753,7 +2753,7 @@ local function buildBigSchool(parent, lm)
 	local cf = CFrame.lookAt(pos, toWorld(lm.x, lm.z, Y_LAND))
 	local w, d, h = 170, 100, 15
 	local wallS = Color3.fromRGB(222, 214, 196)
-	newPart(m, "Floor", Vector3.new(w, 0.4, d) * S, cf * CFrame.new(0, 0.2 * S, 0),
+	newPart(m, "Floor", Vector3.new(w, 0.4, d) * S, cf * CFrame.new(0, 0.22 * S, 0),
 		Color3.fromRGB(196, 190, 180), Enum.Material.Concrete)
 	newPart(m, "Back", Vector3.new(w, h, 0.8) * S, cf * CFrame.new(0, h / 2 * S, (d / 2 - 0.4) * S),
 		wallS, Enum.Material.Brick)
@@ -2986,7 +2986,7 @@ local function buildBloxway()
 		markBuilding(bx + off[1], bz + off[2])
 	end
 	local wallB = Color3.fromRGB(228, 224, 216)
-	newPart(m, "Floor", Vector3.new(w, 0.4, d) * S, cf * CFrame.new(0, 0.2 * S, 0),
+	newPart(m, "Floor", Vector3.new(w, 0.4, d) * S, cf * CFrame.new(0, 0.22 * S, 0),
 		Color3.fromRGB(205, 202, 196), Enum.Material.Concrete)
 	newPart(m, "Back", Vector3.new(w, h, 0.8) * S, cf * CFrame.new(0, h / 2 * S, (d / 2 - 0.4) * S),
 		wallB, Enum.Material.Concrete)
@@ -3033,37 +3033,16 @@ local function buildBloxway()
 		newPart(m, "Register", Vector3.new(1.2, 1.3, 1) * S,
 			cf * CFrame.new(cx * S, 4.1 * S, (-d / 2 + 14) * S), Color3.fromRGB(50, 50, 55))
 	end
-	buildNPC(m, "Manager Bob", cf * CFrame.new(26 * S, 0.4 * S, (-d / 2 + 18) * S),
-		Color3.fromRGB(200, 60, 55),
-		"Welcome to BLOXWAY! Thirty aisles, and everything is edible. Even aisle 27 - that's watermelons.",
-		{ { "Where's the pizza?",
-			"Aisle 7, next to Pasta. Tell them Bob sent you. Changes nothing, but it feels nice." } })
-	-- 30 aisles in two banks of 15, each with a hanging sign and buyable food
-	local perBank = 15
-	local spacing = (w - 24) / perBank
-	local shelfLen = (d - 60) / 2
-	local aisleNum = 0
-	for bank = 0, 1 do
-		local bz = (bank == 0) and (-shelfLen / 2 - 4) or (shelfLen / 2 + 10)
-		for i = 1, perBank do
-			aisleNum = aisleNum + 1
-			local a = BLOXWAY_AISLES[aisleNum]
-			local ax = -w / 2 + 12 + (i - 0.5) * spacing
-			local shelf = newPart(m, "Aisle" .. aisleNum, Vector3.new(3.5, 7, shelfLen) * S,
-				cf * CFrame.new(ax * S, 3.9 * S, bz * S), Color3.fromRGB(175, 170, 160), Enum.Material.Metal)
-			local hang = newPart(m, "AisleSign", Vector3.new(3.2, 1.8, 0.3) * S,
-				cf * CFrame.new(ax * S, 11.5 * S, bz * S), Color3.fromRGB(35, 60, 90))
-			makeSign(hang, Enum.NormalId.Front, aisleNum .. " · " .. a[1],
-				Color3.fromRGB(35, 60, 90), Color3.new(1, 1, 1))
-			makeSign(hang, Enum.NormalId.Back, aisleNum .. " · " .. a[1],
-				Color3.fromRGB(35, 60, 90), Color3.new(1, 1, 1))
-			local pr = PRODUCT_BY_NAME[a[2]]
-			if pr then
-				for _, oz in ipairs({ -shelfLen * 0.25, shelfLen * 0.25 }) do
-					addProductDisplay(m, pr, cf * CFrame.new(ax * S, 7.4 * S + 0.7, (bz + oz) * S))
-				end
-			end
-		end
+	local bob = buildNPC(m, "Manager Bob", cf * CFrame.new(26 * S, 0.4 * S, (-d / 2 + 18) * S),
+		Color3.fromRGB(200, 60, 55))
+	if bob then
+		local bobPrompt = Instance.new("ProximityPrompt")
+		bobPrompt.Name = "BobPrompt"
+		bobPrompt.ActionText = "Talk"
+		bobPrompt.ObjectText = "Manager Bob"
+		bobPrompt.MaxActivationDistance = 15
+		bobPrompt.RequiresLineOfSight = false
+		bobPrompt.Parent = bob:FindFirstChild("Head")
 	end
 end
 
@@ -3417,6 +3396,7 @@ end
 local DoTrick = remote("DoTrick")
 local TrickResult = remote("TrickResult")
 local ToggleScooter = remote("ToggleScooter")
+local BuyCustomItem = remote("BuyCustomItem")
 local HatchEgg = remote("HatchEgg") -- server -> client: play the on-screen hatch cinematic
 local UpdatePity = remote("UpdatePity") -- server -> client: updates pity tracker
 local FishGame = remote("FishGame") -- server -> client: FISH ON! start the reel minigame
@@ -3992,6 +3972,24 @@ ToggleScooter.OnServerEvent:Connect(function(plr)
 	end
 end)
 
+BuyCustomItem.OnServerEvent:Connect(function(plr, itemName)
+	local PRICING = { ["Pizza Slice"] = 20, ["Energy Drink"] = 15, ["Burrito"] = 25 }
+	local price = PRICING[itemName]
+	if not price then return end
+	local cash = getCash(plr)
+	if cash and cash.Value >= price then
+		cash.Value = cash.Value - price
+		local kit = ReplicatedStorage:FindFirstChild("DiscoveryBayKit")
+		local tools = kit and kit:FindFirstChild("Products")
+		local tool = tools and tools:FindFirstChild(itemName)
+		if tool then
+			tool:Clone().Parent = plr:FindFirstChildOfClass("Backpack") or plr.Character
+			TrickResult:FireClient(plr, "Bought " .. itemName .. " for $" .. price .. "!", 0)
+		end
+	else
+		TrickResult:FireClient(plr, "Not enough cash for " .. itemName .. "!", 0)
+	end
+end)
 -- Ragdoll deaths: keep the body in one piece and convert its joints to ball sockets
 -- so it flops and tumbles (the traffic fling velocity carries straight into it).
 local function ragdollOnDeath(char, humanoid)
@@ -4357,6 +4355,7 @@ DoTrick.OnServerEvent:Connect(function(plr, trickName)
 		if not cash or humanoid.Health <= 0 then return end
 		trick.fn(rig, hrp)
 		local pay = trick.pay * (plr:GetAttribute("TrickMult") or 1)
+		if plr:GetAttribute("CarbLoad") then pay = math.floor(pay * 1.25) end
 		cash.Value = cash.Value + pay
 		TrickResult:FireClient(plr, trick.name, pay)
 
@@ -4373,7 +4372,10 @@ DoTrick.OnServerEvent:Connect(function(plr, trickName)
 		perform()
 	else
 		local v = hrp.AssemblyLinearVelocity
-		hrp.AssemblyLinearVelocity = Vector3.new(v.X, 48, v.Z)
+		local jumpV = 48
+		if plr:GetAttribute("CarbLoad") then jumpV = 35 end
+		if plr:GetAttribute("BeanPower") then jumpV = 85 end
+		hrp.AssemblyLinearVelocity = Vector3.new(v.X, jumpV, v.Z)
 		task.delay(0.32, perform)
 	end
 end)
@@ -5321,29 +5323,81 @@ local function hookFishSell(part)
 	end)
 end
 
-local function watchRods(char, plr)
+local CONSUME_EFFECTS = {
+	["Pizza Slice"] = function(plr)
+		plr:SetAttribute("CarbLoad", true)
+		task.delay(30, function() plr:SetAttribute("CarbLoad", nil) end)
+		return "CARB LOAD! +25% Trick Money and Heavy Mass for 30s!"
+	end,
+	["Energy Drink"] = function(plr)
+		plr:SetAttribute("SugarRush", true)
+		local hum = plr.Character and plr.Character:FindFirstChildOfClass("Humanoid")
+		if hum then hum.WalkSpeed = hum.WalkSpeed + 40 end
+		task.delay(10, function() 
+			plr:SetAttribute("SugarRush", nil) 
+			local h2 = plr.Character and plr.Character:FindFirstChildOfClass("Humanoid")
+			if h2 then h2.WalkSpeed = h2.WalkSpeed - 40 end
+		end)
+		return "SUGAR RUSH! Insane sprint speed for 10s!"
+	end,
+	["Burrito"] = function(plr)
+		plr:SetAttribute("BeanPower", true)
+		local hum = plr.Character and plr.Character:FindFirstChildOfClass("Humanoid")
+		if hum then hum.JumpPower = 100 hum.UseJumpPower = true end
+		task.delay(20, function()
+			plr:SetAttribute("BeanPower", nil)
+			local h2 = plr.Character and plr.Character:FindFirstChildOfClass("Humanoid")
+			if h2 then h2.JumpPower = 50 end
+		end)
+		return "BEAN POWER! Massive jump height for 20s!"
+	end,
+	["Mint Cone"] = function(plr)
+		plr:SetAttribute("TrickMult", 2)
+		task.delay(60, function() plr:SetAttribute("TrickMult", 1) end)
+		return "MINTY FRESH! 2x Trick Payouts for 60s!"
+	end,
+	["Vanilla Cone"] = function(plr)
+		bumpAttribute(plr, "VanillaBoost", 10, 30)
+		updateSpeed(plr)
+		return "Vanilla! Permanent +10 Scooter Speed"
+	end,
+	["Chocolate Cone"] = function(plr)
+		bumpAttribute(plr, "WalkBoost", 5, 20)
+		updateSpeed(plr)
+		return "Chocolate! Permanent +5 Walk Speed"
+	end
+}
+
+local function watchTools(char, plr)
 	local ev = char.ChildAdded
 	if not ev then return end -- (mock sim characters have no ChildAdded)
 	ev:Connect(function(child)
-		if child.Name == "Fishing Rod" and child:IsA("Tool")
-			and not child:GetAttribute("RodHooked") then
-			child:SetAttribute("RodHooked", true)
-			hookRod(plr, child)
+		if child:IsA("Tool") and not child:GetAttribute("Hooked") then
+			child:SetAttribute("Hooked", true)
+			if child.Name == "Fishing Rod" then
+				hookRod(plr, child)
+			elseif CONSUME_EFFECTS[child.Name] then
+				child.Activated:Connect(function()
+					local msg = CONSUME_EFFECTS[child.Name](plr)
+					if msg then TrickResult:FireClient(plr, msg, 0) end
+					child:Destroy()
+				end)
+			end
 		end
 	end)
 end
 
 Players.PlayerAdded:Connect(function(plr)
 	plr.CharacterAdded:Connect(function(char)
-		watchRods(char, plr)
+		watchTools(char, plr)
 	end)
 end)
 for _, plr in ipairs(Players:GetPlayers()) do
 	plr.CharacterAdded:Connect(function(char)
-		watchRods(char, plr)
+		watchTools(char, plr)
 	end)
 	if plr.Character then
-		watchRods(plr.Character, plr)
+		watchTools(plr.Character, plr)
 	end
 end
 Players.PlayerRemoving:Connect(function(plr)
@@ -6040,11 +6094,265 @@ task.spawn(function()
 end)
 
 -- HUD ------------------------------------------------------------------------------------------
+pcall(function() game:GetService("StarterGui"):SetCoreGuiEnabled(Enum.CoreGuiType.Backpack, false) end)
+
 local gui = Instance.new("ScreenGui")
 gui.Name = "DiscoveryBayHUD"
 gui.ResetOnSpawn = false
 gui.Enabled = false -- hidden until the intro's PLAY button is pressed
 gui.Parent = plr:WaitForChild("PlayerGui")
+
+local hotbar = Instance.new("Frame")
+hotbar.Name = "CustomHotbar"
+hotbar.AnchorPoint = Vector2.new(0.5, 1)
+hotbar.Position = UDim2.new(0.5, 0, 1, -10)
+hotbar.Size = UDim2.new(0, 480, 0, 60)
+hotbar.BackgroundTransparency = 1
+hotbar.Parent = gui
+
+local hbList = Instance.new("UIListLayout")
+hbList.FillDirection = Enum.FillDirection.Horizontal
+hbList.HorizontalAlignment = Enum.HorizontalAlignment.Center
+hbList.VerticalAlignment = Enum.VerticalAlignment.Center
+hbList.Padding = UDim.new(0, 8)
+hbList.Parent = hotbar
+
+local hotbarSlots = {}
+for i = 1, 9 do
+	local slot = Instance.new("TextButton")
+	slot.Name = "Slot" .. i
+	slot.Size = UDim2.new(0, 45, 0, 45)
+	slot.BackgroundColor3 = Color3.fromRGB(40, 45, 55)
+	slot.BackgroundTransparency = 0.4
+	slot.Text = ""
+	slot.AutoButtonColor = false
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0.3, 0)
+	corner.Parent = slot
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = Color3.fromRGB(100, 110, 120)
+	stroke.Thickness = 2
+	stroke.Parent = slot
+	
+	local numLbl = Instance.new("TextLabel")
+	numLbl.Position = UDim2.new(0, 4, 0, 4)
+	numLbl.Size = UDim2.new(0, 12, 0, 12)
+	numLbl.BackgroundTransparency = 1
+	numLbl.Text = tostring(i)
+	numLbl.TextColor3 = Color3.fromRGB(200, 200, 200)
+	numLbl.Font = Enum.Font.FredokaOne
+	numLbl.TextSize = 12
+	numLbl.Parent = slot
+	
+	local itemLbl = Instance.new("TextLabel")
+	itemLbl.Size = UDim2.new(1, 0, 1, 0)
+	itemLbl.BackgroundTransparency = 1
+	itemLbl.Text = ""
+	itemLbl.TextColor3 = Color3.new(1, 1, 1)
+	itemLbl.Font = Enum.Font.FredokaOne
+	itemLbl.TextSize = 10
+	itemLbl.TextWrapped = true
+	itemLbl.Parent = slot
+	
+	slot.Parent = hotbar
+	hotbarSlots[i] = { btn = slot, stroke = stroke, name = itemLbl, tool = nil }
+end
+
+local function getTools()
+	local tools = {}
+	for _, t in ipairs(plr:WaitForChild("Backpack"):GetChildren()) do
+		if t:IsA("Tool") then table.insert(tools, t) end
+	end
+	if plr.Character then
+		for _, t in ipairs(plr.Character:GetChildren()) do
+			if t:IsA("Tool") then table.insert(tools, t) end
+		end
+	end
+	return tools
+end
+
+local function refreshHotbar()
+	local tools = getTools()
+	for i = 1, 9 do
+		local slotData = hotbarSlots[i]
+		local tool = tools[i]
+		slotData.tool = tool
+		if tool then
+			slotData.name.Text = tool.Name
+			if tool.Parent == plr.Character then
+				slotData.stroke.Color = Color3.fromRGB(255, 200, 50)
+				slotData.stroke.Thickness = 3
+			else
+				slotData.stroke.Color = Color3.fromRGB(150, 160, 170)
+				slotData.stroke.Thickness = 2
+			end
+		else
+			slotData.name.Text = ""
+			slotData.stroke.Color = Color3.fromRGB(100, 110, 120)
+			slotData.stroke.Thickness = 2
+		end
+	end
+end
+
+local function equipSlot(i)
+	local slotData = hotbarSlots[i]
+	if not slotData.tool then return end
+	local hum = plr.Character and plr.Character:FindFirstChildOfClass("Humanoid")
+	if not hum then return end
+	if slotData.tool.Parent == plr.Character then
+		hum:UnequipTools()
+	else
+		hum:EquipTool(slotData.tool)
+	end
+	refreshHotbar()
+end
+
+for i = 1, 9 do
+	hotbarSlots[i].btn.Activated:Connect(function() equipSlot(i) end)
+end
+
+plr:WaitForChild("Backpack").ChildAdded:Connect(refreshHotbar)
+plr.Backpack.ChildRemoved:Connect(refreshHotbar)
+plr.CharacterAdded:Connect(function(char)
+	char.ChildAdded:Connect(function(c) if c:IsA("Tool") then refreshHotbar() end end)
+	char.ChildRemoved:Connect(function(c) if c:IsA("Tool") then refreshHotbar() end end)
+	refreshHotbar()
+end)
+if plr.Character then
+	plr.Character.ChildAdded:Connect(function(c) if c:IsA("Tool") then refreshHotbar() end end)
+	plr.Character.ChildRemoved:Connect(function(c) if c:IsA("Tool") then refreshHotbar() end end)
+end
+
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+	if gameProcessed then return end
+	if input.KeyCode.Value >= Enum.KeyCode.One.Value and input.KeyCode.Value <= Enum.KeyCode.Nine.Value then
+		equipSlot(input.KeyCode.Value - Enum.KeyCode.One.Value + 1)
+	end
+end)
+
+--==============================================================================================
+-- CUSTOM DIALOGUE UI
+--==============================================================================================
+local dlgFrame = Instance.new("Frame")
+dlgFrame.Name = "DialogueUI"
+dlgFrame.AnchorPoint = Vector2.new(0.5, 1)
+dlgFrame.Position = UDim2.new(0.5, 0, 1, -80)
+dlgFrame.Size = UDim2.new(0, 600, 0, 140)
+dlgFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+dlgFrame.BackgroundTransparency = 0.2
+dlgFrame.Visible = false
+dlgFrame.Parent = gui
+
+local dlgCorner = Instance.new("UICorner")
+dlgCorner.CornerRadius = UDim.new(0, 12)
+dlgCorner.Parent = dlgFrame
+
+local dlgName = Instance.new("TextLabel")
+dlgName.Position = UDim2.new(0, 20, 0, 10)
+dlgName.Size = UDim2.new(1, -40, 0, 24)
+dlgName.BackgroundTransparency = 1
+dlgName.Font = Enum.Font.FredokaOne
+dlgName.TextSize = 22
+dlgName.TextColor3 = Color3.fromRGB(250, 200, 50)
+dlgName.TextXAlignment = Enum.TextXAlignment.Left
+dlgName.Parent = dlgFrame
+
+local dlgText = Instance.new("TextLabel")
+dlgText.Position = UDim2.new(0, 20, 0, 40)
+dlgText.Size = UDim2.new(1, -40, 0, 50)
+dlgText.BackgroundTransparency = 1
+dlgText.Font = Enum.Font.SourceSansSemibold
+dlgText.TextSize = 20
+dlgText.TextColor3 = Color3.new(1, 1, 1)
+dlgText.TextWrapped = true
+dlgText.TextXAlignment = Enum.TextXAlignment.Left
+dlgText.TextYAlignment = Enum.TextYAlignment.Top
+dlgText.Parent = dlgFrame
+
+local choicesFrame = Instance.new("Frame")
+choicesFrame.Position = UDim2.new(0, 20, 0, 95)
+choicesFrame.Size = UDim2.new(1, -40, 0, 40)
+choicesFrame.BackgroundTransparency = 1
+choicesFrame.Parent = dlgFrame
+
+local chList = Instance.new("UIListLayout")
+chList.FillDirection = Enum.FillDirection.Horizontal
+chList.HorizontalAlignment = Enum.HorizontalAlignment.Center
+chList.Padding = UDim.new(0, 10)
+chList.Parent = choicesFrame
+
+local activeTypewriter = nil
+
+local function showDialogue(npcName, text, choicesArray, callback)
+	dlgFrame.Visible = true
+	dlgName.Text = npcName
+	dlgText.Text = ""
+	for _, c in ipairs(choicesFrame:GetChildren()) do
+		if c:IsA("TextButton") then c:Destroy() end
+	end
+	
+	activeTypewriter = tick()
+	local myType = activeTypewriter
+	
+	task.spawn(function()
+		for i = 1, #text do
+			if activeTypewriter ~= myType then return end
+			dlgText.Text = string.sub(text, 1, i)
+			task.wait(0.02)
+		end
+		
+		for _, ch in ipairs(choicesArray) do
+			local btn = Instance.new("TextButton")
+			btn.Size = UDim2.new(0, 160, 0, 36)
+			btn.BackgroundColor3 = Color3.fromRGB(50, 55, 65)
+			btn.TextColor3 = Color3.new(1, 1, 1)
+			btn.Font = Enum.Font.FredokaOne
+			btn.TextSize = 14
+			btn.Text = ch.text
+			local cCorner = Instance.new("UICorner")
+			cCorner.CornerRadius = UDim.new(0, 8)
+			cCorner.Parent = btn
+			btn.Parent = choicesFrame
+			
+			btn.Activated:Connect(function()
+				dlgFrame.Visible = false
+				if callback then callback(ch.id) end
+			end)
+		end
+		
+		local closeBtn = Instance.new("TextButton")
+		closeBtn.Size = UDim2.new(0, 100, 0, 36)
+		closeBtn.BackgroundColor3 = Color3.fromRGB(150, 40, 40)
+		closeBtn.TextColor3 = Color3.new(1, 1, 1)
+		closeBtn.Font = Enum.Font.FredokaOne
+		closeBtn.TextSize = 14
+		closeBtn.Text = "Leave"
+		local cCorner = Instance.new("UICorner")
+		cCorner.CornerRadius = UDim.new(0, 8)
+		cCorner.Parent = closeBtn
+		closeBtn.Parent = choicesFrame
+		closeBtn.Activated:Connect(function() dlgFrame.Visible = false end)
+	end)
+end
+
+local function hookBob(prompt)
+	prompt.Triggered:Connect(function()
+		showDialogue("Manager Bob", "Welcome to the empty void of Bloxway. We sold the aisles. What do you want?", {
+			{ id = "Pizza Slice", text = "Buy Pizza ($20)" },
+			{ id = "Energy Drink", text = "Buy Energy Drink ($15)" },
+			{ id = "Burrito", text = "Buy Burrito ($25)" },
+		}, function(choiceId)
+			remotes:WaitForChild("BuyCustomItem"):FireServer(choiceId)
+		end)
+	end)
+end
+
+workspace.DescendantAdded:Connect(function(desc)
+	if desc:IsA("ProximityPrompt") and desc.Name == "BobPrompt" then hookBob(desc) end
+end)
+for _, desc in ipairs(workspace:GetDescendants()) do
+	if desc:IsA("ProximityPrompt") and desc.Name == "BobPrompt" then hookBob(desc) end
+end
 
 --==============================================================================================
 -- INTRO: aerial camera over the town, then a PLAY button
