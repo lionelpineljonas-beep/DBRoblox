@@ -883,7 +883,7 @@ D.buildings = [[5hv3938k5y50c--5b838d634b50c--5qd32v4r1x2ic--5nq37m3x2450c--5np2
 D.landmarks = { clubhouse = { x = 16456, z = 7177, w = 113, d = 92, yaw = 145 }, plaza = { x = 12564, z = 9108 }, dbElementary = { x = 13291, z = 8060 }, timberPoint = { x = 7768, z = 10391 } }
 D.greens = { { x = 14175, z = 4375 }, { x = 13859, z = 4626 }, { x = 13119, z = 4789 }, { x = 13600, z = 5723 }, { x = 13020, z = 6237 }, { x = 13776, z = 6649 }, { x = 14227, z = 7314 }, { x = 14847, z = 7522 }, { x = 13030, z = 7580 }, { x = 14970, z = 4372 }, { x = 15465, z = 4458 }, { x = 16538, z = 4758 }, { x = 15249, z = 5313 }, { x = 14883, z = 5605 }, { x = 16701, z = 6327 }, { x = 16771, z = 6938 }, { x = 15662, z = 7036 }, { x = 16652, z = 8030 } }
 D.parks = { { name = "Cornell Park", x = 14637, z = 13129, r = 353 }, { name = "Ravenswood Park", x = 8951, z = 10800, r = 208 }, { name = "Slifer Park", x = 7862, z = 9783, r = 279 }, { name = "Regatta Park", x = 5358, z = 4363, r = 247 } }
-D.pois = { { name = "Discovery Bay Elementary School", kind = "school", x = 13291, z = 8060 }, { name = "McDonald's", kind = "fast_food", x = 7326, z = 3812 }, { name = "Round Table Pizza", kind = "restaurant", x = 7408, z = 3922 }, { name = "CVS Pharmacy", kind = "pharmacy", x = 6915, z = 4196 }, { name = "Chase", kind = "bank", x = 6818, z = 4198 }, { name = "Mountain Mike's", kind = "restaurant", x = 12166, z = 8866 }, { name = "Valero", kind = "fuel", x = 12564, z = 9108 }, { name = "BAC", kind = "bank", x = 6934, z = 3812 }, { name = "Starbucks", kind = "cafe", x = 7009, z = 3822 }, { name = "Wells Fargo", kind = "atm", x = 7278, z = 4136 }, { name = "UPS", kind = "post_office", x = 7297, z = 4144 }, { name = "California Boat Co.", kind = "boat_rental", x = 17009, z = 8835 } }
+D.pois = { { name = "Discovery Bay Elementary School", kind = "school", x = 13291, z = 8060 }, { name = "McDonald's", kind = "fast_food", x = 7326, z = 3812 }, { name = "Round Table Pizza", kind = "restaurant", x = 7408, z = 3922 }, { name = "CVS Pharmacy", kind = "pharmacy", x = 6915, z = 4196 }, { name = "Chase", kind = "bank", x = 6818, z = 4198 }, { name = "Valero", kind = "fuel", x = 12564, z = 9108 }, { name = "BAC", kind = "bank", x = 6934, z = 3812 }, { name = "Starbucks", kind = "cafe", x = 7009, z = 3822 }, { name = "Wells Fargo", kind = "atm", x = 7278, z = 4136 }, { name = "UPS", kind = "post_office", x = 7297, z = 4144 }, { name = "California Boat Co.", kind = "boat_rental", x = 17009, z = 8835 } }
 return D]]></ProtectedString>
       </Properties>
     </Item>
@@ -2299,15 +2299,15 @@ local function buildPlaza()
 	local wallColor = Color3.fromRGB(235, 232, 225)
 	newPart(shell, "KioskFloor", Vector3.new(24, 0.4, 18) * S, K * CFrame.new(0, 0.2 * S, 0),
 		Color3.fromRGB(200, 196, 188), Enum.Material.Concrete)
-	newPart(shell, "KioskBack", Vector3.new(24, 10, 0.6) * S, K * CFrame.new(0, 5 * S, 8.7 * S),
+	newPart(shell, "KioskBack", Vector3.new(22.8, 10, 0.6) * S, K * CFrame.new(0, 5 * S, 8.7 * S),
 		wallColor, Enum.Material.Brick)
 	for _, sx in ipairs({ -1, 1 }) do
 		newPart(shell, "KioskSide", Vector3.new(0.6, 10, 18) * S, K * CFrame.new(sx * 11.7 * S, 5 * S, 0),
 			wallColor, Enum.Material.Brick)
-		newPart(shell, "KioskFrontWall", Vector3.new(8.5, 10, 0.6) * S,
-			K * CFrame.new(sx * 7.75 * S, 5 * S, -8.7 * S), wallColor, Enum.Material.Brick)
+		newPart(shell, "KioskFrontWall", Vector3.new(7.9, 10, 0.6) * S,
+			K * CFrame.new(sx * 7.45 * S, 5 * S, -8.7 * S), wallColor, Enum.Material.Brick)
 		newPart(shell, "KioskWindow", Vector3.new(5.5, 4, 0.3) * S,
-			K * CFrame.new(sx * 7.75 * S, 5.5 * S, -8.85 * S),
+			K * CFrame.new(sx * 7.45 * S, 5.5 * S, -8.95 * S),
 			Color3.fromRGB(140, 195, 215), Enum.Material.Glass, 0.3)
 		local door = newPart(shell, "AutoDoor", Vector3.new(3.5, 7, 0.25) * S,
 			K * CFrame.new(sx * 1.75 * S, 3.5 * S, -8.7 * S),
@@ -2355,6 +2355,8 @@ local function buildPlaza()
 		"Welcome to ShellBlox! Fuel for cars, Bloxy Cola for scooters - every can makes that scooter a little quicker. Stacks five times!",
 		{ { "Anything else?",
 			"Snacks, lots of snacks. And don't let Callahan tell you ice cream is fuel. It is delicious though." } })
+	buildNPC(shell, "Thirsty Terry", K * CFrame.new(0, 0.4 * S, 14 * S),
+		Color3.fromRGB(80, 200, 80))
 	for _, sy in ipairs({ 2.2, 4.8 }) do
 		newPart(shell, "Shelf", Vector3.new(1.8, 0.3, 12) * S, K * CFrame.new(10.4 * S, sy * S, 0),
 			Color3.fromRGB(170, 165, 155), Enum.Material.Metal)
@@ -2778,6 +2780,11 @@ local function buildBigSchool(parent, lm)
 		cf * CFrame.new(0, (h - 3.5) * S, (-d / 2 - 0.5) * S), Color3.fromRGB(30, 60, 110))
 	makeSign(schoolSign, Enum.NormalId.Front, "DISCOVERY BAY ELEMENTARY",
 		Color3.fromRGB(30, 60, 110), Color3.new(1, 1, 1))
+	
+	local soda = newPart(m, "TerrysSoda", Vector3.new(1.2, 2.5, 1.2) * S, cf * CFrame.new(0, 1.25 * S, -123 * S), Color3.fromRGB(50, 200, 50))
+	soda.Shape = Enum.PartType.Cylinder
+	soda.Transparency = 1
+	soda.CanCollide = false
 	-- paved driveway from the front doors to the nearest road, so you can ride
 	-- straight up to school without crossing grass
 	do
@@ -3388,6 +3395,7 @@ local HatchEgg = remote("HatchEgg") -- server -> client: play the on-screen hatc
 local UpdatePity = remote("UpdatePity") -- server -> client: updates pity tracker
 local FishGame = remote("FishGame") -- server -> client: FISH ON! start the reel minigame
 local FishReel = remote("FishReel") -- client -> server: minigame result (true = landed)
+local CompleteQuest = remote("CompleteQuest")
 
 -- Cash leaderboard ------------------------------------------------------------------------------
 local function getCash(plr)
@@ -3975,6 +3983,16 @@ BuyCustomItem.OnServerEvent:Connect(function(plr, itemName)
 		end
 	else
 		TrickResult:FireClient(plr, "Not enough cash for " .. itemName .. "!", 0)
+	end
+end)
+
+CompleteQuest.OnServerEvent:Connect(function(plr, questId)
+	if questId == "TerrysSoda" then
+		local cash = getCash(plr)
+		if cash then
+			cash.Value = cash.Value + 200
+			print("[SERVER]: " .. plr.Name .. " found Terry's Soda and got $200!")
+		end
 	end
 end)
 -- Ragdoll deaths: keep the body in one piece and convert its joints to ball sockets
@@ -6279,6 +6297,100 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 end)
 
 --==============================================================================================
+-- SODA QUEST STATE
+--==============================================================================================
+local questActive = false
+local questTimer = 0
+local questFound = false
+local questHighlight = nil
+
+local questFrame = Instance.new("Frame")
+questFrame.Name = "QuestTimerUI"
+questFrame.AnchorPoint = Vector2.new(0, 0.5)
+questFrame.Position = UDim2.new(0, 20, 0.5, 0)
+questFrame.Size = UDim2.new(0, 200, 0, 60)
+questFrame.BackgroundColor3 = Color3.fromRGB(30, 150, 60)
+questFrame.Visible = false
+questFrame.Parent = gui
+local qc = Instance.new("UICorner"); qc.CornerRadius = UDim.new(0, 12); qc.Parent = questFrame
+local qtxt = Instance.new("TextLabel")
+qtxt.Size = UDim2.new(1, 0, 1, 0)
+qtxt.BackgroundTransparency = 1
+qtxt.Text = "2:00"
+qtxt.TextColor3 = Color3.new(1,1,1)
+qtxt.Font = Enum.Font.FredokaOne
+qtxt.TextSize = 24
+qtxt.Parent = questFrame
+
+local function updateQuest()
+	if not questActive then return end
+	if questFound then
+		qtxt.Text = "Return to Terry!"
+		questFrame.BackgroundColor3 = Color3.fromRGB(50, 100, 200)
+		return
+	end
+	if questTimer > 0 then
+		questTimer = questTimer - 1
+		local m = math.floor(questTimer / 60)
+		local s = questTimer % 60
+		qtxt.Text = string.format("Find Soda! %d:%02d", m, s)
+	else
+		questActive = false
+		questFrame.Visible = false
+		local soda = workspace:FindFirstChild("TerrysSoda", true)
+		if soda then
+			soda.Transparency = 1
+			local p = soda:FindFirstChildOfClass("ProximityPrompt")
+			if p then p.Enabled = false end
+		end
+		if questHighlight then questHighlight:Destroy() end
+	end
+end
+
+task.spawn(function()
+	while task.wait(1) do
+		updateQuest()
+	end
+end)
+
+local function startQuest()
+	questActive = true
+	questFound = false
+	questTimer = 120
+	questFrame.Visible = true
+	questFrame.BackgroundColor3 = Color3.fromRGB(30, 150, 60)
+	qtxt.Text = "Find Soda! 2:00"
+	
+	local soda = workspace:FindFirstChild("TerrysSoda", true)
+	if soda then
+		soda.Transparency = 0
+		local p = soda:FindFirstChildOfClass("ProximityPrompt")
+		if not p then
+			p = Instance.new("ProximityPrompt")
+			p.ActionText = "Grab Soda"
+			p.ObjectText = "Terry's Soda"
+			p.HoldDuration = 1
+			p.Parent = soda
+			p.Triggered:Connect(function(plyr)
+				if plyr == plr and questActive and not questFound then
+					questFound = true
+					soda.Transparency = 1
+					p.Enabled = false
+					if questHighlight then questHighlight:Destroy() end
+				end
+			end)
+		end
+		p.Enabled = true
+		
+		if questHighlight then questHighlight:Destroy() end
+		questHighlight = Instance.new("Highlight")
+		questHighlight.FillColor = Color3.fromRGB(50, 255, 50)
+		questHighlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+		questHighlight.Parent = soda
+	end
+end
+
+--==============================================================================================
 -- CUSTOM DIALOGUE UI
 --==============================================================================================
 local dlgFrame = Instance.new("Frame")
@@ -6436,6 +6548,26 @@ local function hookNPC(prompt)
 					showDialogue("Callahan", "Mint, if you can afford it. I've watched kids earn it back in one lap around Willow Lake.", {}, nil)
 				end
 			end)
+		elseif npcName == "Thirsty Terry" then
+			if not questActive and not questFound then
+				showDialogue("Thirsty Terry", "Hey kid... I lost my soda at the school... I'm so thirsty! I'll give you $200 if you find it in 2 minutes!", {
+					{ id = "yes", text = "I'll find it!" },
+					{ id = "no", text = "Too busy." }
+				}, function(choiceId)
+					if choiceId == "yes" then
+						showDialogue("Thirsty Terry", "Hurry! It's at Discovery Bay Elementary!", {}, nil)
+						startQuest()
+					end
+				end)
+			elseif questActive and not questFound then
+				showDialogue("Thirsty Terry", "Hurry up! The soda is at the school!", {}, nil)
+			elseif questFound then
+				showDialogue("Thirsty Terry", "You found it! Thank you so much! Here's $200!", {}, nil)
+				game:GetService("ReplicatedStorage"):WaitForChild("CompleteQuest"):FireServer("TerrysSoda")
+				questActive = false
+				questFound = false
+				questFrame.Visible = false
+			end
 		elseif npcName == "Sal" then
 			showDialogue("Sal", "Welcome to ShellBlox! Fuel for cars, Bloxy Cola for scooters - every can makes that scooter a little quicker. Stacks five times!", {
 				{ id = "else", text = "Anything else?" }

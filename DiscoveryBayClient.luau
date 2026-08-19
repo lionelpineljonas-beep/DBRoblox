@@ -322,6 +322,100 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 end)
 
 --==============================================================================================
+-- SODA QUEST STATE
+--==============================================================================================
+local questActive = false
+local questTimer = 0
+local questFound = false
+local questHighlight = nil
+
+local questFrame = Instance.new("Frame")
+questFrame.Name = "QuestTimerUI"
+questFrame.AnchorPoint = Vector2.new(0, 0.5)
+questFrame.Position = UDim2.new(0, 20, 0.5, 0)
+questFrame.Size = UDim2.new(0, 200, 0, 60)
+questFrame.BackgroundColor3 = Color3.fromRGB(30, 150, 60)
+questFrame.Visible = false
+questFrame.Parent = gui
+local qc = Instance.new("UICorner"); qc.CornerRadius = UDim.new(0, 12); qc.Parent = questFrame
+local qtxt = Instance.new("TextLabel")
+qtxt.Size = UDim2.new(1, 0, 1, 0)
+qtxt.BackgroundTransparency = 1
+qtxt.Text = "2:00"
+qtxt.TextColor3 = Color3.new(1,1,1)
+qtxt.Font = Enum.Font.FredokaOne
+qtxt.TextSize = 24
+qtxt.Parent = questFrame
+
+local function updateQuest()
+	if not questActive then return end
+	if questFound then
+		qtxt.Text = "Return to Terry!"
+		questFrame.BackgroundColor3 = Color3.fromRGB(50, 100, 200)
+		return
+	end
+	if questTimer > 0 then
+		questTimer = questTimer - 1
+		local m = math.floor(questTimer / 60)
+		local s = questTimer % 60
+		qtxt.Text = string.format("Find Soda! %d:%02d", m, s)
+	else
+		questActive = false
+		questFrame.Visible = false
+		local soda = workspace:FindFirstChild("TerrysSoda", true)
+		if soda then
+			soda.Transparency = 1
+			local p = soda:FindFirstChildOfClass("ProximityPrompt")
+			if p then p.Enabled = false end
+		end
+		if questHighlight then questHighlight:Destroy() end
+	end
+end
+
+task.spawn(function()
+	while task.wait(1) do
+		updateQuest()
+	end
+end)
+
+local function startQuest()
+	questActive = true
+	questFound = false
+	questTimer = 120
+	questFrame.Visible = true
+	questFrame.BackgroundColor3 = Color3.fromRGB(30, 150, 60)
+	qtxt.Text = "Find Soda! 2:00"
+	
+	local soda = workspace:FindFirstChild("TerrysSoda", true)
+	if soda then
+		soda.Transparency = 0
+		local p = soda:FindFirstChildOfClass("ProximityPrompt")
+		if not p then
+			p = Instance.new("ProximityPrompt")
+			p.ActionText = "Grab Soda"
+			p.ObjectText = "Terry's Soda"
+			p.HoldDuration = 1
+			p.Parent = soda
+			p.Triggered:Connect(function(plyr)
+				if plyr == plr and questActive and not questFound then
+					questFound = true
+					soda.Transparency = 1
+					p.Enabled = false
+					if questHighlight then questHighlight:Destroy() end
+				end
+			end)
+		end
+		p.Enabled = true
+		
+		if questHighlight then questHighlight:Destroy() end
+		questHighlight = Instance.new("Highlight")
+		questHighlight.FillColor = Color3.fromRGB(50, 255, 50)
+		questHighlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+		questHighlight.Parent = soda
+	end
+end
+
+--==============================================================================================
 -- CUSTOM DIALOGUE UI
 --==============================================================================================
 local dlgFrame = Instance.new("Frame")
@@ -479,6 +573,26 @@ local function hookNPC(prompt)
 					showDialogue("Callahan", "Mint, if you can afford it. I've watched kids earn it back in one lap around Willow Lake.", {}, nil)
 				end
 			end)
+		elseif npcName == "Thirsty Terry" then
+			if not questActive and not questFound then
+				showDialogue("Thirsty Terry", "Hey kid... I lost my soda at the school... I'm so thirsty! I'll give you $200 if you find it in 2 minutes!", {
+					{ id = "yes", text = "I'll find it!" },
+					{ id = "no", text = "Too busy." }
+				}, function(choiceId)
+					if choiceId == "yes" then
+						showDialogue("Thirsty Terry", "Hurry! It's at Discovery Bay Elementary!", {}, nil)
+						startQuest()
+					end
+				end)
+			elseif questActive and not questFound then
+				showDialogue("Thirsty Terry", "Hurry up! The soda is at the school!", {}, nil)
+			elseif questFound then
+				showDialogue("Thirsty Terry", "You found it! Thank you so much! Here's $200!", {}, nil)
+				game:GetService("ReplicatedStorage"):WaitForChild("CompleteQuest"):FireServer("TerrysSoda")
+				questActive = false
+				questFound = false
+				questFrame.Visible = false
+			end
 		elseif npcName == "Sal" then
 			showDialogue("Sal", "Welcome to ShellBlox! Fuel for cars, Bloxy Cola for scooters - every can makes that scooter a little quicker. Stacks five times!", {
 				{ id = "else", text = "Anything else?" }

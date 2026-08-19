@@ -1407,15 +1407,15 @@ local function buildPlaza()
 	local wallColor = Color3.fromRGB(235, 232, 225)
 	newPart(shell, "KioskFloor", Vector3.new(24, 0.4, 18) * S, K * CFrame.new(0, 0.2 * S, 0),
 		Color3.fromRGB(200, 196, 188), Enum.Material.Concrete)
-	newPart(shell, "KioskBack", Vector3.new(24, 10, 0.6) * S, K * CFrame.new(0, 5 * S, 8.7 * S),
+	newPart(shell, "KioskBack", Vector3.new(22.8, 10, 0.6) * S, K * CFrame.new(0, 5 * S, 8.7 * S),
 		wallColor, Enum.Material.Brick)
 	for _, sx in ipairs({ -1, 1 }) do
 		newPart(shell, "KioskSide", Vector3.new(0.6, 10, 18) * S, K * CFrame.new(sx * 11.7 * S, 5 * S, 0),
 			wallColor, Enum.Material.Brick)
-		newPart(shell, "KioskFrontWall", Vector3.new(8.5, 10, 0.6) * S,
-			K * CFrame.new(sx * 7.75 * S, 5 * S, -8.7 * S), wallColor, Enum.Material.Brick)
+		newPart(shell, "KioskFrontWall", Vector3.new(7.9, 10, 0.6) * S,
+			K * CFrame.new(sx * 7.45 * S, 5 * S, -8.7 * S), wallColor, Enum.Material.Brick)
 		newPart(shell, "KioskWindow", Vector3.new(5.5, 4, 0.3) * S,
-			K * CFrame.new(sx * 7.75 * S, 5.5 * S, -8.85 * S),
+			K * CFrame.new(sx * 7.45 * S, 5.5 * S, -8.95 * S),
 			Color3.fromRGB(140, 195, 215), Enum.Material.Glass, 0.3)
 		local door = newPart(shell, "AutoDoor", Vector3.new(3.5, 7, 0.25) * S,
 			K * CFrame.new(sx * 1.75 * S, 3.5 * S, -8.7 * S),
@@ -1463,6 +1463,8 @@ local function buildPlaza()
 		"Welcome to ShellBlox! Fuel for cars, Bloxy Cola for scooters - every can makes that scooter a little quicker. Stacks five times!",
 		{ { "Anything else?",
 			"Snacks, lots of snacks. And don't let Callahan tell you ice cream is fuel. It is delicious though." } })
+	buildNPC(shell, "Thirsty Terry", K * CFrame.new(0, 0.4 * S, 14 * S),
+		Color3.fromRGB(80, 200, 80))
 	for _, sy in ipairs({ 2.2, 4.8 }) do
 		newPart(shell, "Shelf", Vector3.new(1.8, 0.3, 12) * S, K * CFrame.new(10.4 * S, sy * S, 0),
 			Color3.fromRGB(170, 165, 155), Enum.Material.Metal)
@@ -1886,6 +1888,11 @@ local function buildBigSchool(parent, lm)
 		cf * CFrame.new(0, (h - 3.5) * S, (-d / 2 - 0.5) * S), Color3.fromRGB(30, 60, 110))
 	makeSign(schoolSign, Enum.NormalId.Front, "DISCOVERY BAY ELEMENTARY",
 		Color3.fromRGB(30, 60, 110), Color3.new(1, 1, 1))
+	
+	local soda = newPart(m, "TerrysSoda", Vector3.new(1.2, 2.5, 1.2) * S, cf * CFrame.new(0, 1.25 * S, -123 * S), Color3.fromRGB(50, 200, 50))
+	soda.Shape = Enum.PartType.Cylinder
+	soda.Transparency = 1
+	soda.CanCollide = false
 	-- paved driveway from the front doors to the nearest road, so you can ride
 	-- straight up to school without crossing grass
 	do

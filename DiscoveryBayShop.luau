@@ -149,6 +149,7 @@ local HatchEgg = remote("HatchEgg") -- server -> client: play the on-screen hatc
 local UpdatePity = remote("UpdatePity") -- server -> client: updates pity tracker
 local FishGame = remote("FishGame") -- server -> client: FISH ON! start the reel minigame
 local FishReel = remote("FishReel") -- client -> server: minigame result (true = landed)
+local CompleteQuest = remote("CompleteQuest")
 
 -- Cash leaderboard ------------------------------------------------------------------------------
 local function getCash(plr)
@@ -736,6 +737,16 @@ BuyCustomItem.OnServerEvent:Connect(function(plr, itemName)
 		end
 	else
 		TrickResult:FireClient(plr, "Not enough cash for " .. itemName .. "!", 0)
+	end
+end)
+
+CompleteQuest.OnServerEvent:Connect(function(plr, questId)
+	if questId == "TerrysSoda" then
+		local cash = getCash(plr)
+		if cash then
+			cash.Value = cash.Value + 200
+			print("[SERVER]: " .. plr.Name .. " found Terry's Soda and got $200!")
+		end
 	end
 end)
 -- Ragdoll deaths: keep the body in one piece and convert its joints to ball sockets
