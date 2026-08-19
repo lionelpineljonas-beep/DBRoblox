@@ -417,19 +417,13 @@ local function buildNPC(parent, npcName, cf, shirt, promptText, choices)
 	hum.Health = 100
 	hum.HealthDisplayType = Enum.HumanoidHealthDisplayType.AlwaysOff
 	hum.Parent = n
-	if promptText then
-		local dlg = Instance.new("Dialog")
-		dlg.InitialPrompt = promptText
-		dlg.ConversationDistance = 20
-		dlg.Tone = Enum.DialogTone.Friendly
-		dlg.Parent = head
-		for _, c in ipairs(choices or {}) do
-			local ch = Instance.new("DialogChoice")
-			ch.UserDialog = c[1]
-			ch.ResponseDialog = c[2]
-			ch.Parent = dlg
-		end
-	end
+	local prompt = Instance.new("ProximityPrompt")
+	prompt.Name = "TalkPrompt"
+	prompt.ActionText = "Talk"
+	prompt.ObjectText = npcName
+	prompt.MaxActivationDistance = 15
+	prompt.RequiresLineOfSight = false
+	prompt.Parent = head
 	return n
 end
 
@@ -2145,15 +2139,6 @@ local function buildBloxway()
 	end
 	local bob = buildNPC(m, "Manager Bob", cf * CFrame.new(26 * S, 0.4 * S, (-d / 2 + 18) * S),
 		Color3.fromRGB(200, 60, 55))
-	if bob then
-		local bobPrompt = Instance.new("ProximityPrompt")
-		bobPrompt.Name = "BobPrompt"
-		bobPrompt.ActionText = "Talk"
-		bobPrompt.ObjectText = "Manager Bob"
-		bobPrompt.MaxActivationDistance = 15
-		bobPrompt.RequiresLineOfSight = false
-		bobPrompt.Parent = bob:FindFirstChild("Head")
-	end
 end
 
 -- Yacht harbor + lighthouse at the real end of Marina Road

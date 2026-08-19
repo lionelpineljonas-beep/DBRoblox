@@ -1309,19 +1309,13 @@ local function buildNPC(parent, npcName, cf, shirt, promptText, choices)
 	hum.Health = 100
 	hum.HealthDisplayType = Enum.HumanoidHealthDisplayType.AlwaysOff
 	hum.Parent = n
-	if promptText then
-		local dlg = Instance.new("Dialog")
-		dlg.InitialPrompt = promptText
-		dlg.ConversationDistance = 20
-		dlg.Tone = Enum.DialogTone.Friendly
-		dlg.Parent = head
-		for _, c in ipairs(choices or {}) do
-			local ch = Instance.new("DialogChoice")
-			ch.UserDialog = c[1]
-			ch.ResponseDialog = c[2]
-			ch.Parent = dlg
-		end
-	end
+	local prompt = Instance.new("ProximityPrompt")
+	prompt.Name = "TalkPrompt"
+	prompt.ActionText = "Talk"
+	prompt.ObjectText = npcName
+	prompt.MaxActivationDistance = 15
+	prompt.RequiresLineOfSight = false
+	prompt.Parent = head
 	return n
 end
 
@@ -3037,15 +3031,6 @@ local function buildBloxway()
 	end
 	local bob = buildNPC(m, "Manager Bob", cf * CFrame.new(26 * S, 0.4 * S, (-d / 2 + 18) * S),
 		Color3.fromRGB(200, 60, 55))
-	if bob then
-		local bobPrompt = Instance.new("ProximityPrompt")
-		bobPrompt.Name = "BobPrompt"
-		bobPrompt.ActionText = "Talk"
-		bobPrompt.ObjectText = "Manager Bob"
-		bobPrompt.MaxActivationDistance = 15
-		bobPrompt.RequiresLineOfSight = false
-		bobPrompt.Parent = bob:FindFirstChild("Head")
-	end
 end
 
 -- Yacht harbor + lighthouse at the real end of Marina Road
@@ -6309,12 +6294,26 @@ local function showDialogue(npcName, text, choicesArray, callback)
 	activeTypewriter = tick()
 	local myType = activeTypewriter
 	
+	local blip = Instance.new("Sound")
+	blip.SoundId = "rbxassetid://12222076"
+	blip.Volume = 0.6
+	blip.PlaybackSpeed = 3
+	blip.Parent = dlgFrame
+	
 	task.spawn(function()
 		for i = 1, #text do
-			if activeTypewriter ~= myType then return end
+			if activeTypewriter ~= myType then blip:Destroy() return end
 			dlgText.Text = string.sub(text, 1, i)
+			local char = string.sub(text, i, i)
+			if i % 2 == 1 and char ~= " " and char ~= "." then
+				local b = blip:Clone()
+				b.Parent = dlgFrame
+				b:Play()
+				game:GetService("Debris"):AddItem(b, 0.5)
+			end
 			task.wait(0.02)
 		end
+		blip:Destroy()
 		
 		for _, ch in ipairs(choicesArray) do
 			local btn = Instance.new("TextButton")
@@ -6350,23 +6349,58 @@ local function showDialogue(npcName, text, choicesArray, callback)
 	end)
 end
 
-local function hookBob(prompt)
+local function hookNPC(prompt)
+	local npcName = prompt.ObjectText
 	prompt.Triggered:Connect(function()
-		showDialogue("Manager Bob", "Welcome to the empty void of Bloxway. We sold the aisles. What do you want?", {
-			{ id = "Pizza Slice", text = "Buy Pizza ($20)" },
-			{ id = "Energy Drink", text = "Buy Energy Drink ($15)" },
-			{ id = "Burrito", text = "Buy Burrito ($25)" },
-		}, function(choiceId)
-			remotes:WaitForChild("BuyCustomItem"):FireServer(choiceId)
-		end)
+		if npcName == "Manager Bob" then
+			showDialogue("Manager Bob", "Welcome to the empty void of Bloxway. We sold the aisles. What do you want?", {
+				{ id = "Pizza Slice", text = "Buy Pizza ($20)" },
+				{ id = "Energy Drink", text = "Buy Energy Drink ($15)" },
+				{ id = "Burrito", text = "Buy Burrito ($25)" },
+			}, function(choiceId)
+				remotes:WaitForChild("BuyCustomItem"):FireServer(choiceId)
+			end)
+		elseif npcName == "Eggbert" then
+			showDialogue("Eggbert", "Psst! Mystery dogs in these eggs. Mostly Mary or Jolene... but one in a HUNDRED hatches Linus. Rent a house first - pups need a home!", {
+				{ id = "linus", text = "Who's Linus?" }
+			}, function(choiceId)
+				if choiceId == "linus" then
+					showDialogue("Eggbert", "A golden legend. Pays $100 a pet. I saw him hatch once. Changed my whole life.", {}, nil)
+				end
+			end)
+		elseif npcName == "Captain Finn" then
+			showDialogue("Captain Finn", "Ahoy! Grab a rod, grab bait, and cast into ANY water in the bay. When the bobber glows - REEL! I buy every fish in your inventory.", {
+				{ id = "secret", text = "Any secret fish?" }
+			}, function(choiceId)
+				if choiceId == "secret" then
+					showDialogue("Captain Finn", "They whisper of THE LIONEL. One cast in a hundred. Worth five hundred bucks. Never landed it myself... yet.", {}, nil)
+				end
+			end)
+		elseif npcName == "Rider Rick" then
+			showDialogue("Rider Rick", "Looking to upgrade? The Fast Scooter bumps your base speed up by 20. And yes, it stacks with the Speed Pass. Pure adrenaline.", {
+				{ id = "gold", text = "Why gold?" }
+			}, function(choiceId)
+				if choiceId == "gold" then
+					showDialogue("Rider Rick", "Because you want everyone to know you're rich and fast. Mostly fast.", {}, nil)
+				end
+			end)
+		elseif npcName == "Callahan" then
+			showDialogue("Callahan", "Welcome to Callahan's Coffee and Cones! Chocolate makes your legs faster, Vanilla feeds your scooter, and Mint... Mint DOUBLES your trick money!", {
+				{ id = "which", text = "Which one should I get?" }
+			}, function(choiceId)
+				if choiceId == "which" then
+					showDialogue("Callahan", "Mint, if you can afford it. I've watched kids earn it back in one lap around Willow Lake.", {}, nil)
+				end
+			end)
+		end
 	end)
 end
 
 workspace.DescendantAdded:Connect(function(desc)
-	if desc:IsA("ProximityPrompt") and desc.Name == "BobPrompt" then hookBob(desc) end
+	if desc:IsA("ProximityPrompt") and desc.Name == "TalkPrompt" then hookNPC(desc) end
 end)
 for _, desc in ipairs(workspace:GetDescendants()) do
-	if desc:IsA("ProximityPrompt") and desc.Name == "BobPrompt" then hookBob(desc) end
+	if desc:IsA("ProximityPrompt") and desc.Name == "TalkPrompt" then hookNPC(desc) end
 end
 
 --==============================================================================================
