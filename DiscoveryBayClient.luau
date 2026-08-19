@@ -147,6 +147,28 @@ hbList.VerticalAlignment = Enum.VerticalAlignment.Center
 hbList.Padding = UDim.new(0, 8)
 hbList.Parent = hotbar
 
+local invFrame = Instance.new("Frame")
+invFrame.Name = "CustomInventory"
+invFrame.AnchorPoint = Vector2.new(0.5, 1)
+invFrame.Position = UDim2.new(0.5, 0, 1, -80)
+invFrame.Size = UDim2.new(0, 480, 0, 240)
+invFrame.BackgroundColor3 = Color3.fromRGB(30, 35, 45)
+invFrame.BackgroundTransparency = 0.2
+invFrame.Visible = false
+invFrame.Parent = gui
+local invCorner = Instance.new("UICorner"); invCorner.CornerRadius = UDim.new(0, 12); invCorner.Parent = invFrame
+local invGrid = Instance.new("UIGridLayout")
+invGrid.CellSize = UDim2.new(0, 60, 0, 60)
+invGrid.CellPadding = UDim2.new(0, 10, 0, 10)
+invGrid.HorizontalAlignment = Enum.HorizontalAlignment.Center
+invGrid.SortOrder = Enum.SortOrder.LayoutOrder
+invGrid.Parent = invFrame
+local invPad = Instance.new("UIPadding")
+invPad.PaddingTop = UDim.new(0, 15)
+invPad.PaddingLeft = UDim.new(0, 15)
+invPad.PaddingRight = UDim.new(0, 15)
+invPad.Parent = invFrame
+
 local hotbarSlots = {}
 for i = 1, 9 do
 	local slot = Instance.new("TextButton")
@@ -222,6 +244,29 @@ local function refreshHotbar()
 			slotData.stroke.Thickness = 2
 		end
 	end
+	
+	for _, c in ipairs(invFrame:GetChildren()) do
+		if c:IsA("TextButton") then c:Destroy() end
+	end
+	for i, tool in ipairs(tools) do
+		local btn = Instance.new("TextButton")
+		btn.BackgroundColor3 = Color3.fromRGB(40, 45, 55)
+		if tool.Parent == plr.Character then btn.BackgroundColor3 = Color3.fromRGB(150, 110, 20) end
+		btn.Text = tool.Name
+		btn.TextColor3 = Color3.new(1,1,1)
+		btn.TextSize = 10
+		btn.Font = Enum.Font.FredokaOne
+		btn.TextWrapped = true
+		local corner = Instance.new("UICorner"); corner.CornerRadius = UDim.new(0.3, 0); corner.Parent = btn
+		btn.Parent = invFrame
+		btn.Activated:Connect(function()
+			local hum = plr.Character and plr.Character:FindFirstChildOfClass("Humanoid")
+			if hum then
+				if tool.Parent == plr.Character then hum:UnequipTools() else hum:EquipTool(tool) end
+			end
+			refreshHotbar()
+		end)
+	end
 end
 
 local function equipSlot(i)
@@ -268,6 +313,9 @@ end
 
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
 	if gameProcessed then return end
+	if input.KeyCode == Enum.KeyCode.Backquote then
+		invFrame.Visible = not invFrame.Visible
+	end
 	if input.KeyCode.Value >= Enum.KeyCode.One.Value and input.KeyCode.Value <= Enum.KeyCode.Nine.Value then
 		equipSlot(input.KeyCode.Value - Enum.KeyCode.One.Value + 1)
 	end
@@ -338,25 +386,21 @@ local function showDialogue(npcName, text, choicesArray, callback)
 	local myType = activeTypewriter
 	
 	local blip = Instance.new("Sound")
-	blip.SoundId = "rbxassetid://12222076"
+	blip.SoundId = "rbxassetid://4744967530"
 	blip.Volume = 0.6
-	blip.PlaybackSpeed = 3
 	blip.Parent = dlgFrame
 	
 	task.spawn(function()
 		for i = 1, #text do
-			if activeTypewriter ~= myType then blip:Destroy() return end
+			if activeTypewriter ~= myType then return end
 			dlgText.Text = string.sub(text, 1, i)
 			local char = string.sub(text, i, i)
 			if i % 2 == 1 and char ~= " " and char ~= "." then
-				local b = blip:Clone()
-				b.Parent = dlgFrame
-				b:Play()
-				game:GetService("Debris"):AddItem(b, 0.5)
+				blip.TimePosition = 0
+				blip:Play()
 			end
 			task.wait(0.02)
 		end
-		blip:Destroy()
 		
 		for _, ch in ipairs(choicesArray) do
 			local btn = Instance.new("TextButton")
@@ -433,6 +477,22 @@ local function hookNPC(prompt)
 			}, function(choiceId)
 				if choiceId == "which" then
 					showDialogue("Callahan", "Mint, if you can afford it. I've watched kids earn it back in one lap around Willow Lake.", {}, nil)
+				end
+			end)
+		elseif npcName == "Sal" then
+			showDialogue("Sal", "Welcome to ShellBlox! Fuel for cars, Bloxy Cola for scooters - every can makes that scooter a little quicker. Stacks five times!", {
+				{ id = "else", text = "Anything else?" }
+			}, function(choiceId)
+				if choiceId == "else" then
+					showDialogue("Sal", "Snacks, lots of snacks. And don't let Callahan tell you ice cream is fuel. It is delicious though.", {}, nil)
+				end
+			end)
+		elseif npcName == "Sensei" then
+			showDialogue("Sensei", "Step on the grey mat to begin your training. Seven buttons. Five seconds each. Miss and you PAY. Win, and you feast: $50.", {
+				{ id = "advice", text = "Any advice?" }
+			}, function(choiceId)
+				if choiceId == "advice" then
+					showDialogue("Sensei", "Never leave the mat mid-fight. And never, EVER, challenge me on a Monday.", {}, nil)
 				end
 			end)
 		end
