@@ -423,10 +423,26 @@ local function buildNPC(parent, npcName, cf, design, promptText, choices)
 	hum.Parent = n
 	
 	if design.shirtTemplate then
-		local s = Instance.new("Shirt"); s.ShirtTemplate = design.shirtTemplate; s.Parent = n
+		task.spawn(function()
+			pcall(function()
+				local id = tonumber(string.match(design.shirtTemplate, "%d+"))
+				local m = game:GetService("InsertService"):LoadAsset(id)
+				local s = m:FindFirstChildOfClass("Shirt")
+				if s then s.Parent = n end
+				m:Destroy()
+			end)
+		end)
 	end
 	if design.pantsTemplate then
-		local p = Instance.new("Pants"); p.PantsTemplate = design.pantsTemplate; p.Parent = n
+		task.spawn(function()
+			pcall(function()
+				local id = tonumber(string.match(design.pantsTemplate, "%d+"))
+				local m = game:GetService("InsertService"):LoadAsset(id)
+				local p = m:FindFirstChildOfClass("Pants")
+				if p then p.Parent = n end
+				m:Destroy()
+			end)
+		end)
 	end
 	if design.hairMesh then
 		local hair = Instance.new("Part")
@@ -1484,12 +1500,12 @@ local function buildPlaza()
 	newPart(shell, "Register", Vector3.new(1.4, 1.4, 1) * S, K * CFrame.new(-7 * S, 4.4 * S, -5 * S),
 		Color3.fromRGB(50, 50, 55))
 	buildNPC(shell, "Sal", K * CFrame.new(-7 * S, 0.4 * S, -2 * S),
-		{ face = "rbxassetid://7699174", hairMesh = "rbxassetid://16627529", hairTexture = "rbxassetid://16627494", shirtColor = Color3.fromRGB(200, 50, 50) },
+		{ face = "rbxassetid://7699174", hairMesh = "rbxassetid://16627529", hairTexture = "rbxassetid://16627494", shirtTemplate = "rbxassetid://607785314", pantsTemplate = "rbxassetid://129458426" },
 		"Welcome to ShellBlox! Fuel for cars, Bloxy Cola for scooters - every can makes that scooter a little quicker. Stacks five times!",
 		{ { "Anything else?",
 			"Snacks, lots of snacks. And don't let Callahan tell you ice cream is fuel. It is delicious though." } })
 	buildNPC(shell, "Thirsty Terry", K * CFrame.new(0, 0.4 * S, 14 * S),
-		{ face = "rbxassetid://13014074", hairMesh = "rbxassetid://19999424", hairTexture = "rbxassetid://20573365", shirtColor = Color3.fromRGB(80, 200, 80) })
+		{ face = "rbxassetid://13014074", hairMesh = "rbxassetid://19999424", hairTexture = "rbxassetid://20573365", shirtTemplate = "rbxassetid://398633812", pantsTemplate = "rbxassetid://144076370" })
 	for _, sy in ipairs({ 2.2, 4.8 }) do
 		newPart(shell, "Shelf", Vector3.new(1.8, 0.3, 12) * S, K * CFrame.new(10.4 * S, sy * S, 0),
 			Color3.fromRGB(170, 165, 155), Enum.Material.Metal)
