@@ -1309,16 +1309,18 @@ local function buildNPC(parent, npcName, cf, shirt, promptText, choices)
 	hum.Health = 100
 	hum.HealthDisplayType = Enum.HumanoidHealthDisplayType.AlwaysOff
 	hum.Parent = n
-	local dlg = Instance.new("Dialog")
-	dlg.InitialPrompt = promptText
-	dlg.ConversationDistance = 20
-	dlg.Tone = Enum.DialogTone.Friendly
-	dlg.Parent = head
-	for _, c in ipairs(choices or {}) do
-		local ch = Instance.new("DialogChoice")
-		ch.UserDialog = c[1]
-		ch.ResponseDialog = c[2]
-		ch.Parent = dlg
+	if promptText then
+		local dlg = Instance.new("Dialog")
+		dlg.InitialPrompt = promptText
+		dlg.ConversationDistance = 20
+		dlg.Tone = Enum.DialogTone.Friendly
+		dlg.Parent = head
+		for _, c in ipairs(choices or {}) do
+			local ch = Instance.new("DialogChoice")
+			ch.UserDialog = c[1]
+			ch.ResponseDialog = c[2]
+			ch.Parent = dlg
+		end
 	end
 	return n
 end
