@@ -489,13 +489,15 @@ local function buildNPC(parent, npcName, cf, design, promptText, choices)
 		hmesh.Parent = hair
 		hair.Parent = n
 	end
-	local prompt = Instance.new("ProximityPrompt")
-	prompt.Name = "TalkPrompt"
-	prompt.ActionText = "Talk"
-	prompt.ObjectText = npcName
-	prompt.MaxActivationDistance = 15
-	prompt.RequiresLineOfSight = false
-	prompt.Parent = head
+	if not design.noPrompt then
+		local prompt = Instance.new("ProximityPrompt")
+		prompt.Name = "TalkPrompt"
+		prompt.ActionText = "Talk"
+		prompt.ObjectText = npcName
+		prompt.MaxActivationDistance = 15
+		prompt.RequiresLineOfSight = false
+		prompt.Parent = head
+	end
 	return n
 end
 
@@ -599,12 +601,18 @@ local function buildCar()
 	newPart(m, "Body", Vector3.new(6.2, 2.2, 14.5) * S, CFrame.new(0, 2.1 * S, 0),
 		Color3.fromRGB(160, 160, 165))
 	newPart(m, "Cabin", Vector3.new(5.6, 1.9, 6.5) * S, CFrame.new(0, 4.1 * S, 0.6 * S),
-		Color3.fromRGB(120, 150, 165), Enum.Material.Glass)
+		Color3.fromRGB(120, 150, 165), Enum.Material.Glass, 0.4)
 	for _, o in ipairs({ { -3, -4.3 }, { 3, -4.3 }, { -3, 4.3 }, { 3, 4.3 } }) do
 		local wheel = newPart(m, "Wheel", Vector3.new(0.9, 2.4, 2.4) * S,
 			CFrame.new(o[1] * S, 1.2 * S, o[2] * S), Color3.fromRGB(30, 30, 30), Enum.Material.Rubber)
 		wheel.Shape = Enum.PartType.Cylinder
 	end
+	local driverDesigns = {
+		{ face = "rbxassetid://7074749", hairAccessory = "63690008", shirtTemplate = "rbxassetid://607785314", pantsTemplate = "rbxassetid://129458426", noPrompt = true },
+		{ face = "rbxassetid://134079000", hairAccessory = "20573078", hatAccessory = "1033284090", shirtTemplate = "rbxassetid://398633812", pantsTemplate = "rbxassetid://144076370", noPrompt = true },
+		{ face = "rbxassetid://7699174", hairAccessory = "12270336", shirtColor = Color3.fromRGB(150, 50, 50), pantsColor = Color3.fromRGB(45, 90, 160), noPrompt = true }
+	}
+	local driver = buildNPC(m, "Driver", CFrame.new(1.3 * S, 1.2 * S, 0.2 * S), driverDesigns[math.random(1, #driverDesigns)])
 	return addRoot(m, "car")
 end
 
