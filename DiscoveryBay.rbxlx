@@ -1738,14 +1738,14 @@ local function buildRoad(rd, roadIndex)
 		color, material = Color3.fromRGB(70, 70, 72), Enum.Material.Asphalt
 	end
 	-- Anti-z-fighting, two layers:
-	--   * per-ROAD height band (roadIndex % 5) so crossing roads never share a surface
+	--   * per-ROAD height band (100 distinct layers) so crossing roads never share a surface
 	--   * per-SEGMENT stagger within a road so bend overlaps never share one either
-	local lift = ((roadIndex or 0) % 5) * 0.02 * S
+	local lift = (((roadIndex or 0) * 137) % 100) * 0.0015 * S
 	for i = 1, #rd.pts - 1 do
 		local a, b = rd.pts[i], rd.pts[i + 1]
 		local lenFt = ftDist(a, b)
 		if lenFt > 1 then
-			local jitter = (i % 2) * 0.012 * S
+			local jitter = (i % 2) * 0.005 * S
 			local mid = toWorld((a[1] + b[1]) / 2, (a[2] + b[2]) / 2, Y_ROAD - ROAD_THICK / 2 + lift + jitter)
 			local dir = dirToWorld(b[1] - a[1], b[2] - a[2])
 			newPart(model, "Seg", Vector3.new(w * S, ROAD_THICK, lenFt * S),
@@ -1826,12 +1826,14 @@ local function buildStreetlights()
 end
 
 local function buildCartpaths()
-	for _, pts in ipairs(cartpaths) do
+	for ci, pts in ipairs(cartpaths) do
+		local lift = ((ci * 137) % 100) * 0.0015 * S
 		for i = 1, #pts - 1 do
 			local a, b = pts[i], pts[i + 1]
 			local lenFt = ftDist(a, b)
 			if lenFt > 1 and inRegion(a[1], a[2]) then
-				local mid = toWorld((a[1] + b[1]) / 2, (a[2] + b[2]) / 2, 2.15 * S)
+				local jitter = (i % 2) * 0.005 * S
+				local mid = toWorld((a[1] + b[1]) / 2, (a[2] + b[2]) / 2, 2.15 * S + lift + jitter)
 				local dir = dirToWorld(b[1] - a[1], b[2] - a[2])
 				newPart(FOLDERS.Golf, "CartPath", Vector3.new(8 * S, 0.3 * S, (lenFt + 4) * S),
 					CFrame.lookAt(mid, mid + dir), COL.cartpath, Enum.Material.Concrete)
