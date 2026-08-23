@@ -112,7 +112,7 @@ end)
 local START_CASH = 100
 local WALK_SPEED = 16
 local SCOOTER_SPEED = 30
-local VERSION = "v58"
+local VERSION = "v62"
 
 -- ==============================================================================================
 -- LIGHTING & DAY/NIGHT CYCLE
@@ -1055,7 +1055,7 @@ local function createNametag(char, displayName)
 	label.Name = "PlayerName"
 	label.Size = UDim2.new(1, 0, 1, 0)
 	label.BackgroundTransparency = 1
-	label.Font = Enum.Font.FredokaOne
+	label.Font = Enum.Font.LuckiestGuy
 	label.TextScaled = true
 	label.TextColor3 = Color3.fromRGB(255, 255, 255)
 	label.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)

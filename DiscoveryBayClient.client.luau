@@ -11,7 +11,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 
-local VERSION = "v58"
+local VERSION = "v62"
 local SPEED_PASS_ID = 0 -- paste the real Game Pass ID here (same one as in DiscoveryBayShop)
 local RunService = game:GetService("RunService")
 local plr = Players.LocalPlayer
@@ -186,7 +186,7 @@ local rmTitle = Instance.new("TextLabel")
 rmTitle.Size = UDim2.new(1, 0, 0, 40)
 rmTitle.BackgroundTransparency = 1
 rmTitle.Text = "REBIRTH?"
-rmTitle.Font = Enum.Font.FredokaOne
+rmTitle.Font = Enum.Font.LuckiestGuy
 rmTitle.TextColor3 = Color3.new(1, 1, 1)
 rmTitle.TextSize = 24
 rmTitle.Parent = rebirthMenu
@@ -196,7 +196,7 @@ rmDesc.Size = UDim2.new(1, -20, 0, 120)
 rmDesc.Position = UDim2.new(0, 10, 0, 40)
 rmDesc.BackgroundTransparency = 1
 rmDesc.Text = "Benefits:\n• 1.5x Scooter Speed!\n• 1.5x Cash Multiplier!\n\nWarning: You will lose your house, pet, and money."
-rmDesc.Font = Enum.Font.SourceSansBold
+rmDesc.Font = Enum.Font.GothamBold
 rmDesc.TextColor3 = Color3.new(0.8, 0.8, 0.8)
 rmDesc.TextSize = 18
 rmDesc.TextWrapped = true
@@ -207,7 +207,7 @@ rmConfirm.Size = UDim2.new(0.4, 0, 0, 40)
 rmConfirm.Position = UDim2.new(0.07, 0, 1, -50)
 rmConfirm.BackgroundColor3 = Color3.fromRGB(150, 50, 200)
 rmConfirm.Text = "REBIRTH?"
-rmConfirm.Font = Enum.Font.FredokaOne
+rmConfirm.Font = Enum.Font.LuckiestGuy
 rmConfirm.TextColor3 = Color3.new(1, 1, 1)
 rmConfirm.TextSize = 16
 rmConfirm.Parent = rebirthMenu
@@ -218,7 +218,7 @@ rmCancel.Size = UDim2.new(0.4, 0, 0, 40)
 rmCancel.Position = UDim2.new(0.53, 0, 1, -50)
 rmCancel.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
 rmCancel.Text = "CANCEL"
-rmCancel.Font = Enum.Font.FredokaOne
+rmCancel.Font = Enum.Font.LuckiestGuy
 rmCancel.TextColor3 = Color3.new(1, 1, 1)
 rmCancel.TextSize = 16
 rmCancel.Parent = rebirthMenu
@@ -239,7 +239,7 @@ rebirthBtn.Size = UDim2.new(0, 160, 0, 50)
 rebirthBtn.Position = UDim2.new(0, 20, 0.5, -25) -- Left middle
 rebirthBtn.BackgroundColor3 = Color3.fromRGB(150, 50, 200)
 rebirthBtn.Text = "REBIRTH"
-rebirthBtn.Font = Enum.Font.FredokaOne
+rebirthBtn.Font = Enum.Font.LuckiestGuy
 rebirthBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 rebirthBtn.TextSize = 16
 rebirthBtn.Parent = gui
@@ -306,7 +306,7 @@ for i = 1, 9 do
 	numLbl.BackgroundTransparency = 1
 	numLbl.Text = tostring(i)
 	numLbl.TextColor3 = Color3.fromRGB(200, 200, 200)
-	numLbl.Font = Enum.Font.FredokaOne
+	numLbl.Font = Enum.Font.LuckiestGuy
 	numLbl.TextSize = 12
 	numLbl.Parent = slot
 	
@@ -315,7 +315,7 @@ for i = 1, 9 do
 	itemLbl.BackgroundTransparency = 1
 	itemLbl.Text = ""
 	itemLbl.TextColor3 = Color3.new(1, 1, 1)
-	itemLbl.Font = Enum.Font.FredokaOne
+	itemLbl.Font = Enum.Font.LuckiestGuy
 	itemLbl.TextSize = 10
 	itemLbl.TextWrapped = true
 	itemLbl.Parent = slot
@@ -369,7 +369,7 @@ local function refreshHotbar()
 		btn.Text = tool.Name
 		btn.TextColor3 = Color3.new(1,1,1)
 		btn.TextSize = 10
-		btn.Font = Enum.Font.FredokaOne
+		btn.Font = Enum.Font.LuckiestGuy
 		btn.TextWrapped = true
 		local corner = Instance.new("UICorner"); corner.CornerRadius = UDim.new(0.3, 0); corner.Parent = btn
 		btn.Parent = invFrame
@@ -457,7 +457,7 @@ qtxt.Size = UDim2.new(1, 0, 1, 0)
 qtxt.BackgroundTransparency = 1
 qtxt.Text = "2:00"
 qtxt.TextColor3 = Color3.new(1,1,1)
-qtxt.Font = Enum.Font.FredokaOne
+qtxt.Font = Enum.Font.LuckiestGuy
 qtxt.TextSize = 24
 qtxt.Parent = questFrame
 
@@ -550,7 +550,7 @@ local dlgName = Instance.new("TextLabel")
 dlgName.Position = UDim2.new(0, 20, 0, 10)
 dlgName.Size = UDim2.new(1, -40, 0, 24)
 dlgName.BackgroundTransparency = 1
-dlgName.Font = Enum.Font.FredokaOne
+dlgName.Font = Enum.Font.LuckiestGuy
 dlgName.TextSize = 22
 dlgName.TextColor3 = Color3.fromRGB(250, 200, 50)
 dlgName.TextXAlignment = Enum.TextXAlignment.Left
@@ -560,7 +560,7 @@ local dlgText = Instance.new("TextLabel")
 dlgText.Position = UDim2.new(0, 20, 0, 40)
 dlgText.Size = UDim2.new(1, -40, 0, 50)
 dlgText.BackgroundTransparency = 1
-dlgText.Font = Enum.Font.SourceSansSemibold
+dlgText.Font = Enum.Font.GothamBold
 dlgText.TextSize = 20
 dlgText.TextColor3 = Color3.new(1, 1, 1)
 dlgText.TextWrapped = true
@@ -617,7 +617,7 @@ local function showDialogue(npcName, text, choicesArray, callback)
 			btn.Size = UDim2.new(0, 160, 0, 36)
 			btn.BackgroundColor3 = Color3.fromRGB(50, 55, 65)
 			btn.TextColor3 = Color3.new(1, 1, 1)
-			btn.Font = Enum.Font.FredokaOne
+			btn.Font = Enum.Font.LuckiestGuy
 			btn.TextSize = 14
 			btn.Text = ch.text
 			local cCorner = Instance.new("UICorner")
@@ -635,7 +635,7 @@ local function showDialogue(npcName, text, choicesArray, callback)
 		closeBtn.Size = UDim2.new(0, 100, 0, 36)
 		closeBtn.BackgroundColor3 = Color3.fromRGB(150, 40, 40)
 		closeBtn.TextColor3 = Color3.new(1, 1, 1)
-		closeBtn.Font = Enum.Font.FredokaOne
+		closeBtn.Font = Enum.Font.LuckiestGuy
 		closeBtn.TextSize = 14
 		closeBtn.Text = "Leave"
 		local cCorner = Instance.new("UICorner")
@@ -760,7 +760,7 @@ local function runIntro()
 	title.Position = UDim2.new(0.5, 0, 0.08, 0)
 	title.Size = UDim2.new(1, 0, 0, 84)
 	title.BackgroundTransparency = 1
-	title.Font = Enum.Font.FredokaOne
+	title.Font = Enum.Font.LuckiestGuy
 	title.TextSize = 64
 	title.TextColor3 = Color3.new(1, 1, 1)
 	title.TextStrokeTransparency = 0.4
@@ -773,7 +773,7 @@ local function runIntro()
 	subtitle.Position = UDim2.new(0.5, 0, 0.08, 86)
 	subtitle.Size = UDim2.new(1, 0, 0, 28)
 	subtitle.BackgroundTransparency = 1
-	subtitle.Font = Enum.Font.FredokaOne
+	subtitle.Font = Enum.Font.LuckiestGuy
 	subtitle.TextSize = 20
 	subtitle.TextColor3 = Color3.fromRGB(220, 228, 235)
 	subtitle.TextStrokeTransparency = 0.6
@@ -802,7 +802,7 @@ local function runIntro()
 	loadTxt.Position = UDim2.new(0.5, 0, 0.5, 0)
 	loadTxt.Size = UDim2.new(0, 500, 0, 40)
 	loadTxt.BackgroundTransparency = 1
-	loadTxt.Font = Enum.Font.FredokaOne
+	loadTxt.Font = Enum.Font.LuckiestGuy
 	loadTxt.TextSize = 26
 	loadTxt.TextColor3 = Color3.fromRGB(240, 242, 245)
 	loadTxt.Text = "Loading Discovery Bay..."
@@ -813,7 +813,7 @@ local function runIntro()
 	spinner.Position = UDim2.new(1, -28, 1, -28)
 	spinner.Size = UDim2.new(0, 76, 0, 76)
 	spinner.BackgroundColor3 = Color3.fromRGB(250, 205, 30)
-	spinner.Font = Enum.Font.FredokaOne
+	spinner.Font = Enum.Font.LuckiestGuy
 	spinner.TextSize = 46
 	spinner.TextColor3 = Color3.fromRGB(40, 30, 10)
 	spinner.Text = "L"
@@ -826,31 +826,19 @@ local function runIntro()
 		spinner.Rotation = spinner.Rotation + dt * 220
 	end)
 	
-	loadFrame.BackgroundTransparency = 1
-	grad:Destroy()
+	-- Beautiful Sunset Gradient Background
+	loadFrame.BackgroundTransparency = 0
+	grad.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 113, 113)),
+		ColorSequenceKeypoint.new(0.5, Color3.fromRGB(155, 89, 182)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(52, 152, 219))
+	})
 	
-	local cam = workspace.CurrentCamera
-	cam.CameraType = Enum.CameraType.Scriptable
-	
-	-- 4 random cinematic points above the map
-	local TOUR_POINTS = {
-		CFrame.new(0, 150, 0) * CFrame.Angles(math.rad(-20), 0, 0),
-		CFrame.new(400, 100, 400) * CFrame.Angles(math.rad(-15), math.rad(45), 0),
-		CFrame.new(-600, 80, 200) * CFrame.Angles(math.rad(-10), math.rad(-30), 0),
-		CFrame.new(0, 120, -600) * CFrame.Angles(math.rad(-15), math.rad(180), 0)
-	}
-	
-	local tourIndex = 1
-	local function nextTour()
-		local tgt = TOUR_POINTS[tourIndex]
-		tourIndex = (tourIndex % #TOUR_POINTS) + 1
-		local tw = TweenService:Create(cam, TweenInfo.new(6, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {CFrame = tgt})
-		tw:Play()
-	end
-	cam.CFrame = TOUR_POINTS[4]
-	nextTour()
-	local tourLoop = task.spawn(function()
-		while task.wait(6) do nextTour() end
+	-- Animate the gradient
+	local gradOffset = 0
+	local gradConn = RunService.RenderStepped:Connect(function(dt)
+		gradOffset = (gradOffset + dt * 0.2) % 1
+		grad.Offset = Vector2.new(gradOffset, 0)
 	end)
 
 	-- freeze movement during the menu
@@ -865,8 +853,9 @@ local function runIntro()
 	while town and not town:GetAttribute("BuildComplete") do
 		task.wait(0.25)
 	end
-	-- town ready: drop the spinner but KEEP the flat grey background (no world peek)
+	-- town ready: drop the spinner but KEEP the flat gradient background
 	spinConn:Disconnect()
+	gradConn:Disconnect()
 	spinner:Destroy()
 	loadTxt:Destroy()
 
@@ -875,20 +864,15 @@ local function runIntro()
 	playBtn.Position = UDim2.new(0.5, 0, 0.74, 0)
 	playBtn.Size = UDim2.new(0, 260, 0, 84)
 	playBtn.BackgroundColor3 = Color3.fromRGB(250, 205, 30)
+	playBtn.Font = Enum.Font.LuckiestGuy
+	playBtn.TextSize = 36
 	playBtn.TextColor3 = Color3.fromRGB(40, 30, 10)
-	playBtn.Font = Enum.Font.FredokaOne
-	playBtn.TextSize = 40
 	playBtn.Text = "PLAY"
-	playBtn.BackgroundTransparency = 1
-	playBtn.TextTransparency = 1
-	playBtn.ZIndex = 8 -- above the grey cover
+	playBtn.ZIndex = 6
 	playBtn.Parent = introGui
-	local pCorner = Instance.new("UICorner")
-	pCorner.CornerRadius = UDim.new(0, 18)
-	pCorner.Parent = playBtn
-	TweenService:Create(playBtn, TweenInfo.new(0.6), {
-		BackgroundTransparency = 0, TextTransparency = 0,
-	}):Play()
+	local playCorner = Instance.new("UICorner")
+	playCorner.CornerRadius = UDim.new(0, 16)
+	playCorner.Parent = playBtn
 
 	-- RULES / INFO buttons flanking PLAY, sharing one pop-up panel
 	local panel = Instance.new("Frame")
@@ -903,43 +887,43 @@ local function runIntro()
 	panCorner.CornerRadius = UDim.new(0, 18)
 	panCorner.Parent = panel
 	local panTitle = Instance.new("TextLabel")
-	panTitle.Position = UDim2.new(0, 20, 0, 12)
-	panTitle.Size = UDim2.new(1, -40, 0, 40)
-	panTitle.BackgroundTransparency = 1
-	panTitle.Font = Enum.Font.FredokaOne
-	panTitle.TextSize = 28
-	panTitle.TextColor3 = Color3.fromRGB(250, 205, 30)
-	panTitle.ZIndex = 10
+	panTitle.AnchorPoint = Vector2.new(0.5, 0)
+	panTitle.Position = UDim2.new(0.5, 0, 0, 0)
+	panTitle.Size = UDim2.new(1, 0, 0, 40)
+	panTitle.BackgroundColor3 = Color3.fromRGB(40, 50, 60)
+	panTitle.Font = Enum.Font.LuckiestGuy
+	panTitle.TextSize = 20
+	panTitle.TextColor3 = Color3.new(1, 1, 1)
+	panTitle.Text = "UPDATE NOTES"
 	panTitle.Parent = panel
+	local pCorner = Instance.new("UICorner")
+	pCorner.CornerRadius = UDim.new(0, 8)
+	pCorner.Parent = panTitle
 	local panBody = Instance.new("TextLabel")
-	panBody.Position = UDim2.new(0, 24, 0, 58)
-	panBody.Size = UDim2.new(1, -48, 1, -122)
+	panBody.Position = UDim2.new(0, 12, 0, 48)
+	panBody.Size = UDim2.new(1, -24, 1, -100)
 	panBody.BackgroundTransparency = 1
-	panBody.Font = Enum.Font.FredokaOne
-	panBody.TextSize = 17
+	panBody.Font = Enum.Font.LuckiestGuy
+	panBody.TextSize = 16
+	panBody.TextColor3 = Color3.fromRGB(60, 70, 80)
 	panBody.TextWrapped = true
 	panBody.TextXAlignment = Enum.TextXAlignment.Left
 	panBody.TextYAlignment = Enum.TextYAlignment.Top
-	panBody.TextColor3 = Color3.new(1, 1, 1)
-	panBody.ZIndex = 10
 	panBody.Parent = panel
 	local panClose = Instance.new("TextButton")
 	panClose.AnchorPoint = Vector2.new(0.5, 1)
-	panClose.Position = UDim2.new(0.5, 0, 1, -14)
-	panClose.Size = UDim2.new(0, 130, 0, 40)
-	panClose.BackgroundColor3 = Color3.fromRGB(250, 205, 30)
-	panClose.TextColor3 = Color3.fromRGB(40, 30, 10)
-	panClose.Font = Enum.Font.FredokaOne
-	panClose.TextSize = 22
-	panClose.Text = "OK"
-	panClose.ZIndex = 10
+	panClose.Position = UDim2.new(0.5, 0, 1, -12)
+	panClose.Size = UDim2.new(0, 140, 0, 36)
+	panClose.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+	panClose.Font = Enum.Font.LuckiestGuy
+	panClose.TextSize = 16
+	panClose.TextColor3 = Color3.new(1, 1, 1)
+	panClose.Text = "Got it!"
 	panClose.Parent = panel
 	local pcCorner = Instance.new("UICorner")
-	pcCorner.CornerRadius = UDim.new(0, 12)
+	pcCorner.CornerRadius = UDim.new(0, 8)
 	pcCorner.Parent = panClose
-	panClose.Activated:Connect(function()
-		panel.Visible = false
-	end)
+	panClose.Activated:Connect(function() panel.Visible = false end)
 
 	local RULES_TEXT = "1. Traffic is LETHAL. Look both ways or become a ragdoll."
 		.. "\n2. Scooter tricks earn cash: Z X C V B, or T for a random one."
@@ -965,7 +949,7 @@ local function runIntro()
 		b.Size = UDim2.new(0, 170, 0, 62)
 		b.BackgroundColor3 = Color3.fromRGB(70, 160, 220)
 		b.TextColor3 = Color3.new(1, 1, 1)
-		b.Font = Enum.Font.FredokaOne
+		b.Font = Enum.Font.LuckiestGuy
 		b.TextSize = 26
 		b.Text = text
 		b.ZIndex = 8
@@ -987,11 +971,12 @@ local function runIntro()
 		panBody.Text = INFO_TEXT
 		panel.Visible = true
 	end)
+
 	playBtn.Activated:Connect(function()
 		introGui:Destroy()
 		gui.Enabled = true
 		
-		task.cancel(tourLoop)
+		local cam = workspace.CurrentCamera
 		cam.CameraType = Enum.CameraType.Custom
 		
 		pcall(function() controls:Enable() end)
@@ -1015,7 +1000,7 @@ money.Size = UDim2.new(0, 190, 0, 46)
 money.BackgroundColor3 = Color3.fromRGB(20, 26, 34)
 money.BackgroundTransparency = 0.25
 money.TextColor3 = Color3.fromRGB(120, 230, 130)
-money.Font = Enum.Font.FredokaOne
+money.Font = Enum.Font.LuckiestGuy
 money.TextSize = 26
 money.Text = "$ ..."
 money.Parent = gui
@@ -1031,7 +1016,7 @@ mountBtn.Position = UDim2.new(0, 16, 1, -70)
 mountBtn.Size = UDim2.new(0, 190, 0, 42)
 mountBtn.BackgroundColor3 = Color3.fromRGB(70, 160, 220)
 mountBtn.TextColor3 = Color3.new(1, 1, 1)
-mountBtn.Font = Enum.Font.FredokaOne
+mountBtn.Font = Enum.Font.LuckiestGuy
 mountBtn.TextSize = 18
 mountBtn.Text = "Get Off  (G)"
 mountBtn.Parent = gui
@@ -1046,7 +1031,7 @@ pityLabel.Position = UDim2.new(0, 16, 1, -120)
 pityLabel.Size = UDim2.new(0, 190, 0, 36)
 pityLabel.BackgroundColor3 = Color3.fromRGB(130, 40, 160)
 pityLabel.TextColor3 = Color3.new(1, 1, 1)
-pityLabel.Font = Enum.Font.FredokaOne
+pityLabel.Font = Enum.Font.LuckiestGuy
 pityLabel.TextSize = 15
 pityLabel.Text = "Pity: 90 rolls until Linus"
 pityLabel.Parent = gui
@@ -1072,7 +1057,7 @@ mapBtn.Position = UDim2.new(0, 16, 1, -164)
 mapBtn.Size = UDim2.new(0, 190, 0, 42)
 mapBtn.BackgroundColor3 = Color3.fromRGB(72, 96, 64)
 mapBtn.TextColor3 = Color3.new(1, 1, 1)
-mapBtn.Font = Enum.Font.FredokaOne
+mapBtn.Font = Enum.Font.LuckiestGuy
 mapBtn.TextSize = 18
 mapBtn.Text = "Map  (M)"
 mapBtn.Parent = gui
@@ -1088,7 +1073,7 @@ moneyBtn.Position = UDim2.new(0, 16, 1, -214)
 moneyBtn.Size = UDim2.new(0, 190, 0, 36)
 moneyBtn.BackgroundColor3 = Color3.fromRGB(20, 120, 40)
 moneyBtn.TextColor3 = Color3.new(1, 1, 1)
-moneyBtn.Font = Enum.Font.FredokaOne
+moneyBtn.Font = Enum.Font.LuckiestGuy
 moneyBtn.TextSize = 15
 moneyBtn.Text = "Debug: Inf Money"
 moneyBtn.Parent = gui
@@ -1110,7 +1095,7 @@ shopBtn.Position = UDim2.new(0, 16, 1, -258)
 shopBtn.Size = UDim2.new(0, 190, 0, 42)
 shopBtn.BackgroundColor3 = Color3.fromRGB(190, 120, 40)
 shopBtn.TextColor3 = Color3.new(1, 1, 1)
-shopBtn.Font = Enum.Font.FredokaOne
+shopBtn.Font = Enum.Font.LuckiestGuy
 shopBtn.TextSize = 18
 shopBtn.Text = "Shop"
 shopBtn.Parent = gui
@@ -1135,7 +1120,7 @@ local shopTitle = Instance.new("TextLabel")
 shopTitle.Position = UDim2.new(0, 0, 0, 10)
 shopTitle.Size = UDim2.new(1, 0, 0, 36)
 shopTitle.BackgroundTransparency = 1
-shopTitle.Font = Enum.Font.FredokaOne
+shopTitle.Font = Enum.Font.LuckiestGuy
 shopTitle.TextSize = 28
 shopTitle.TextColor3 = Color3.new(1, 1, 1)
 shopTitle.Text = "SHOP"
@@ -1147,7 +1132,7 @@ shopClose.Position = UDim2.new(1, -10, 0, 10)
 shopClose.Size = UDim2.new(0, 34, 0, 34)
 shopClose.BackgroundColor3 = Color3.fromRGB(160, 60, 55)
 shopClose.TextColor3 = Color3.new(1, 1, 1)
-shopClose.Font = Enum.Font.FredokaOne
+shopClose.Font = Enum.Font.LuckiestGuy
 shopClose.TextSize = 20
 shopClose.Text = "X"
 shopClose.Parent = shopPage
@@ -1169,7 +1154,7 @@ local passIcon = Instance.new("TextLabel")
 passIcon.Position = UDim2.new(0, 14, 0, 14)
 passIcon.Size = UDim2.new(0, 90, 0, 90)
 passIcon.BackgroundColor3 = Color3.fromRGB(250, 205, 30)
-passIcon.Font = Enum.Font.FredokaOne
+passIcon.Font = Enum.Font.LuckiestGuy
 passIcon.TextSize = 40
 passIcon.TextColor3 = Color3.fromRGB(40, 30, 10)
 passIcon.Text = "2X"
@@ -1182,7 +1167,7 @@ local passName = Instance.new("TextLabel")
 passName.Position = UDim2.new(0, 118, 0, 16)
 passName.Size = UDim2.new(1, -130, 0, 56)
 passName.BackgroundTransparency = 1
-passName.Font = Enum.Font.FredokaOne
+passName.Font = Enum.Font.LuckiestGuy
 passName.TextSize = 22
 passName.TextColor3 = Color3.new(1, 1, 1)
 passName.TextWrapped = true
@@ -1194,7 +1179,7 @@ local passDesc = Instance.new("TextLabel")
 passDesc.Position = UDim2.new(0, 118, 0, 72)
 passDesc.Size = UDim2.new(1, -130, 0, 34)
 passDesc.BackgroundTransparency = 1
-passDesc.Font = Enum.Font.FredokaOne
+passDesc.Font = Enum.Font.LuckiestGuy
 passDesc.TextSize = 14
 passDesc.TextColor3 = Color3.fromRGB(190, 200, 215)
 passDesc.TextWrapped = true
@@ -1208,7 +1193,7 @@ buyBtn.Position = UDim2.new(0.5, 0, 1, -14)
 buyBtn.Size = UDim2.new(0, 220, 0, 52)
 buyBtn.BackgroundColor3 = Color3.fromRGB(60, 180, 90)
 buyBtn.TextColor3 = Color3.new(1, 1, 1)
-buyBtn.Font = Enum.Font.FredokaOne
+buyBtn.Font = Enum.Font.LuckiestGuy
 buyBtn.TextSize = 24
 buyBtn.Text = "Buy  ·  R$ 299"
 buyBtn.Parent = passCard
@@ -1221,7 +1206,7 @@ shopStatus.AnchorPoint = Vector2.new(0.5, 1)
 shopStatus.Position = UDim2.new(0.5, 0, 1, -12)
 shopStatus.Size = UDim2.new(1, -20, 0, 40)
 shopStatus.BackgroundTransparency = 1
-shopStatus.Font = Enum.Font.FredokaOne
+shopStatus.Font = Enum.Font.LuckiestGuy
 shopStatus.TextSize = 14
 shopStatus.TextWrapped = true
 shopStatus.TextColor3 = Color3.fromRGB(255, 200, 120)
@@ -1277,7 +1262,7 @@ verTag.Size = UDim2.new(0, 190, 0, 16)
 verTag.BackgroundTransparency = 1
 verTag.TextColor3 = Color3.fromRGB(200, 205, 210)
 verTag.TextTransparency = 0.25
-verTag.Font = Enum.Font.FredokaOne
+verTag.Font = Enum.Font.LuckiestGuy
 verTag.TextSize = 12
 verTag.TextXAlignment = Enum.TextXAlignment.Left
 verTag.Text = "Discovery Bay " .. VERSION
@@ -1329,7 +1314,7 @@ for _, t in ipairs(TRICKS) do
 	btn.BackgroundColor3 = Color3.fromRGB(30, 38, 48)
 	btn.BackgroundTransparency = 0.2
 	btn.TextColor3 = Color3.fromRGB(235, 235, 235)
-	btn.Font = Enum.Font.FredokaOne
+	btn.Font = Enum.Font.LuckiestGuy
 	btn.TextSize = 16
 	btn.Text = t.label .. "  -  " .. t.name .. "  -  $" .. t.pay
 	btn.Parent = menu
@@ -1344,7 +1329,7 @@ trickBtn.Name = "RandomTrick"
 trickBtn.Size = UDim2.new(1, 0, 0, 52)
 trickBtn.BackgroundColor3 = Color3.fromRGB(250, 205, 30)
 trickBtn.TextColor3 = Color3.fromRGB(40, 30, 10)
-trickBtn.Font = Enum.Font.FredokaOne
+trickBtn.Font = Enum.Font.LuckiestGuy
 trickBtn.TextSize = 22
 trickBtn.Text = "TRICK!  (T)"
 trickBtn.Parent = menu
@@ -1396,7 +1381,7 @@ mapLegend.AnchorPoint = Vector2.new(0.5, 0)
 mapLegend.Position = UDim2.new(0.5, 0, 0, 6)
 mapLegend.Size = UDim2.new(1, -20, 0, 22)
 mapLegend.BackgroundTransparency = 1
-mapLegend.Font = Enum.Font.FredokaOne
+mapLegend.Font = Enum.Font.LuckiestGuy
 mapLegend.TextSize = 15
 mapLegend.TextColor3 = Color3.new(1, 1, 1)
 mapLegend.TextStrokeTransparency = 0.5
@@ -1410,7 +1395,7 @@ clearBtn.Position = UDim2.new(1, -8, 0, 32)
 clearBtn.Size = UDim2.new(0, 110, 0, 30)
 clearBtn.BackgroundColor3 = Color3.fromRGB(160, 60, 55)
 clearBtn.TextColor3 = Color3.new(1, 1, 1)
-clearBtn.Font = Enum.Font.FredokaOne
+clearBtn.Font = Enum.Font.LuckiestGuy
 clearBtn.TextSize = 15
 clearBtn.Text = "Clear mark"
 clearBtn.ZIndex = 10
@@ -1446,7 +1431,7 @@ wayLabel.Size = UDim2.new(0, 340, 0, 32)
 wayLabel.BackgroundColor3 = Color3.fromRGB(20, 26, 34)
 wayLabel.BackgroundTransparency = 0.25
 wayLabel.TextColor3 = Color3.fromRGB(255, 150, 150)
-wayLabel.Font = Enum.Font.FredokaOne
+wayLabel.Font = Enum.Font.LuckiestGuy
 wayLabel.TextSize = 18
 wayLabel.Visible = false
 wayLabel.Parent = gui
@@ -1517,7 +1502,7 @@ local function buildMap()
 		dm.Size = UDim2.new(0, 20, 0, 20)
 		dm.BackgroundColor3 = color
 		dm.TextColor3 = Color3.new(1, 1, 1)
-		dm.Font = Enum.Font.FredokaOne
+		dm.Font = Enum.Font.LuckiestGuy
 		dm.TextSize = 14
 		dm.Text = letter
 		dm.ZIndex = 6
@@ -1544,7 +1529,7 @@ local function buildMap()
 			lbl.Position = UDim2.new(u, 0, v, 10)
 			lbl.Size = UDim2.new(0, 160, 0, 14)
 			lbl.BackgroundTransparency = 1
-			lbl.Font = Enum.Font.FredokaOne
+			lbl.Font = Enum.Font.LuckiestGuy
 			lbl.TextSize = 11
 			lbl.TextColor3 = Color3.new(1, 1, 1)
 			lbl.TextStrokeTransparency = 0.3
@@ -1579,7 +1564,7 @@ local function buildMap()
 				lbl.Position = UDim2.new(u, 0, v, flip and -24 or 8)
 				lbl.Size = UDim2.new(0, 120, 0, 14)
 				lbl.BackgroundTransparency = 1
-				lbl.Font = Enum.Font.FredokaOne
+				lbl.Font = Enum.Font.LuckiestGuy
 				lbl.TextSize = 11
 				lbl.TextColor3 = Color3.new(1, 1, 1)
 				lbl.TextStrokeTransparency = 0.3
@@ -1793,7 +1778,7 @@ HatchEgg.OnClientEvent:Connect(function(dogName)
 		tag.Position = UDim2.new(0.5, 0, 0.72, 0)
 		tag.Size = UDim2.new(1, 0, 0, 56)
 		tag.BackgroundTransparency = 1
-		tag.Font = Enum.Font.FredokaOne
+		tag.Font = Enum.Font.LuckiestGuy
 		tag.TextSize = (dogName == "Linus") and 52 or 42
 		tag.TextColor3 = look.tagColor
 		tag.TextStrokeTransparency = 0.3
@@ -1827,7 +1812,7 @@ TrickResult.OnClientEvent:Connect(function(trickName, pay)
 		banner.Size = UDim2.new(0, 860, 0, 56)
 		banner.BackgroundColor3 = Color3.fromRGB(20, 26, 34)
 		banner.BackgroundTransparency = 0.25
-		banner.Font = Enum.Font.FredokaOne
+		banner.Font = Enum.Font.LuckiestGuy
 		banner.TextSize = 26
 		banner.TextWrapped = true
 		banner.TextColor3 = Color3.fromRGB(255, 225, 120)
@@ -1852,7 +1837,7 @@ TrickResult.OnClientEvent:Connect(function(trickName, pay)
 	pop.Position = UDim2.new(0, 20, 1, -140)
 	pop.Size = UDim2.new(0, 320, 0, 34)
 	pop.BackgroundTransparency = 1
-	pop.Font = Enum.Font.FredokaOne
+	pop.Font = Enum.Font.LuckiestGuy
 	pop.TextSize = 24
 	pop.TextXAlignment = Enum.TextXAlignment.Left
 	pop.TextStrokeTransparency = 0.4
@@ -2040,7 +2025,7 @@ FishGame.OnClientEvent:Connect(function()
 	title.Position = UDim2.new(0, 0, 0, 8)
 	title.Size = UDim2.new(1, 0, 0, 34)
 	title.BackgroundTransparency = 1
-	title.Font = Enum.Font.FredokaOne
+	title.Font = Enum.Font.LuckiestGuy
 	title.TextSize = 30
 	title.TextColor3 = Color3.fromRGB(255, 225, 120)
 	title.Text = "FISH ON!"
@@ -2077,7 +2062,7 @@ FishGame.OnClientEvent:Connect(function()
 	reelBtn.Size = UDim2.new(0, 170, 0, 44)
 	reelBtn.BackgroundColor3 = Color3.fromRGB(250, 205, 30)
 	reelBtn.TextColor3 = Color3.fromRGB(40, 30, 10)
-	reelBtn.Font = Enum.Font.FredokaOne
+	reelBtn.Font = Enum.Font.LuckiestGuy
 	reelBtn.TextSize = 24
 	reelBtn.Text = "REEL!  (Space)"
 	reelBtn.Parent = frame

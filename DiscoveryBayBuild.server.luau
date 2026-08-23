@@ -361,7 +361,7 @@ local function makeSign(part, face, text, bg, fg)
 	label.Size = UDim2.fromScale(1, 1)
 	label.BackgroundColor3 = bg or Color3.fromRGB(30, 40, 50)
 	label.TextColor3 = fg or Color3.new(1, 1, 1)
-	label.Font = Enum.Font.FredokaOne
+	label.Font = Enum.Font.LuckiestGuy
 	label.TextScaled = true
 	label.Text = text
 	label.Parent = gui
@@ -968,6 +968,10 @@ local function buildRoad(rd, roadIndex)
 					-- No prompt text here, the client hooks it up
 					buildNPC(model, "Pedestrian", spot, design, "")
 				end
+				
+				-- Add yellow centerline
+				newPart(model, "CenterLine", Vector3.new(0.6 * S, ROAD_THICK + 0.05 * S, lenFt * S),
+					CFrame.lookAt(mid, mid + dir), Color3.fromRGB(255, 204, 0), Enum.Material.SmoothPlastic)
 			end
 			buildCauseways(model, w, a[1], a[2], b[1], b[2])
 		end
@@ -1366,7 +1370,7 @@ local function buildBuildings()
 	local nudgedN, droppedN = 0, 0
 	for _, b in ipairs(buildings) do
 		if inRegion(b.x, b.z) and not nearPlaza(b.x, b.z)
-			and not (b.cls == "s" and nearElementary(b.x, b.z)) then
+			and not (b.cls == "s" and nearElementary(b.x, b.z)) and not nearBuilding(b.x, b.z, 50) then
 			-- keep buildings out of the traffic lanes: NPC cars have no collision, so
 			-- any overlap reads as cars phasing through walls. Nudge clear, or drop.
 			local bx, bz = b.x, b.z
@@ -2433,18 +2437,19 @@ if CONFIG.build.golf then
 	buildCartpaths()
 	buildGolfFlags()
 end
-if CONFIG.build.buildings then
-	buildBuildings()
-	print(("[DiscoveryBay] buildings done: %d homes, %d commercial, %d school, %d docks")
-		:format(counts.r, counts.c, counts.s, counts.docks))
-end
 if CONFIG.build.landmarks then
 	buildClubhouse()
 	buildPlaza()
 	buildBloxway()
 	buildSchoolCampus("Discovery Bay Elementary School", "dbElementary")
+	buildSchoolCampus("Timber Point School", "timberPoint")
 	buildParks()
 	buildMarina()
+end
+if CONFIG.build.buildings then
+	buildBuildings()
+	print(("[DiscoveryBay] buildings done: %d homes, %d commercial, %d school, %d docks")
+		:format(counts.r, counts.c, counts.s, counts.docks))
 end
 if CONFIG.build.props then
 	buildStreetlights()
@@ -2456,76 +2461,6 @@ end
 root:SetAttribute("WorldW", W_FT * S) -- world extents in studs, used by the client map
 root:SetAttribute("WorldH", H_FT * S)
 root:SetAttribute("BuildComplete", true) -- signals the DiscoveryBayShop runtime script
-
--- INFINITE TERRAIN GENERATOR: "make an active loading terrain making more roads, pedestrians, and houses... fill in all the gaps"
-local CHUNK_SIZE = 400
-local chunkCache = {}
-local function genChunk(cx, cz)
-	local key = cx .. "_" .. cz
-	if chunkCache[key] then return end
-	chunkCache[key] = true
-	
-	-- Don't generate chunks over the main town map (assume main town is roughly -WorldW/2 to WorldW/2)
-	local wLimit = (W_FT * S) / 2
-	local hLimit = (H_FT * S) / 2
-	local wx, wz = cx * CHUNK_SIZE, cz * CHUNK_SIZE
-	if math.abs(wx) < wLimit and math.abs(wz) < hLimit then return end
-	
-	local chunkFold = Instance.new("Folder")
-	chunkFold.Name = "Chunk_" .. key
-	chunkFold.Parent = workspace
-	
-	-- Grass ground
-	local ground = Instance.new("Part")
-	ground.Size = Vector3.new(CHUNK_SIZE, 5, CHUNK_SIZE)
-	ground.Position = Vector3.new(wx, -2.5, wz)
-	ground.Color = Color3.fromRGB(111, 137, 72)
-	ground.Material = Enum.Material.Grass
-	ground.Anchored = true
-	ground.Parent = chunkFold
-	
-	-- A basic road cutting through the chunk
-	local road = Instance.new("Part")
-	road.Size = Vector3.new(CHUNK_SIZE, 5.1, 40)
-	road.Position = Vector3.new(wx, -2.5, wz)
-	road.Color = Color3.fromRGB(70, 70, 75)
-	road.Material = Enum.Material.Concrete
-	road.Anchored = true
-	road.Parent = chunkFold
-	
-	-- Procedural generic houses along the road
-	for i = 1, 3 do
-		local rMdl = Instance.new("Model", chunkFold)
-		local cf = CFrame.new(wx + (i * 100 - 200), 0, wz + 60)
-		pcall(buildResidential, rMdl, cf, {w = 36, d = 26})
-	end
-	for i = 1, 3 do
-		local rMdl = Instance.new("Model", chunkFold)
-		local cf = CFrame.new(wx + (i * 100 - 200), 0, wz - 60) * CFrame.Angles(0, math.pi, 0)
-		pcall(buildResidential, rMdl, cf, {w = 36, d = 26})
-	end
-end
-
--- Run a background loop checking if players are within 30 studs of the edge of their loaded chunks
-task.spawn(function()
-	while task.wait(1) do
-		for _, p in ipairs(game:GetService("Players"):GetPlayers()) do
-			local char = p.Character
-			local hrp = char and char:FindFirstChild("HumanoidRootPart")
-			if hrp then
-				local pos = hrp.Position
-				local cx = math.floor(pos.X / CHUNK_SIZE + 0.5)
-				local cz = math.floor(pos.Z / CHUNK_SIZE + 0.5)
-				-- Load a 3x3 grid around the player to ensure gaps are filled when they are 20-30 studs from edge
-				for dx = -1, 1 do
-					for dz = -1, 1 do
-						genChunk(cx + dx, cz + dz)
-					end
-				end
-			end
-		end
-	end
-end)
 
 print(("[DiscoveryBay] DONE in %.1fs — %d parts. Homes %d, docks %d (every waterfront lot)."):format(
 	os.clock() - t0, partCount, counts.r, counts.docks))
