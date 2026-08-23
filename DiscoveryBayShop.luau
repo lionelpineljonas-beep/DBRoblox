@@ -777,21 +777,21 @@ PianoDrop.OnServerEvent:Connect(function(plr, npc)
 		
 		local ts = game:GetService("TweenService")
 		local startCF = root.CFrame
-		local finalCF = startCF * CFrame.new(0, 0, -14)
-		local tween = ts:Create(root, TweenInfo.new(1.2, Enum.EasingStyle.Linear), {CFrame = finalCF})
+		local finalCF = startCF * CFrame.new(0, 0, -28) -- walk further into the road
+		local tween = ts:Create(root, TweenInfo.new(1.8, Enum.EasingStyle.Linear), {CFrame = finalCF})
 		tween:Play()
 		
-		task.wait(1.4)
+		-- wait for them to get halfway there
+		task.wait(0.9)
 		
 		local piano = Instance.new("Part")
 		piano.Name = "Piano"
 		piano.Size = Vector3.new(4, 4, 4)
 		piano.Color = Color3.fromRGB(20, 20, 20)
-		piano.Position = finalCF.Position + Vector3.new(0, 80, 0)
+		piano.Position = finalCF.Position + Vector3.new(0, 100, 0)
 		piano.Anchored = false
 		piano.CanCollide = true
 		
-		-- Use a simple black box for the piano in case mesh ID fails, but we'll try to add a mesh
 		local pmesh = Instance.new("SpecialMesh")
 		pmesh.MeshType = Enum.MeshType.FileMesh
 		pmesh.MeshId = "rbxassetid://1028713"
@@ -800,9 +800,8 @@ PianoDrop.OnServerEvent:Connect(function(plr, npc)
 		pmesh.Parent = piano
 		piano.Parent = workspace
 		
-		-- The piano hits the ground around 0.9s if dropped from 80 studs.
-		-- So wait exactly 0.85s for impact!
-		task.wait(0.85)
+		-- wait for piano to hit them (takes ~1.0s to fall 100 studs)
+		task.wait(0.95)
 		
 		local sound = Instance.new("Sound")
 		sound.SoundId = "rbxassetid://138081509"
