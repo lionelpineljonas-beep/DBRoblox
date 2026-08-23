@@ -760,71 +760,65 @@ PianoDrop.OnServerEvent:Connect(function(plr, npc)
 	if prompt then prompt:Destroy() end
 	
 	task.spawn(function()
-		local root = npc.PrimaryPart
-		if not root then return end
+		local startCF = npc:GetPivot()
+		local totalTime = 1.8
+		local distance = 28
 		
-		-- Weld all parts to root and unanchor them
-		for _, part in ipairs(npc:GetDescendants()) do
-			if part:IsA("BasePart") and part ~= root then
-				local weld = Instance.new("WeldConstraint")
-				weld.Part0 = root
-				weld.Part1 = part
-				weld.Parent = root
-				part.Anchored = false
-			end
-		end
-		-- Keep root anchored so we can tween it!
-		
-		local ts = game:GetService("TweenService")
-		local startCF = root.CFrame
-		local finalCF = startCF * CFrame.new(0, 0, -28) -- walk further into the road
-		local tween = ts:Create(root, TweenInfo.new(1.8, Enum.EasingStyle.Linear), {CFrame = finalCF})
-		tween:Play()
-		
-		-- wait for them to get halfway there
-		task.wait(0.9)
-		
-		local piano = Instance.new("Part")
-		piano.Name = "Piano"
-		piano.Size = Vector3.new(4, 4, 4)
-		piano.Color = Color3.fromRGB(20, 20, 20)
-		piano.Position = finalCF.Position + Vector3.new(0, 100, 0)
-		piano.Anchored = false
-		piano.CanCollide = true
-		
-		local pmesh = Instance.new("SpecialMesh")
-		pmesh.MeshType = Enum.MeshType.FileMesh
-		pmesh.MeshId = "rbxassetid://1028713"
-		pmesh.TextureId = "rbxassetid://1028714"
-		pmesh.Scale = Vector3.new(1.5, 1.5, 1.5)
-		pmesh.Parent = piano
-		piano.Parent = workspace
-		
-		-- wait for piano to hit them (takes ~1.0s to fall 100 studs)
-		task.wait(0.95)
-		
-		local sound = Instance.new("Sound")
-		sound.SoundId = "rbxassetid://138081509"
-		sound.Volume = 2
-		sound.Parent = piano
-		sound:Play()
-		
-		if npc and npc.Parent then
-			for _, part in ipairs(npc:GetDescendants()) do
-				if part:IsA("BasePart") then
-					part.Anchored = false
-					part.CanCollide = true
-				end
-				if part:IsA("WeldConstraint") then
-					part:Destroy()
+		-- Start piano drop halfway
+		task.spawn(function()
+			task.wait(0.9)
+			
+			local finalCF = startCF * CFrame.new(0, 0, -distance)
+			local piano = Instance.new("Part")
+			piano.Name = "Piano"
+			piano.Size = Vector3.new(4, 4, 4)
+			piano.Color = Color3.fromRGB(20, 20, 20)
+			piano.Position = finalCF.Position + Vector3.new(0, 100, 0)
+			piano.Anchored = false
+			piano.CanCollide = true
+			
+			local pmesh = Instance.new("SpecialMesh")
+			pmesh.MeshType = Enum.MeshType.FileMesh
+			pmesh.MeshId = "rbxassetid://1028713"
+			pmesh.TextureId = "rbxassetid://1028714"
+			pmesh.Scale = Vector3.new(1.5, 1.5, 1.5)
+			pmesh.Parent = piano
+			piano.Parent = workspace
+			
+			task.wait(0.95) -- wait for impact
+			
+			local sound = Instance.new("Sound")
+			sound.SoundId = "rbxassetid://138081509"
+			sound.Volume = 2
+			sound.Parent = piano
+			sound:Play()
+			
+			if npc and npc.Parent then
+				-- Smash!
+				for _, part in ipairs(npc:GetDescendants()) do
+					if part:IsA("BasePart") then
+						part.Anchored = false
+						part.CanCollide = true
+					end
 				end
 			end
-		end
-		
-		task.delay(5, function()
-			if piano then piano:Destroy() end
-			if npc then npc:Destroy() end
+			
+			task.delay(5, function()
+				if piano then piano:Destroy() end
+				if npc then npc:Destroy() end
+			end)
 		end)
+		
+		-- Animate them walking (sliding) smoothly
+		local elapsed = 0
+		local rs = game:GetService("RunService")
+		while elapsed < totalTime do
+			if not npc or not npc.Parent then break end
+			local dt = rs.Heartbeat:Wait()
+			elapsed = elapsed + dt
+			local alpha = math.min(elapsed / totalTime, 1)
+			npc:PivotTo(startCF * CFrame.new(0, 0, -distance * alpha))
+		end
 	end)
 end)
 -- Ragdoll deaths: keep the body in one piece and convert its joints to ball sockets
