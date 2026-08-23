@@ -12,9 +12,6 @@
       },
       "DiscoveryBayShop": {
         "$path": "DiscoveryBayShop.server.luau"
-      },
-      "AILogger": {
-        "$path": "AILogger.server.luau"
       }
     },
     "StarterPlayer": {

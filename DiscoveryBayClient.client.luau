@@ -11,7 +11,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 
-local VERSION = "v41"
+local VERSION = "v58"
 local SPEED_PASS_ID = 0 -- paste the real Game Pass ID here (same one as in DiscoveryBayShop)
 local RunService = game:GetService("RunService")
 local plr = Players.LocalPlayer
@@ -168,6 +168,120 @@ invPad.PaddingTop = UDim.new(0, 15)
 invPad.PaddingLeft = UDim.new(0, 15)
 invPad.PaddingRight = UDim.new(0, 15)
 invPad.Parent = invFrame
+
+-- Rebirth Menu
+local rebirthMenu = Instance.new("Frame")
+rebirthMenu.Name = "RebirthMenu"
+rebirthMenu.Size = UDim2.new(0, 300, 0, 220)
+rebirthMenu.Position = UDim2.new(0.5, -150, 0.5, -110)
+rebirthMenu.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+rebirthMenu.Visible = false
+rebirthMenu.Parent = gui
+
+local rmCorner = Instance.new("UICorner")
+rmCorner.CornerRadius = UDim.new(0, 12)
+rmCorner.Parent = rebirthMenu
+
+local rmTitle = Instance.new("TextLabel")
+rmTitle.Size = UDim2.new(1, 0, 0, 40)
+rmTitle.BackgroundTransparency = 1
+rmTitle.Text = "REBIRTH?"
+rmTitle.Font = Enum.Font.FredokaOne
+rmTitle.TextColor3 = Color3.new(1, 1, 1)
+rmTitle.TextSize = 24
+rmTitle.Parent = rebirthMenu
+
+local rmDesc = Instance.new("TextLabel")
+rmDesc.Size = UDim2.new(1, -20, 0, 120)
+rmDesc.Position = UDim2.new(0, 10, 0, 40)
+rmDesc.BackgroundTransparency = 1
+rmDesc.Text = "Benefits:\n• 1.5x Scooter Speed!\n• 1.5x Cash Multiplier!\n\nWarning: You will lose your house, pet, and money."
+rmDesc.Font = Enum.Font.SourceSansBold
+rmDesc.TextColor3 = Color3.new(0.8, 0.8, 0.8)
+rmDesc.TextSize = 18
+rmDesc.TextWrapped = true
+rmDesc.Parent = rebirthMenu
+
+local rmConfirm = Instance.new("TextButton")
+rmConfirm.Size = UDim2.new(0.4, 0, 0, 40)
+rmConfirm.Position = UDim2.new(0.07, 0, 1, -50)
+rmConfirm.BackgroundColor3 = Color3.fromRGB(150, 50, 200)
+rmConfirm.Text = "REBIRTH?"
+rmConfirm.Font = Enum.Font.FredokaOne
+rmConfirm.TextColor3 = Color3.new(1, 1, 1)
+rmConfirm.TextSize = 16
+rmConfirm.Parent = rebirthMenu
+local rmcCorner = Instance.new("UICorner"); rmcCorner.CornerRadius = UDim.new(0, 8); rmcCorner.Parent = rmConfirm
+
+local rmCancel = Instance.new("TextButton")
+rmCancel.Size = UDim2.new(0.4, 0, 0, 40)
+rmCancel.Position = UDim2.new(0.53, 0, 1, -50)
+rmCancel.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+rmCancel.Text = "CANCEL"
+rmCancel.Font = Enum.Font.FredokaOne
+rmCancel.TextColor3 = Color3.new(1, 1, 1)
+rmCancel.TextSize = 16
+rmCancel.Parent = rebirthMenu
+local rmxCorner = Instance.new("UICorner"); rmxCorner.CornerRadius = UDim.new(0, 8); rmxCorner.Parent = rmCancel
+
+rmCancel.MouseButton1Click:Connect(function()
+	rebirthMenu.Visible = false
+end)
+rmConfirm.MouseButton1Click:Connect(function()
+	remotes:WaitForChild("DoRebirth"):FireServer()
+	rebirthMenu.Visible = false
+end)
+
+-- Rebirth Button
+local rebirthBtn = Instance.new("TextButton")
+rebirthBtn.Name = "RebirthBtn"
+rebirthBtn.Size = UDim2.new(0, 160, 0, 50)
+rebirthBtn.Position = UDim2.new(0, 20, 0.5, -25) -- Left middle
+rebirthBtn.BackgroundColor3 = Color3.fromRGB(150, 50, 200)
+rebirthBtn.Text = "REBIRTH"
+rebirthBtn.Font = Enum.Font.FredokaOne
+rebirthBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+rebirthBtn.TextSize = 16
+rebirthBtn.Parent = gui
+
+local rCorner = Instance.new("UICorner")
+rCorner.CornerRadius = UDim.new(0, 8)
+rCorner.Parent = rebirthBtn
+
+local function getRebirthCost()
+	local stats = plr:FindFirstChild("leaderstats")
+	local r = stats and stats:FindFirstChild("Rebirths")
+	local rVal = r and r.Value or 0
+	return 1000 * math.pow(5, rVal)
+end
+
+rebirthBtn.MouseButton1Click:Connect(function()
+	local stats = plr:FindFirstChild("leaderstats")
+	local cash = stats and stats:FindFirstChild("Cash")
+	local cost = getRebirthCost()
+	if cash and cash.Value >= cost then
+		rebirthMenu.Visible = true
+	else
+		local origPos = UDim2.new(0, 20, 0.5, -25)
+		local tw = TweenService:Create(rebirthBtn, TweenInfo.new(0.05, Enum.EasingStyle.Sine, Enum.EasingDirection.Out, 3, true), {
+			Position = origPos + UDim2.new(0, 10, 0, 0)
+		})
+		tw:Play()
+	end
+end)
+
+task.spawn(function()
+	while task.wait(0.5) do
+		local stats = plr:FindFirstChild("leaderstats")
+		local r = stats and stats:FindFirstChild("Rebirths")
+		local cost = getRebirthCost()
+		if r and r.Value > 0 then
+			rebirthBtn.Text = "REBIRTH ($" .. cost .. ")\n" .. r.Value .. " Rebirths!"
+		else
+			rebirthBtn.Text = "REBIRTH ($" .. cost .. ")"
+		end
+	end
+end)
 
 local hotbarSlots = {}
 for i = 1, 9 do
@@ -617,7 +731,7 @@ local function hookNPC(prompt)
 			}, function(choiceId)
 				if choiceId == "smart" then
 					showDialogue("Pedestrian", "I am very smart, watch this!", {}, nil)
-					game:GetService("ReplicatedStorage"):WaitForChild("DiscoveryBayRemotes"):WaitForChild("PianoDrop"):FireServer(desc.Parent.Parent)
+					game:GetService("ReplicatedStorage"):WaitForChild("DiscoveryBayRemotes"):WaitForChild("PianoDrop"):FireServer(prompt.Parent.Parent)
 				end
 			end)
 		end
@@ -710,6 +824,33 @@ local function runIntro()
 	spinCorner.Parent = spinner
 	local spinConn = RunService.RenderStepped:Connect(function(dt)
 		spinner.Rotation = spinner.Rotation + dt * 220
+	end)
+	
+	loadFrame.BackgroundTransparency = 1
+	grad:Destroy()
+	
+	local cam = workspace.CurrentCamera
+	cam.CameraType = Enum.CameraType.Scriptable
+	
+	-- 4 random cinematic points above the map
+	local TOUR_POINTS = {
+		CFrame.new(0, 150, 0) * CFrame.Angles(math.rad(-20), 0, 0),
+		CFrame.new(400, 100, 400) * CFrame.Angles(math.rad(-15), math.rad(45), 0),
+		CFrame.new(-600, 80, 200) * CFrame.Angles(math.rad(-10), math.rad(-30), 0),
+		CFrame.new(0, 120, -600) * CFrame.Angles(math.rad(-15), math.rad(180), 0)
+	}
+	
+	local tourIndex = 1
+	local function nextTour()
+		local tgt = TOUR_POINTS[tourIndex]
+		tourIndex = (tourIndex % #TOUR_POINTS) + 1
+		local tw = TweenService:Create(cam, TweenInfo.new(6, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {CFrame = tgt})
+		tw:Play()
+	end
+	cam.CFrame = TOUR_POINTS[4]
+	nextTour()
+	local tourLoop = task.spawn(function()
+		while task.wait(6) do nextTour() end
 	end)
 
 	-- freeze movement during the menu
@@ -846,12 +987,22 @@ local function runIntro()
 		panBody.Text = INFO_TEXT
 		panel.Visible = true
 	end)
-
 	playBtn.Activated:Connect(function()
 		introGui:Destroy()
 		gui.Enabled = true
-		workspace.CurrentCamera.CameraType = Enum.CameraType.Custom
-		if controls then controls:Enable() end
+		
+		task.cancel(tourLoop)
+		cam.CameraType = Enum.CameraType.Custom
+		
+		pcall(function() controls:Enable() end)
+		local t = plr.Character and plr.Character:FindFirstChild("HumanoidRootPart")
+		if t then
+			cam.CFrame = CFrame.lookAt(t.Position + Vector3.new(0, 10, 20), t.Position)
+		end
+		if not activeTrack then
+			playTrack(currentZone == "Outdoor" and OUTDOOR_MUSIC or ZONES[1].id,
+				0.4, currentZone == "Outdoor" and OUTDOOR_SPEED or ZONES[1].speed)
+		end
 	end)
 end
 task.spawn(runIntro)

@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "Roblox_Studio": {
+      "command": "C:\\Users\\lione\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+      "args": [
+        "c:\\Users\\lione\\OneDrive\\Desktop\\Github Projects\\Roblox\\DBRoblox\\mcp_proxy.py"
+      ]
+    }
+  }
+}

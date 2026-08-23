@@ -112,7 +112,51 @@ end)
 local START_CASH = 100
 local WALK_SPEED = 16
 local SCOOTER_SPEED = 30
-local VERSION = "v41"
+local VERSION = "v58"
+
+-- ==============================================================================================
+-- LIGHTING & DAY/NIGHT CYCLE
+-- ==============================================================================================
+local Lighting = game:GetService("Lighting")
+Lighting.ClockTime = 14
+Lighting.GlobalShadows = true
+Lighting.OutdoorAmbient = Color3.fromRGB(110, 110, 130)
+Lighting.ColorShift_Top = Color3.fromRGB(255, 230, 200)
+Lighting.GeographicLatitude = 41
+Lighting.Brightness = 2.5
+
+local bloom = Instance.new("BloomEffect")
+bloom.Intensity = 0.3
+bloom.Size = 24
+bloom.Threshold = 2
+bloom.Parent = Lighting
+
+local sunRays = Instance.new("SunRaysEffect")
+sunRays.Intensity = 0.05
+sunRays.Spread = 0.1
+sunRays.Parent = Lighting
+
+local colorCorrection = Instance.new("ColorCorrectionEffect")
+colorCorrection.Saturation = 0.3
+colorCorrection.Contrast = 0.15
+colorCorrection.Parent = Lighting
+
+local atmos = Instance.new("Atmosphere")
+atmos.Density = 0.25
+atmos.Offset = 0.25
+atmos.Color = Color3.fromRGB(199, 199, 199)
+atmos.Decay = Color3.fromRGB(106, 112, 125)
+atmos.Glare = 0
+atmos.Haze = 0
+atmos.Parent = Lighting
+
+task.spawn(function()
+	while task.wait(0.1) do
+		-- Slowly moving sun! Moves 1 hour every ~24 seconds.
+		Lighting.ClockTime = Lighting.ClockTime + 0.005
+	end
+end)
+
 local TRICK_COOLDOWN = 1.2
 local TRAFFIC_CARS = 130
 local CAR_SPEED = 38
@@ -151,6 +195,7 @@ local FishGame = remote("FishGame") -- server -> client: FISH ON! start the reel
 local FishReel = remote("FishReel") -- client -> server: minigame result (true = landed)
 local CompleteQuest = remote("CompleteQuest")
 local PianoDrop = remote("PianoDrop")
+local DoRebirth = remote("DoRebirth")
 
 -- Cash leaderboard ------------------------------------------------------------------------------
 local function getCash(plr)
@@ -158,14 +203,31 @@ local function getCash(plr)
 	return stats and stats:FindFirstChild("Cash")
 end
 
+local function getRebirths(plr)
+	local stats = plr:FindFirstChild("leaderstats")
+	return stats and stats:FindFirstChild("Rebirths")
+end
+
+local function getMult(plr)
+	local r = getRebirths(plr)
+	return r and math.pow(1.5, r.Value) or 1
+end
+
 local function setupPlayer(plr)
 	if not plr:FindFirstChild("leaderstats") then
 		local stats = Instance.new("Folder")
 		stats.Name = "leaderstats"
+		
 		local cash = Instance.new("IntValue")
 		cash.Name = "Cash"
 		cash.Value = START_CASH
 		cash.Parent = stats
+		
+		local rebirths = Instance.new("IntValue")
+		rebirths.Name = "Rebirths"
+		rebirths.Value = 0
+		rebirths.Parent = stats
+		
 		stats.Parent = plr
 	end
 end
@@ -178,7 +240,7 @@ local function updateSpeed(plr)
 	local humanoid = char and char:FindFirstChildOfClass("Humanoid")
 	if not humanoid then return end
 	if plr:GetAttribute("Mounted") then
-		local baseSpeed = SCOOTER_SPEED + (plr:GetAttribute("FastScooter") and 20 or 0)
+		local baseSpeed = (SCOOTER_SPEED + (plr:GetAttribute("FastScooter") and 20 or 0)) * getMult(plr)
 		local speed = baseSpeed + (plr:GetAttribute("SodaBoost") or 0)
 			+ (plr:GetAttribute("VanillaBoost") or 0) + (plr:GetAttribute("EduBoost") or 0)
 			+ (plr:GetAttribute("WeatherBoost") or 0)
@@ -760,17 +822,11 @@ PianoDrop.OnServerEvent:Connect(function(plr, npc)
 	if prompt then prompt:Destroy() end
 	
 	task.spawn(function()
-		print("--- PIANODROP TRIGGERED ---")
-		print("NPC:", npc:GetFullName())
-		print("NPC has PrimaryPart?", npc.PrimaryPart ~= nil)
-		if npc.PrimaryPart then
-			print("PrimaryPart Name:", npc.PrimaryPart.Name)
-			print("PrimaryPart Anchored:", npc.PrimaryPart.Anchored)
-			print("PrimaryPart CFrame:", npc.PrimaryPart.CFrame)
-		end
-		print("Has Humanoid?", npc:FindFirstChild("Humanoid") ~= nil)
-		if npc:FindFirstChild("Humanoid") then
-			print("Humanoid Health:", npc.Humanoid.Health)
+		local hum = npc:FindFirstChild("Humanoid")
+		if hum then
+			-- Disable Humanoid physics so it doesn't fight the slide or fall apart
+			hum.PlatformStand = true
+			hum:SetStateEnabled(Enum.HumanoidStateType.GettingUp, false)
 		end
 		
 		local startCF = npc:GetPivot()
@@ -779,6 +835,7 @@ PianoDrop.OnServerEvent:Connect(function(plr, npc)
 		local totalTime = 1.8
 		local distance = 28
 		
+		local animConn
 		-- Start piano drop halfway
 		task.spawn(function()
 			task.wait(0.9)
@@ -787,34 +844,100 @@ PianoDrop.OnServerEvent:Connect(function(plr, npc)
 			local piano = Instance.new("Part")
 			piano.Name = "Piano"
 			piano.Size = Vector3.new(4, 4, 4)
-			piano.Color = Color3.fromRGB(20, 20, 20)
-			piano.Position = finalCF.Position + Vector3.new(0, 100, 0)
+			piano.Position = finalCF.Position + Vector3.new(0, 90, 0)
 			piano.Anchored = false
 			piano.CanCollide = true
 			
 			local pmesh = Instance.new("SpecialMesh")
 			pmesh.MeshType = Enum.MeshType.FileMesh
-			pmesh.MeshId = "rbxassetid://1028713"
-			pmesh.TextureId = "rbxassetid://1028714"
-			pmesh.Scale = Vector3.new(1.5, 1.5, 1.5)
+			pmesh.MeshId = "rbxassetid://113221356"
+			pmesh.TextureId = "rbxassetid://113221332"
+			pmesh.Scale = Vector3.new(2, 2, 2)
 			pmesh.Parent = piano
+			
 			piano.Parent = workspace
+			
+			local sound = Instance.new("Sound")
+			sound.SoundId = "rbxassetid://7578813052"
+			sound.Volume = 2
+			sound.Parent = piano
 			
 			task.wait(0.95) -- wait for impact
 			
-			local sound = Instance.new("Sound")
-			sound.SoundId = "rbxassetid://138081509"
-			sound.Volume = 2
-			sound.Parent = piano
 			sound:Play()
 			
 			if npc and npc.Parent then
 				-- Smash!
+				if animConn then animConn:Disconnect() end
+				if hum then hum.Health = 0 end
 				for _, part in ipairs(npc:GetDescendants()) do
+					if part:IsA("Motor6D") then part:Destroy() end
 					if part:IsA("BasePart") then
 						part.Anchored = false
 						part.CanCollide = true
 					end
+				end
+				
+				-- Spawn a burst of 10 gold coins (Pet Sim X style)
+				for i = 1, 10 do
+					local coin = Instance.new("Part")
+					coin.Name = "MoneyDrop"
+					coin.Shape = Enum.PartType.Cylinder
+					coin.Size = Vector3.new(0.15, 0.8, 0.8) -- Thin cylinder acts like a coin
+					coin.Orientation = Vector3.new(0, 0, 90) -- Lay flat
+					coin.Color = Color3.fromRGB(255, 215, 0) -- Gold
+					coin.Material = Enum.Material.Metal
+					coin.Position = finalCF.Position + Vector3.new(math.random(-2, 2), 4 + (i * 0.2), math.random(-2, 2))
+					coin.Velocity = Vector3.new(math.random(-20, 20), math.random(30, 50), math.random(-20, 20))
+					coin.Parent = workspace
+					
+					local pickedUp = false
+					local dropConn
+					dropConn = game:GetService("RunService").Heartbeat:Connect(function()
+						if pickedUp or not coin.Parent then 
+							if dropConn then dropConn:Disconnect() end
+							return 
+						end
+						local char = plr.Character
+						if char and char.PrimaryPart then
+							local dist = (coin.Position - char.PrimaryPart.Position).Magnitude
+							if dist < 12 then -- Magnet pull radius
+								pickedUp = true
+								coin.Anchored = true
+								coin.CanCollide = false
+								
+								local ts = game:GetService("TweenService")
+								local tw = ts:Create(coin, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.In), {
+									Position = char.PrimaryPart.Position,
+									Size = Vector3.new(0.05, 0.2, 0.2) -- Shrink while absorbing
+								})
+								tw:Play()
+								tw.Completed:Wait()
+								
+								local ls = plr:FindFirstChild("leaderstats")
+								if ls then
+									local cash = ls:FindFirstChild("Cash")
+									if cash then cash.Value = cash.Value + math.floor(10 * getMult(plr)) end
+								end
+								
+								-- Soft pop/absorb sound so 10 of them don't deafen the player
+								local sfx = Instance.new("Sound")
+								sfx.SoundId = "rbxassetid://68950866" -- UI click / pop sound
+								sfx.Volume = 0.5
+								sfx.Pitch = math.random(90, 110) / 100 -- slightly randomize pitch for satisfying effect
+								sfx.Parent = char.PrimaryPart
+								sfx:Play()
+								game.Debris:AddItem(sfx, 1)
+								
+								coin:Destroy()
+								if dropConn then dropConn:Disconnect() end
+							end
+						end
+					end)
+					
+					task.delay(30, function()
+						if coin and coin.Parent then coin:Destroy() end
+					end)
 				end
 			end
 			
@@ -824,15 +947,47 @@ PianoDrop.OnServerEvent:Connect(function(plr, npc)
 			end)
 		end)
 		
+		-- Use Motor6Ds so we can animate the limbs mathematically
+		local motors = {}
+		for _, part in ipairs(npc:GetDescendants()) do
+			if part:IsA("BasePart") and part ~= npc.PrimaryPart then
+				local motor = Instance.new("Motor6D")
+				motor.Name = part.Name .. "Motor"
+				motor.Part0 = npc.PrimaryPart
+				motor.Part1 = part
+				motor.C0 = npc.PrimaryPart.CFrame:Inverse() * part.CFrame
+				motor.C1 = CFrame.new()
+				motor.Parent = npc.PrimaryPart
+				
+				part.Anchored = false
+				part.CanCollide = false
+				motors[part.Name] = motor
+			end
+		end
+		
 		-- Animate them walking (sliding) smoothly
-		local elapsed = 0
-		local rs = game:GetService("RunService")
-		while elapsed < totalTime do
-			if not npc or not npc.Parent then break end
-			local dt = rs.Heartbeat:Wait()
-			elapsed = elapsed + dt
-			local alpha = math.min(elapsed / totalTime, 1)
-			npc:PivotTo(startCF * CFrame.new(0, 0, -distance * alpha))
+		if npc.PrimaryPart then
+			local ts = game:GetService("TweenService")
+			local tween = ts:Create(npc.PrimaryPart, TweenInfo.new(totalTime, Enum.EasingStyle.Linear), {
+				CFrame = startCF * CFrame.new(0, 0, -distance)
+			})
+			tween:Play()
+			
+			local elapsed = 0
+			animConn = game:GetService("RunService").Heartbeat:Connect(function(dt)
+				elapsed = elapsed + dt
+				local angle = math.sin(elapsed * 12) * 0.6
+				
+				local rl = motors["Right Leg"]
+				local ll = motors["Left Leg"]
+				local ra = motors["Right Arm"]
+				local la = motors["Left Arm"]
+				
+				if rl then rl.C1 = CFrame.new(0, 1, 0) * CFrame.Angles(angle, 0, 0) * CFrame.new(0, -1, 0) end
+				if ll then ll.C1 = CFrame.new(0, 1, 0) * CFrame.Angles(-angle, 0, 0) * CFrame.new(0, -1, 0) end
+				if ra then ra.C1 = CFrame.new(0, 0.5, 0) * CFrame.Angles(-angle, 0, 0) * CFrame.new(0, -0.5, 0) end
+				if la then la.C1 = CFrame.new(0, 0.5, 0) * CFrame.Angles(angle, 0, 0) * CFrame.new(0, -0.5, 0) end
+			end)
 		end
 	end)
 end)
@@ -1200,8 +1355,9 @@ DoTrick.OnServerEvent:Connect(function(plr, trickName)
 		local cash = getCash(plr)
 		if not cash or humanoid.Health <= 0 then return end
 		trick.fn(rig, hrp)
-		local pay = trick.pay * (plr:GetAttribute("TrickMult") or 1)
-		if plr:GetAttribute("CarbLoad") then pay = math.floor(pay * 1.25) end
+		local pay = trick.pay * (plr:GetAttribute("TrickMult") or 1) * getMult(plr)
+		if plr:GetAttribute("CarbLoad") then pay = pay * 1.25 end
+		pay = math.floor(pay)
 		cash.Value = cash.Value + pay
 		TrickResult:FireClient(plr, trick.name, pay)
 
@@ -1922,6 +2078,34 @@ local function hookEgg(egg)
 		spawnDog(plr, dogDef, Vector3.new(homeSpot.X, homeSpot.Y, homeSpot.Z))
 	end)
 end
+
+DoRebirth.OnServerEvent:Connect(function(plr)
+	local cash = getCash(plr)
+	local rebirths = getRebirths(plr)
+	if not cash or not rebirths then return end
+	local cost = 1000 * math.pow(5, rebirths.Value)
+	if cash.Value < cost then return end
+	
+	-- Increment rebirths and reset money
+	rebirths.Value = rebirths.Value + 1
+	cash.Value = 100
+	
+	-- Lose house
+	local home = ownedHouse[plr.UserId]
+	if home and home.house.Parent then
+		home.house:SetAttribute("OwnerUserId", nil)
+		setRentSign(home.board, "RENT", Color3.fromRGB(200, 60, 50))
+	end
+	ownedHouse[plr.UserId] = nil
+	
+	-- Lose pet
+	local dog = playerDog[plr.UserId]
+	if dog and dog.Parent then dog:Destroy() end
+	playerDog[plr.UserId] = nil
+	
+	-- Force speed update so scooter updates immediately
+	updateSpeed(plr)
+end)
 
 Players.PlayerRemoving:Connect(function(plr)
 	local home = ownedHouse[plr.UserId]
