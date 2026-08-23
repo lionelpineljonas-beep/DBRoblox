@@ -1846,7 +1846,9 @@ local function buildRoad(rd, roadIndex)
 				-- Randomly spawn a pedestrian on the sidewalk
 				if rng:NextNumber() < 0.1 then
 					local side = rng:NextNumber() > 0.5 and offX or -offX
-					local spot = CFrame.lookAt(mid, mid + dir) * CFrame.new(side, ROAD_THICK / 2, 0)
+					local baseSpot = (CFrame.lookAt(mid, mid + dir) * CFrame.new(side, ROAD_THICK / 2, 0)).Position
+					local roadCenter = (CFrame.lookAt(mid, mid + dir) * CFrame.new(0, ROAD_THICK / 2, 0)).Position
+					local spot = CFrame.lookAt(baseSpot, Vector3.new(roadCenter.X, baseSpot.Y, roadCenter.Z))
 					local peds = {
 						{ face = "rbxassetid://134079000", shirtTemplate = "rbxassetid://607785314", pantsTemplate = "rbxassetid://129458426" },
 						{ face = "rbxassetid://7699174", shirtTemplate = "rbxassetid://398633812", pantsTemplate = "rbxassetid://144076370" },
@@ -6638,9 +6640,9 @@ local function showDialogue(npcName, text, choicesArray, callback)
 	local myType = activeTypewriter
 	
 	local blip = Instance.new("Sound")
-	blip.SoundId = "rbxassetid://4744967530"
-	blip.Volume = 0.6
-	blip.Parent = dlgFrame
+	blip.SoundId = "rbxassetid://12221967" -- reliable UI tick
+	blip.Volume = 1
+	blip.Parent = game:GetService("SoundService")
 	
 	task.spawn(function()
 		for i = 1, #text do
@@ -6648,8 +6650,10 @@ local function showDialogue(npcName, text, choicesArray, callback)
 			dlgText.Text = string.sub(text, 1, i)
 			local char = string.sub(text, i, i)
 			if i % 2 == 1 and char ~= " " and char ~= "." then
-				blip.TimePosition = 0
-				blip:Play()
+				local s = blip:Clone()
+				s.Parent = game:GetService("SoundService")
+				s:Play()
+				game.Debris:AddItem(s, 0.5)
 			end
 			task.wait(0.02)
 		end

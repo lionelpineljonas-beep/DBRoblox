@@ -480,9 +480,9 @@ local function showDialogue(npcName, text, choicesArray, callback)
 	local myType = activeTypewriter
 	
 	local blip = Instance.new("Sound")
-	blip.SoundId = "rbxassetid://4744967530"
-	blip.Volume = 0.6
-	blip.Parent = dlgFrame
+	blip.SoundId = "rbxassetid://12221967" -- reliable UI tick
+	blip.Volume = 1
+	blip.Parent = game:GetService("SoundService")
 	
 	task.spawn(function()
 		for i = 1, #text do
@@ -490,8 +490,10 @@ local function showDialogue(npcName, text, choicesArray, callback)
 			dlgText.Text = string.sub(text, 1, i)
 			local char = string.sub(text, i, i)
 			if i % 2 == 1 and char ~= " " and char ~= "." then
-				blip.TimePosition = 0
-				blip:Play()
+				local s = blip:Clone()
+				s.Parent = game:GetService("SoundService")
+				s:Play()
+				game.Debris:AddItem(s, 0.5)
 			end
 			task.wait(0.02)
 		end

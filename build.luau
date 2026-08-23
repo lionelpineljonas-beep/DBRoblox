@@ -954,7 +954,9 @@ local function buildRoad(rd, roadIndex)
 				-- Randomly spawn a pedestrian on the sidewalk
 				if rng:NextNumber() < 0.1 then
 					local side = rng:NextNumber() > 0.5 and offX or -offX
-					local spot = CFrame.lookAt(mid, mid + dir) * CFrame.new(side, ROAD_THICK / 2, 0)
+					local baseSpot = (CFrame.lookAt(mid, mid + dir) * CFrame.new(side, ROAD_THICK / 2, 0)).Position
+					local roadCenter = (CFrame.lookAt(mid, mid + dir) * CFrame.new(0, ROAD_THICK / 2, 0)).Position
+					local spot = CFrame.lookAt(baseSpot, Vector3.new(roadCenter.X, baseSpot.Y, roadCenter.Z))
 					local peds = {
 						{ face = "rbxassetid://134079000", shirtTemplate = "rbxassetid://607785314", pantsTemplate = "rbxassetid://129458426" },
 						{ face = "rbxassetid://7699174", shirtTemplate = "rbxassetid://398633812", pantsTemplate = "rbxassetid://144076370" },
