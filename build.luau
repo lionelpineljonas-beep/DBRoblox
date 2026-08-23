@@ -398,11 +398,19 @@ local function buildNPC(parent, npcName, cf, design, promptText, choices)
 		partCount = partCount + 1
 		return p
 	end
-	bp("Left Leg", Vector3.new(1, 2, 1), CFrame.new(-0.5, 1, 0), pants)
-	bp("Right Leg", Vector3.new(1, 2, 1), CFrame.new(0.5, 1, 0), pants)
-	bp("Torso", Vector3.new(2, 2, 1), CFrame.new(0, 3, 0), shirtColor)
-	bp("Left Arm", Vector3.new(1, 2, 1), CFrame.new(-1.5, 3, 0), skin)
-	bp("Right Arm", Vector3.new(1, 2, 1), CFrame.new(1.5, 3, 0), skin)
+	if design.sit then
+		bp("Left Leg", Vector3.new(1, 2, 1), CFrame.new(-0.5, 2, -1) * CFrame.Angles(math.rad(90), 0, 0), pants)
+		bp("Right Leg", Vector3.new(1, 2, 1), CFrame.new(0.5, 2, -1) * CFrame.Angles(math.rad(90), 0, 0), pants)
+		bp("Torso", Vector3.new(2, 2, 1), CFrame.new(0, 3, 0), shirtColor)
+		bp("Left Arm", Vector3.new(1, 2, 1), CFrame.new(-1.5, 3, -0.5) * CFrame.Angles(math.rad(90), 0, 0), skin)
+		bp("Right Arm", Vector3.new(1, 2, 1), CFrame.new(1.5, 3, -0.5) * CFrame.Angles(math.rad(90), 0, 0), skin)
+	else
+		bp("Left Leg", Vector3.new(1, 2, 1), CFrame.new(-0.5, 1, 0), pants)
+		bp("Right Leg", Vector3.new(1, 2, 1), CFrame.new(0.5, 1, 0), pants)
+		bp("Torso", Vector3.new(2, 2, 1), CFrame.new(0, 3, 0), shirtColor)
+		bp("Left Arm", Vector3.new(1, 2, 1), CFrame.new(-1.5, 3, 0), skin)
+		bp("Right Arm", Vector3.new(1, 2, 1), CFrame.new(1.5, 3, 0), skin)
+	end
 	local head = bp("Head", Vector3.new(2, 1, 1), CFrame.new(0, 4.5, 0), skin)
 	local ha = Instance.new("Attachment"); ha.Name = "HairAttachment"; ha.Position = Vector3.new(0, 0.6, 0); ha.Parent = head
 	local hata = Instance.new("Attachment"); hata.Name = "HatAttachment"; hata.Position = Vector3.new(0, 0.6, 0); hata.Parent = head
@@ -608,11 +616,11 @@ local function buildCar()
 		wheel.Shape = Enum.PartType.Cylinder
 	end
 	local driverDesigns = {
-		{ face = "rbxassetid://7074749", hairAccessory = "63690008", shirtTemplate = "rbxassetid://607785314", pantsTemplate = "rbxassetid://129458426", noPrompt = true },
-		{ face = "rbxassetid://134079000", hairAccessory = "20573078", hatAccessory = "1033284090", shirtTemplate = "rbxassetid://398633812", pantsTemplate = "rbxassetid://144076370", noPrompt = true },
-		{ face = "rbxassetid://7699174", hairAccessory = "12270336", shirtColor = Color3.fromRGB(150, 50, 50), pantsColor = Color3.fromRGB(45, 90, 160), noPrompt = true }
+		{ face = "rbxassetid://7074749", shirtTemplate = "rbxassetid://607785314", pantsTemplate = "rbxassetid://129458426", noPrompt = true, sit = true },
+		{ face = "rbxassetid://134079000", shirtTemplate = "rbxassetid://398633812", pantsTemplate = "rbxassetid://144076370", noPrompt = true, sit = true },
+		{ face = "rbxassetid://7699174", shirtColor = Color3.fromRGB(150, 50, 50), pantsColor = Color3.fromRGB(45, 90, 160), noPrompt = true, sit = true }
 	}
-	local driver = buildNPC(m, "Driver", CFrame.new(1.3 * S, 1.2 * S, 0.2 * S), driverDesigns[math.random(1, #driverDesigns)])
+	local driver = buildNPC(m, "Driver", CFrame.new(1.3 * S, 0.1 * S, 0.6 * S), driverDesigns[math.random(1, #driverDesigns)])
 	return addRoot(m, "car")
 end
 

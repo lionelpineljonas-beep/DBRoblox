@@ -659,10 +659,19 @@ local function runIntro()
 	-- grey loading cover with a spinning bubbly "L" while the town builds
 	local loadFrame = Instance.new("Frame")
 	loadFrame.Size = UDim2.fromScale(1, 1)
-	loadFrame.BackgroundColor3 = Color3.fromRGB(128, 131, 136)
+	loadFrame.BackgroundColor3 = Color3.new(1, 1, 1)
 	loadFrame.BorderSizePixel = 0
 	loadFrame.ZIndex = 5
 	loadFrame.Parent = introGui
+	
+	local grad = Instance.new("UIGradient")
+	grad.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(24, 90, 157)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(67, 206, 162))
+	})
+	grad.Rotation = 45
+	grad.Parent = loadFrame
+	
 	local loadTxt = Instance.new("TextLabel")
 	loadTxt.AnchorPoint = Vector2.new(0.5, 0.5)
 	loadTxt.Position = UDim2.new(0.5, 0, 0.5, 0)
