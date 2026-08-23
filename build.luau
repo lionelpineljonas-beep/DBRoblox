@@ -300,7 +300,7 @@ local function newPart(parent, name, size, cframe, color, material, transparency
 	p.Color = color
 	p.Material = material or Enum.Material.SmoothPlastic
 	p.Transparency = transparency or 0
-	p.TopSurface = Enum.SurfaceType.Smooth
+	p.TopSurface = Enum.SurfaceType.Studs
 	p.BottomSurface = Enum.SurfaceType.Smooth
 	p.Parent = parent
 	tick()
@@ -315,7 +315,7 @@ local function newWedge(parent, name, size, cframe, color, material)
 	p.Anchored = true
 	p.Color = color
 	p.Material = material or Enum.Material.SmoothPlastic
-	p.TopSurface = Enum.SurfaceType.Smooth
+	p.TopSurface = Enum.SurfaceType.Studs
 	p.BottomSurface = Enum.SurfaceType.Smooth
 	p.Parent = parent
 	tick()
@@ -392,7 +392,7 @@ local function buildNPC(parent, npcName, cf, design, promptText, choices)
 		p.Material = Enum.Material.SmoothPlastic
 		p.Anchored = true
 		p.CanCollide = false
-		p.TopSurface = Enum.SurfaceType.Smooth
+		p.TopSurface = Enum.SurfaceType.Studs
 		p.BottomSurface = Enum.SurfaceType.Smooth
 		p.Parent = n
 		partCount = partCount + 1
@@ -942,6 +942,29 @@ local function buildRoad(rd, roadIndex)
 			local dir = dirToWorld(b[1] - a[1], b[2] - a[2])
 			newPart(model, "Seg", Vector3.new(w * S, ROAD_THICK, lenFt * S),
 				CFrame.lookAt(mid, mid + dir), color, material)
+			if rd.cls ~= "k" and rd.cls ~= "s" then
+				local sw = 8 * S
+				local offX = (w * S) / 2 + (sw / 2)
+				local swColor, swMat = Color3.fromRGB(160, 160, 160), Enum.Material.Concrete
+				newPart(model, "Sidewalk", Vector3.new(sw, ROAD_THICK, lenFt * S),
+					CFrame.lookAt(mid, mid + dir) * CFrame.new(-offX, 0.01 * S, 0), swColor, swMat)
+				newPart(model, "Sidewalk", Vector3.new(sw, ROAD_THICK, lenFt * S),
+					CFrame.lookAt(mid, mid + dir) * CFrame.new(offX, 0.01 * S, 0), swColor, swMat)
+				
+				-- Randomly spawn a pedestrian on the sidewalk
+				if rng:NextNumber() < 0.1 then
+					local side = rng:NextNumber() > 0.5 and offX or -offX
+					local spot = CFrame.lookAt(mid, mid + dir) * CFrame.new(side, ROAD_THICK / 2, 0)
+					local peds = {
+						{ face = "rbxassetid://134079000", shirtTemplate = "rbxassetid://607785314", pantsTemplate = "rbxassetid://129458426" },
+						{ face = "rbxassetid://7699174", shirtTemplate = "rbxassetid://398633812", pantsTemplate = "rbxassetid://144076370" },
+						{ face = "rbxassetid://144075591", shirtTemplate = "rbxassetid://144076358", pantsTemplate = "rbxassetid://144076370" }
+					}
+					local design = peds[rng:NextInteger(1, #peds)]
+					-- No prompt text here, the client hooks it up
+					buildNPC(model, "Pedestrian", spot, design, "")
+				end
+			end
 			buildCauseways(model, w, a[1], a[2], b[1], b[2])
 		end
 	end
@@ -955,6 +978,11 @@ local function buildRoad(rd, roadIndex)
 		newDisc(model, dia > w and "CulDeSac" or "Joint", dia * S, ROAD_THICK * 0.9,
 			CFrame.new(toWorld(p[1], p[2], Y_ROAD - ROAD_THICK / 2 + lift - 0.035 * S)),
 			color, material)
+		if rd.cls ~= "k" and rd.cls ~= "s" then
+			newDisc(model, "SidewalkJoint", (dia + 16) * S, ROAD_THICK * 0.8,
+				CFrame.new(toWorld(p[1], p[2], Y_ROAD - ROAD_THICK / 2 + lift - 0.045 * S)),
+				Color3.fromRGB(160, 160, 160), Enum.Material.Concrete)
+		end
 	end
 	-- one street sign per unique road name
 	if rd.name ~= "" and not signedNames[rd.name] and (rd.cls == "r" or rd.cls == "t" or rd.cls == "u") then

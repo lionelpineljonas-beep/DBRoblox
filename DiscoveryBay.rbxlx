@@ -1192,7 +1192,7 @@ local function newPart(parent, name, size, cframe, color, material, transparency
 	p.Color = color
 	p.Material = material or Enum.Material.SmoothPlastic
 	p.Transparency = transparency or 0
-	p.TopSurface = Enum.SurfaceType.Smooth
+	p.TopSurface = Enum.SurfaceType.Studs
 	p.BottomSurface = Enum.SurfaceType.Smooth
 	p.Parent = parent
 	tick()
@@ -1207,7 +1207,7 @@ local function newWedge(parent, name, size, cframe, color, material)
 	p.Anchored = true
 	p.Color = color
 	p.Material = material or Enum.Material.SmoothPlastic
-	p.TopSurface = Enum.SurfaceType.Smooth
+	p.TopSurface = Enum.SurfaceType.Studs
 	p.BottomSurface = Enum.SurfaceType.Smooth
 	p.Parent = parent
 	tick()
@@ -1284,7 +1284,7 @@ local function buildNPC(parent, npcName, cf, design, promptText, choices)
 		p.Material = Enum.Material.SmoothPlastic
 		p.Anchored = true
 		p.CanCollide = false
-		p.TopSurface = Enum.SurfaceType.Smooth
+		p.TopSurface = Enum.SurfaceType.Studs
 		p.BottomSurface = Enum.SurfaceType.Smooth
 		p.Parent = n
 		partCount = partCount + 1
@@ -1834,6 +1834,29 @@ local function buildRoad(rd, roadIndex)
 			local dir = dirToWorld(b[1] - a[1], b[2] - a[2])
 			newPart(model, "Seg", Vector3.new(w * S, ROAD_THICK, lenFt * S),
 				CFrame.lookAt(mid, mid + dir), color, material)
+			if rd.cls ~= "k" and rd.cls ~= "s" then
+				local sw = 8 * S
+				local offX = (w * S) / 2 + (sw / 2)
+				local swColor, swMat = Color3.fromRGB(160, 160, 160), Enum.Material.Concrete
+				newPart(model, "Sidewalk", Vector3.new(sw, ROAD_THICK, lenFt * S),
+					CFrame.lookAt(mid, mid + dir) * CFrame.new(-offX, 0.01 * S, 0), swColor, swMat)
+				newPart(model, "Sidewalk", Vector3.new(sw, ROAD_THICK, lenFt * S),
+					CFrame.lookAt(mid, mid + dir) * CFrame.new(offX, 0.01 * S, 0), swColor, swMat)
+				
+				-- Randomly spawn a pedestrian on the sidewalk
+				if rng:NextNumber() < 0.1 then
+					local side = rng:NextNumber() > 0.5 and offX or -offX
+					local spot = CFrame.lookAt(mid, mid + dir) * CFrame.new(side, ROAD_THICK / 2, 0)
+					local peds = {
+						{ face = "rbxassetid://134079000", shirtTemplate = "rbxassetid://607785314", pantsTemplate = "rbxassetid://129458426" },
+						{ face = "rbxassetid://7699174", shirtTemplate = "rbxassetid://398633812", pantsTemplate = "rbxassetid://144076370" },
+						{ face = "rbxassetid://144075591", shirtTemplate = "rbxassetid://144076358", pantsTemplate = "rbxassetid://144076370" }
+					}
+					local design = peds[rng:NextInteger(1, #peds)]
+					-- No prompt text here, the client hooks it up
+					buildNPC(model, "Pedestrian", spot, design, "")
+				end
+			end
 			buildCauseways(model, w, a[1], a[2], b[1], b[2])
 		end
 	end
@@ -1847,6 +1870,11 @@ local function buildRoad(rd, roadIndex)
 		newDisc(model, dia > w and "CulDeSac" or "Joint", dia * S, ROAD_THICK * 0.9,
 			CFrame.new(toWorld(p[1], p[2], Y_ROAD - ROAD_THICK / 2 + lift - 0.035 * S)),
 			color, material)
+		if rd.cls ~= "k" and rd.cls ~= "s" then
+			newDisc(model, "SidewalkJoint", (dia + 16) * S, ROAD_THICK * 0.8,
+				CFrame.new(toWorld(p[1], p[2], Y_ROAD - ROAD_THICK / 2 + lift - 0.045 * S)),
+				Color3.fromRGB(160, 160, 160), Enum.Material.Concrete)
+		end
 	end
 	-- one street sign per unique road name
 	if rd.name ~= "" and not signedNames[rd.name] and (rd.cls == "r" or rd.cls == "t" or rd.cls == "u") then
@@ -3484,6 +3512,7 @@ local UpdatePity = remote("UpdatePity") -- server -> client: updates pity tracke
 local FishGame = remote("FishGame") -- server -> client: FISH ON! start the reel minigame
 local FishReel = remote("FishReel") -- client -> server: minigame result (true = landed)
 local CompleteQuest = remote("CompleteQuest")
+local PianoDrop = remote("PianoDrop")
 
 -- Cash leaderboard ------------------------------------------------------------------------------
 local function getCash(plr)
@@ -4082,6 +4111,72 @@ CompleteQuest.OnServerEvent:Connect(function(plr, questId)
 			print("[SERVER]: " .. plr.Name .. " found Terry's Soda and got $200!")
 		end
 	end
+end)
+
+PianoDrop.OnServerEvent:Connect(function(plr, npc)
+	if not npc or not npc:IsA("Model") then return end
+	if npc:GetAttribute("PianoDropping") then return end
+	npc:SetAttribute("PianoDropping", true)
+	
+	local prompt = npc:FindFirstChild("TalkPrompt", true)
+	if prompt then prompt:Destroy() end
+	
+	task.spawn(function()
+		local startCF = npc:GetPivot()
+		-- they are on the sidewalk, move them "forward" (away from sidewalk depending on how they faced)
+		-- since they were randomly spawned, we'll just have them walk slightly in a random direction to represent "the road"
+		local look = startCF.LookVector
+		local totalTime = 2
+		local steps = 40
+		for i = 1, steps do
+			task.wait(totalTime / steps)
+			if npc and npc.Parent then
+				npc:PivotTo(startCF + look * (12 * (i / steps)))
+			end
+		end
+		
+		task.wait(0.2)
+		local finalCF = npc:GetPivot()
+		
+		local piano = Instance.new("Part")
+		piano.Name = "Piano"
+		piano.Size = Vector3.new(4, 4, 4)
+		piano.Color = Color3.fromRGB(20, 20, 20)
+		piano.Position = finalCF.Position + Vector3.new(0, 80, 0)
+		piano.Anchored = false
+		piano.CanCollide = true
+		
+		-- Use a simple black box for the piano in case mesh ID fails, but we'll try to add a mesh
+		local pmesh = Instance.new("SpecialMesh")
+		pmesh.MeshType = Enum.MeshType.FileMesh
+		pmesh.MeshId = "rbxassetid://1028713"
+		pmesh.TextureId = "rbxassetid://1028714"
+		pmesh.Scale = Vector3.new(1.5, 1.5, 1.5)
+		pmesh.Parent = piano
+		piano.Parent = workspace
+		
+		task.wait(1.4)
+		
+		local sound = Instance.new("Sound")
+		sound.SoundId = "rbxassetid://138081509"
+		sound.Volume = 2
+		sound.Parent = piano
+		sound:Play()
+		
+		if npc and npc.Parent then
+			for _, part in ipairs(npc:GetDescendants()) do
+				if part:IsA("BasePart") then
+					part.Anchored = false
+					part.CanCollide = true
+				end
+			end
+		end
+		
+		task.delay(5, function()
+			if piano then piano:Destroy() end
+			if npc then npc:Destroy() end
+		end)
+	end)
 end)
 -- Ragdoll deaths: keep the body in one piece and convert its joints to ball sockets
 -- so it flops and tumbles (the traffic fling velocity carries straight into it).
@@ -6651,7 +6746,7 @@ local function hookNPC(prompt)
 				showDialogue("Thirsty Terry", "Hurry up! The soda is at the school!", {}, nil)
 			elseif questFound then
 				showDialogue("Thirsty Terry", "You found it! Thank you so much! Here's $200!", {}, nil)
-				game:GetService("ReplicatedStorage"):WaitForChild("CompleteQuest"):FireServer("TerrysSoda")
+				game:GetService("ReplicatedStorage"):WaitForChild("DiscoveryBayRemotes"):WaitForChild("CompleteQuest"):FireServer("TerrysSoda")
 				questActive = false
 				questFound = false
 				questFrame.Visible = false
@@ -6670,6 +6765,15 @@ local function hookNPC(prompt)
 			}, function(choiceId)
 				if choiceId == "advice" then
 					showDialogue("Sensei", "Never leave the mat mid-fight. And never, EVER, challenge me on a Monday.", {}, nil)
+				end
+			end)
+		elseif npcName == "Pedestrian" then
+			showDialogue("Pedestrian", "I am a perfectly normal pedestrian enjoying this fine stud-covered city.", {
+				{ id = "smart", text = "Are you smart?" }
+			}, function(choiceId)
+				if choiceId == "smart" then
+					showDialogue("Pedestrian", "I am very smart, watch this!", {}, nil)
+					game:GetService("ReplicatedStorage"):WaitForChild("DiscoveryBayRemotes"):WaitForChild("PianoDrop"):FireServer(desc.Parent.Parent)
 				end
 			end)
 		end

@@ -150,6 +150,7 @@ local UpdatePity = remote("UpdatePity") -- server -> client: updates pity tracke
 local FishGame = remote("FishGame") -- server -> client: FISH ON! start the reel minigame
 local FishReel = remote("FishReel") -- client -> server: minigame result (true = landed)
 local CompleteQuest = remote("CompleteQuest")
+local PianoDrop = remote("PianoDrop")
 
 -- Cash leaderboard ------------------------------------------------------------------------------
 local function getCash(plr)
@@ -748,6 +749,72 @@ CompleteQuest.OnServerEvent:Connect(function(plr, questId)
 			print("[SERVER]: " .. plr.Name .. " found Terry's Soda and got $200!")
 		end
 	end
+end)
+
+PianoDrop.OnServerEvent:Connect(function(plr, npc)
+	if not npc or not npc:IsA("Model") then return end
+	if npc:GetAttribute("PianoDropping") then return end
+	npc:SetAttribute("PianoDropping", true)
+	
+	local prompt = npc:FindFirstChild("TalkPrompt", true)
+	if prompt then prompt:Destroy() end
+	
+	task.spawn(function()
+		local startCF = npc:GetPivot()
+		-- they are on the sidewalk, move them "forward" (away from sidewalk depending on how they faced)
+		-- since they were randomly spawned, we'll just have them walk slightly in a random direction to represent "the road"
+		local look = startCF.LookVector
+		local totalTime = 2
+		local steps = 40
+		for i = 1, steps do
+			task.wait(totalTime / steps)
+			if npc and npc.Parent then
+				npc:PivotTo(startCF + look * (12 * (i / steps)))
+			end
+		end
+		
+		task.wait(0.2)
+		local finalCF = npc:GetPivot()
+		
+		local piano = Instance.new("Part")
+		piano.Name = "Piano"
+		piano.Size = Vector3.new(4, 4, 4)
+		piano.Color = Color3.fromRGB(20, 20, 20)
+		piano.Position = finalCF.Position + Vector3.new(0, 80, 0)
+		piano.Anchored = false
+		piano.CanCollide = true
+		
+		-- Use a simple black box for the piano in case mesh ID fails, but we'll try to add a mesh
+		local pmesh = Instance.new("SpecialMesh")
+		pmesh.MeshType = Enum.MeshType.FileMesh
+		pmesh.MeshId = "rbxassetid://1028713"
+		pmesh.TextureId = "rbxassetid://1028714"
+		pmesh.Scale = Vector3.new(1.5, 1.5, 1.5)
+		pmesh.Parent = piano
+		piano.Parent = workspace
+		
+		task.wait(1.4)
+		
+		local sound = Instance.new("Sound")
+		sound.SoundId = "rbxassetid://138081509"
+		sound.Volume = 2
+		sound.Parent = piano
+		sound:Play()
+		
+		if npc and npc.Parent then
+			for _, part in ipairs(npc:GetDescendants()) do
+				if part:IsA("BasePart") then
+					part.Anchored = false
+					part.CanCollide = true
+				end
+			end
+		end
+		
+		task.delay(5, function()
+			if piano then piano:Destroy() end
+			if npc then npc:Destroy() end
+		end)
+	end)
 end)
 -- Ragdoll deaths: keep the body in one piece and convert its joints to ball sockets
 -- so it flops and tumbles (the traffic fling velocity carries straight into it).

@@ -588,7 +588,7 @@ local function hookNPC(prompt)
 				showDialogue("Thirsty Terry", "Hurry up! The soda is at the school!", {}, nil)
 			elseif questFound then
 				showDialogue("Thirsty Terry", "You found it! Thank you so much! Here's $200!", {}, nil)
-				game:GetService("ReplicatedStorage"):WaitForChild("CompleteQuest"):FireServer("TerrysSoda")
+				game:GetService("ReplicatedStorage"):WaitForChild("DiscoveryBayRemotes"):WaitForChild("CompleteQuest"):FireServer("TerrysSoda")
 				questActive = false
 				questFound = false
 				questFrame.Visible = false
@@ -607,6 +607,15 @@ local function hookNPC(prompt)
 			}, function(choiceId)
 				if choiceId == "advice" then
 					showDialogue("Sensei", "Never leave the mat mid-fight. And never, EVER, challenge me on a Monday.", {}, nil)
+				end
+			end)
+		elseif npcName == "Pedestrian" then
+			showDialogue("Pedestrian", "I am a perfectly normal pedestrian enjoying this fine stud-covered city.", {
+				{ id = "smart", text = "Are you smart?" }
+			}, function(choiceId)
+				if choiceId == "smart" then
+					showDialogue("Pedestrian", "I am very smart, watch this!", {}, nil)
+					game:GetService("ReplicatedStorage"):WaitForChild("DiscoveryBayRemotes"):WaitForChild("PianoDrop"):FireServer(desc.Parent.Parent)
 				end
 			end)
 		end
