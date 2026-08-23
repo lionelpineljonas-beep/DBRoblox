@@ -4126,18 +4126,28 @@ PianoDrop.OnServerEvent:Connect(function(plr, npc)
 	if prompt then prompt:Destroy() end
 	
 	task.spawn(function()
-		local startCF = npc:GetPivot()
-		local totalTime = 2
-		local steps = 40
-		for i = 1, steps do
-			task.wait(totalTime / steps)
-			if npc and npc.Parent then
-				npc:PivotTo(startCF * CFrame.new(0, 0, -14 * (i / steps)))
+		local root = npc.PrimaryPart
+		if not root then return end
+		
+		-- Weld all parts to root and unanchor them
+		for _, part in ipairs(npc:GetDescendants()) do
+			if part:IsA("BasePart") and part ~= root then
+				local weld = Instance.new("WeldConstraint")
+				weld.Part0 = root
+				weld.Part1 = part
+				weld.Parent = root
+				part.Anchored = false
 			end
 		end
+		-- Keep root anchored so we can tween it!
 		
-		task.wait(0.2)
-		local finalCF = npc:GetPivot()
+		local ts = game:GetService("TweenService")
+		local startCF = root.CFrame
+		local finalCF = startCF * CFrame.new(0, 0, -14)
+		local tween = ts:Create(root, TweenInfo.new(1.2, Enum.EasingStyle.Linear), {CFrame = finalCF})
+		tween:Play()
+		
+		task.wait(1.4)
 		
 		local piano = Instance.new("Part")
 		piano.Name = "Piano"
@@ -4156,7 +4166,9 @@ PianoDrop.OnServerEvent:Connect(function(plr, npc)
 		pmesh.Parent = piano
 		piano.Parent = workspace
 		
-		task.wait(1.4)
+		-- The piano hits the ground around 0.9s if dropped from 80 studs.
+		-- So wait exactly 0.85s for impact!
+		task.wait(0.85)
 		
 		local sound = Instance.new("Sound")
 		sound.SoundId = "rbxassetid://138081509"
@@ -4169,6 +4181,9 @@ PianoDrop.OnServerEvent:Connect(function(plr, npc)
 				if part:IsA("BasePart") then
 					part.Anchored = false
 					part.CanCollide = true
+				end
+				if part:IsA("WeldConstraint") then
+					part:Destroy()
 				end
 			end
 		end
