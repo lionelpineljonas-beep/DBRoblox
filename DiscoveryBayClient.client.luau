@@ -11,7 +11,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 
-local VERSION = "v62"
+local VERSION = "v65"
 local SPEED_PASS_ID = 0 -- paste the real Game Pass ID here (same one as in DiscoveryBayShop)
 local RunService = game:GetService("RunService")
 local plr = Players.LocalPlayer
@@ -1024,7 +1024,9 @@ local mtCorner = Instance.new("UICorner")
 mtCorner.CornerRadius = UDim.new(0, 10)
 mtCorner.Parent = mountBtn
 
-local pityLabel = Instance.new("TextLabel")
+local ClaimPity = remotes:WaitForChild("ClaimPity")
+
+local pityLabel = Instance.new("TextButton")
 pityLabel.Name = "PityLabel"
 pityLabel.AnchorPoint = Vector2.new(0, 1)
 pityLabel.Position = UDim2.new(0, 16, 1, -120)
@@ -1039,13 +1041,21 @@ local plCorner = Instance.new("UICorner")
 plCorner.CornerRadius = UDim.new(0, 8)
 plCorner.Parent = pityLabel
 
+local currentPityRollsLeft = 90
 UpdatePity.OnClientEvent:Connect(function(rollsLeft)
+	currentPityRollsLeft = rollsLeft
 	if rollsLeft <= 0 then
-		pityLabel.Text = "Pity: GUARANTEED LINUS!"
-		pityLabel.BackgroundColor3 = Color3.fromRGB(220, 180, 40)
+		pityLabel.Text = "CLAIM PITY LINUS!"
+		pityLabel.BackgroundColor3 = Color3.fromRGB(250, 180, 20)
 	else
 		pityLabel.Text = "Pity: " .. tostring(rollsLeft) .. " rolls until Linus"
 		pityLabel.BackgroundColor3 = Color3.fromRGB(130, 40, 160)
+	end
+end)
+
+pityLabel.Activated:Connect(function()
+	if currentPityRollsLeft <= 0 then
+		ClaimPity:FireServer()
 	end
 end)
 

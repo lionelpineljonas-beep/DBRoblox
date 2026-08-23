@@ -112,7 +112,7 @@ end)
 local START_CASH = 100
 local WALK_SPEED = 16
 local SCOOTER_SPEED = 30
-local VERSION = "v62"
+local VERSION = "v65"
 
 -- ==============================================================================================
 -- LIGHTING & DAY/NIGHT CYCLE
@@ -2051,19 +2051,19 @@ local function hookEgg(egg)
 		cash.Value = cash.Value - EGG_PRICE
 		
 		local rolls = (playerRolls[plr.UserId] or 0) + 1
-		playerRolls[plr.UserId] = rolls
-		
 		local roll = rng:NextInteger(1, 200)
 		local dogDef
 		
 		-- PITY SYSTEM
-		if rolls >= 90 or roll <= 2 then
-			dogDef = DOGS[3] -- Linus, 1% or Pity
-			playerRolls[plr.UserId] = 0 -- Reset pity!
+		if roll <= 2 then
+			dogDef = DOGS[3] -- Linus 1% chance randomly! (Resets pity)
+			playerRolls[plr.UserId] = 0
 		elseif roll <= 101 then
 			dogDef = DOGS[1] -- Mary
+			playerRolls[plr.UserId] = math.min(rolls, 90)
 		else
 			dogDef = DOGS[2] -- Jolene
+			playerRolls[plr.UserId] = math.min(rolls, 90)
 		end
 		
 		-- Update client on their pity status
@@ -2078,6 +2078,25 @@ local function hookEgg(egg)
 		spawnDog(plr, dogDef, Vector3.new(homeSpot.X, homeSpot.Y, homeSpot.Z))
 	end)
 end
+
+-- Pity Claim Button Logic
+local ClaimPity = remote("ClaimPity")
+ClaimPity.OnServerEvent:Connect(function(plr)
+	local home = ownedHouse[plr.UserId]
+	if not home or not home.house.Parent then
+		TrickResult:FireClient(plr, "Rent a house first so your dog has a home!", 0)
+		return
+	end
+	local rolls = playerRolls[plr.UserId] or 0
+	if rolls >= 90 then
+		playerRolls[plr.UserId] = rolls - 90
+		UpdatePity:FireClient(plr, 90 - (playerRolls[plr.UserId] or 0))
+		local homeSpot = home.house:GetAttribute("DogSpotInside")
+			or home.house:GetAttribute("DogSpot") or home.house:GetPivot().Position
+		HatchEgg:FireClient(plr, DOGS[3].name)
+		spawnDog(plr, DOGS[3], Vector3.new(homeSpot.X, homeSpot.Y, homeSpot.Z))
+	end
+end)
 
 DoRebirth.OnServerEvent:Connect(function(plr)
 	local cash = getCash(plr)
@@ -2130,6 +2149,27 @@ task.spawn(function()
 				local hum = char and char:FindFirstChildOfClass("Humanoid")
 				if hum and hum.Health > 0 then
 					hum:TakeDamage(5)
+				end
+			end
+		end
+	end
+end)
+
+-- AUTO-PETTER LOOP: automatically triggers dog payouts for homeowners
+task.spawn(function()
+	while true do
+		task.wait(4)
+		for _, plr in ipairs(Players:GetPlayers()) do
+			local home = ownedHouse[plr.UserId]
+			local dog = playerDog[plr.UserId]
+			if home and dog and dog.Parent then
+				-- If they own a home, it has an auto-petter inside!
+				local cash = getCash(plr)
+				local pay = dog:GetAttribute("Pay") or 0
+				local dogName = dog:GetAttribute("DogName") or "Your pet"
+				if cash and pay > 0 then
+					cash.Value = cash.Value + pay
+					TrickResult:FireClient(plr, "Auto-Petter 3000 loved on " .. dogName .. "!", pay)
 				end
 			end
 		end

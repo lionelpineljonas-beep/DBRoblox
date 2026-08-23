@@ -1130,6 +1130,29 @@ end
 -- All rng draws come from the shared seeded stream, so rebuilds are identical.
 local WALL_MATS = { Enum.Material.Brick, Enum.Material.WoodPlanks, Enum.Material.Concrete, Enum.Material.SmoothPlastic }
 
+local function buildHollowBox(m, name, w, h, d, cfBox, wallColor, wallMat, cutX, cutW, cutH)
+	local t = 1.0 -- wall thickness (feet)
+	newPart(m, name .. "_WallL", Vector3.new(t, h, d) * S, cfBox * CFrame.new((-w/2 + t/2) * S, 0, 0), wallColor, wallMat)
+	newPart(m, name .. "_WallR", Vector3.new(t, h, d) * S, cfBox * CFrame.new((w/2 - t/2) * S, 0, 0), wallColor, wallMat)
+	newPart(m, name .. "_WallB", Vector3.new(w - 2*t, h, t) * S, cfBox * CFrame.new(0, 0, (d/2 - t/2) * S), wallColor, wallMat)
+	if cutX then
+		local leftW = (cutX - cutW/2) - (-w/2 + t)
+		if leftW > 0.1 then
+			newPart(m, name .. "_WallFL", Vector3.new(leftW, h, t) * S, cfBox * CFrame.new((-w/2 + t + leftW/2) * S, 0, (-d/2 + t/2) * S), wallColor, wallMat)
+		end
+		local rightW = (w/2 - t) - (cutX + cutW/2)
+		if rightW > 0.1 then
+			newPart(m, name .. "_WallFR", Vector3.new(rightW, h, t) * S, cfBox * CFrame.new((w/2 - t - rightW/2) * S, 0, (-d/2 + t/2) * S), wallColor, wallMat)
+		end
+		local topH = h - cutH
+		if topH > 0.1 then
+			newPart(m, name .. "_WallFA", Vector3.new(cutW, topH, t) * S, cfBox * CFrame.new(cutX * S, (-h/2 + cutH + topH/2) * S, (-d/2 + t/2) * S), wallColor, wallMat)
+		end
+	else
+		newPart(m, name .. "_WallF", Vector3.new(w - 2*t, h, t) * S, cfBox * CFrame.new(0, 0, (-d/2 + t/2) * S), wallColor, wallMat)
+	end
+end
+
 local function buildResidential(m, cf, b)
 	local w, d = b.w, b.d
 	local area = w * d
@@ -1158,8 +1181,7 @@ local function buildResidential(m, cf, b)
 	local doorX = w * 0.12
 
 	if style == "modern" then
-		newPart(m, "Body", Vector3.new(w, h, d) * S, cf * CFrame.new(0, (0.5 + h / 2) * S, 0),
-			wall, Enum.Material.Concrete)
+		buildHollowBox(m, "Body", w, h, d, cf * CFrame.new(0, (0.5 + h / 2) * S, 0), wall, Enum.Material.Concrete, doorX, 4.3, 6.8)
 		newPart(m, "Parapet", Vector3.new(w + 1, 1.2, d + 1) * S,
 			cf * CFrame.new(0, (0.5 + h + 0.6) * S, 0), trim, Enum.Material.Concrete)
 		newPart(m, "Accent", Vector3.new(w * 0.3, h, 0.5) * S,
@@ -1173,12 +1195,14 @@ local function buildResidential(m, cf, b)
 		local wingW = w * 0.42
 		local wingX = -w / 2 + wingW / 2
 		local mainFront = d / 2 - mainD
-		newPart(m, "Body", Vector3.new(w, h, mainD) * S,
-			cf * CFrame.new(0, (0.5 + h / 2) * S, (d / 2 - mainD / 2) * S), wall, wallMat)
+		
+		-- main body is hollow, no door cutout needed (door is on wing)
+		buildHollowBox(m, "Body", w, h, mainD, cf * CFrame.new(0, (0.5 + h / 2) * S, (d / 2 - mainD / 2) * S), wall, wallMat)
 		gableRoof(m, cf * CFrame.new(0, (0.5 + h) * S, (d / 2 - mainD / 2) * S),
 			(w + 1.5) * S, (mainD + 1.5) * S, math.clamp(mainD * 0.3, 3.5, 8) * S, roof)
-		newPart(m, "Wing", Vector3.new(wingW, h * 0.85, d * 0.55) * S,
-			cf * CFrame.new(wingX * S, (0.5 + h * 0.425) * S, (-d / 2 + d * 0.275) * S), wall, wallMat)
+			
+		-- wing is hollow, door cutout relative to wing center is 0
+		buildHollowBox(m, "Wing", wingW, h * 0.85, d * 0.55, cf * CFrame.new(wingX * S, (0.5 + h * 0.425) * S, (-d / 2 + d * 0.275) * S), wall, wallMat, 0, 4.3, 6.8)
 		gableRoof(m, cf * CFrame.new(wingX * S, (0.5 + h * 0.85) * S, (-d / 2 + d * 0.275) * S)
 			* CFrame.Angles(0, math.rad(90), 0),
 			(d * 0.55 + 1.5) * S, (wingW + 1.5) * S, math.clamp(wingW * 0.3, 3, 7) * S, roof)
@@ -1189,7 +1213,7 @@ local function buildResidential(m, cf, b)
 		newPart(m, "WindowMain", Vector3.new(6, 3.4, 0.25) * S,
 			cf * CFrame.new(w * 0.22 * S, (0.5 + 5) * S, (mainFront - 0.1) * S), glass, Enum.Material.Glass)
 	else -- gable ranch
-		newPart(m, "Body", Vector3.new(w, h, d) * S, cf * CFrame.new(0, (0.5 + h / 2) * S, 0), wall, wallMat)
+		buildHollowBox(m, "Body", w, h, d, cf * CFrame.new(0, (0.5 + h / 2) * S, 0), wall, wallMat, doorX, 4.3, 6.8)
 		gableRoof(m, cf * CFrame.new(0, (0.5 + h) * S, 0), (w + 1.5) * S, (d + 1.5) * S,
 			math.clamp(d * 0.28, 4, 9) * S, roof)
 		if rng:NextNumber() < 0.28 then
@@ -1216,9 +1240,14 @@ local function buildResidential(m, cf, b)
 			Color3.fromRGB(150, 90, 70), Enum.Material.Brick)
 	end
 
-	newPart(m, "Door", Vector3.new(4.3, 6.6, 0.3) * S,
-		cf * CFrame.new(doorX * S, (0.5 + 3.3) * S, (frontZ - 0.12) * S),
-		Color3.fromRGB(130, 90, 60), Enum.Material.WoodPlanks)
+	local doorW = 4.3
+	local hingeX = doorX - doorW/2
+	local doorCf = cf * CFrame.new(hingeX * S, (0.5 + 3.3) * S, (frontZ - 0.12) * S)
+		* CFrame.Angles(0, math.rad(60), 0) -- open 60 degrees inwards/outwards
+		* CFrame.new((doorW/2) * S, 0, 0)
+	
+	local doorPart = newPart(m, "Door", Vector3.new(doorW, 6.6, 0.3) * S, doorCf, Color3.fromRGB(130, 90, 60), Enum.Material.WoodPlanks)
+	doorPart.CanCollide = false -- allow players to walk through freely
 	-- quality details: a REAL door frame (two jambs + lintel, doorway stays clear) and a step
 	for _, jx in ipairs({ -2.45, 2.45 }) do
 		newPart(m, "DoorJamb", Vector3.new(0.6, 7.2, 0.18) * S,
@@ -1260,6 +1289,16 @@ local function buildResidential(m, cf, b)
 			cf * CFrame.new(-w * 0.3 * S, 0.15 * S, (frontZ - 6.5) * S),
 			Color3.fromRGB(165, 160, 152), Enum.Material.Concrete)
 	end
+	
+	-- Explicitly mark the center of the hollow interior as the pet spawn
+	m:SetAttribute("DogSpotInside", (cf * CFrame.new(0, 1.5 * S, 0)).Position)
+
+	-- Auto-Petter Machine (corner of the room)
+	local apSpot = cf * CFrame.new((w/2 - 2) * S, 0.5 * S, (d/2 - 2) * S)
+	local ap = newPart(m, "AutoPetter", Vector3.new(3, 4, 3) * S, apSpot * CFrame.new(0, 2 * S, 0), Color3.fromRGB(80, 200, 120), Enum.Material.Neon)
+	local apScreen = newPart(m, "AutoPetterScreen", Vector3.new(2.8, 1.5, 0.2) * S, apSpot * CFrame.new(0, 3.5 * S, -1.6 * S), Color3.fromRGB(30, 30, 30))
+	makeSign(apScreen, Enum.NormalId.Front, "AUTO-PETTER", Color3.fromRGB(30, 30, 30), Color3.fromRGB(80, 200, 120))
+
 	-- RENT sign out front: click it in-game to own this house
 	local signCf = cf * CFrame.new((doorX + 7) * S, 0, (frontZ - 5) * S)
 	newPart(m, "RentPost", Vector3.new(0.35, 4.2, 0.35) * S, signCf * CFrame.new(0, 2.1 * S, 0),
