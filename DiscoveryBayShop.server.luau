@@ -760,7 +760,22 @@ PianoDrop.OnServerEvent:Connect(function(plr, npc)
 	if prompt then prompt:Destroy() end
 	
 	task.spawn(function()
+		print("--- PIANODROP TRIGGERED ---")
+		print("NPC:", npc:GetFullName())
+		print("NPC has PrimaryPart?", npc.PrimaryPart ~= nil)
+		if npc.PrimaryPart then
+			print("PrimaryPart Name:", npc.PrimaryPart.Name)
+			print("PrimaryPart Anchored:", npc.PrimaryPart.Anchored)
+			print("PrimaryPart CFrame:", npc.PrimaryPart.CFrame)
+		end
+		print("Has Humanoid?", npc:FindFirstChild("Humanoid") ~= nil)
+		if npc:FindFirstChild("Humanoid") then
+			print("Humanoid Health:", npc.Humanoid.Health)
+		end
+		
 		local startCF = npc:GetPivot()
+		print("StartCF:", startCF)
+		
 		local totalTime = 1.8
 		local distance = 28
 		

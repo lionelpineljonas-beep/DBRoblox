@@ -1,0 +1,27 @@
+{
+  "name": "DiscoveryBay",
+  "tree": {
+    "$className": "DataModel",
+    "ServerScriptService": {
+      "$className": "ServerScriptService",
+      "DiscoveryBayData": {
+        "$path": "DiscoveryBayData.luau"
+      },
+      "DiscoveryBayBuild": {
+        "$path": "DiscoveryBayBuild.server.luau"
+      },
+      "DiscoveryBayShop": {
+        "$path": "DiscoveryBayShop.server.luau"
+      }
+    },
+    "StarterPlayer": {
+      "$className": "StarterPlayer",
+      "StarterPlayerScripts": {
+        "$className": "StarterPlayerScripts",
+        "DiscoveryBayClient": {
+          "$path": "DiscoveryBayClient.client.luau"
+        }
+      }
+    }
+  }
+}

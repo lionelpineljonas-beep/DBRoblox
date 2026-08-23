@@ -16,9 +16,9 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 
 data_src = open(os.path.join(ROOT, "DiscoveryBayData.luau"), encoding="utf-8").read()
-build_src = open(os.path.join(ROOT, "build.luau"), encoding="utf-8").read()
-shop_src = open(os.path.join(ROOT, "DiscoveryBayShop.luau"), encoding="utf-8").read()
-client_src = open(os.path.join(ROOT, "DiscoveryBayClient.luau"), encoding="utf-8").read()
+build_src = open(os.path.join(ROOT, "DiscoveryBayBuild.server.luau"), encoding="utf-8").read()
+shop_src = open(os.path.join(ROOT, "DiscoveryBayShop.server.luau"), encoding="utf-8").read()
+client_src = open(os.path.join(ROOT, "DiscoveryBayClient.client.luau"), encoding="utf-8").read()
 
 readme_src = """--[[
 ====================================================================
