@@ -25,6 +25,12 @@
           "$path": "DiscoveryBayClient.client.luau"
         }
       }
+    },
+    "HttpService": {
+      "$className": "HttpService",
+      "$properties": {
+        "HttpEnabled": true
+      }
     }
   }
 }
