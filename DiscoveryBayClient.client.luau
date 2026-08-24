@@ -11,7 +11,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 
-local VERSION = "v73"
+local VERSION = "v75"
 local SPEED_PASS_ID = 0 -- paste the real Game Pass ID here (same one as in DiscoveryBayShop)
 local RunService = game:GetService("RunService")
 local plr = Players.LocalPlayer
@@ -65,7 +65,17 @@ task.spawn(function()
 	if not town then return end
 	
 	local function playTrack(id, vol, speed)
-		if activeTrack and activeTrack.SoundId == id and activeTrack.PlaybackSpeed == speed then return end
+		speed = speed or 1.0
+		if activeTrack and activeTrack.SoundId == id then
+			if activeTrack.PlaybackSpeed ~= speed then
+				TweenService:Create(activeTrack, TweenInfo.new(1.5), {PlaybackSpeed = speed}):Play()
+			end
+			if activeTrack.Volume ~= vol then
+				TweenService:Create(activeTrack, TweenInfo.new(1.5), {Volume = vol}):Play()
+			end
+			return
+		end
+
 		local oldTrack = activeTrack
 		if oldTrack then
 			TweenService:Create(oldTrack, TweenInfo.new(4.0), {Volume = 0}):Play()
@@ -77,7 +87,7 @@ task.spawn(function()
 		newTrack.SoundId = id
 		newTrack.Looped = true
 		newTrack.Volume = 0
-		newTrack.PlaybackSpeed = speed or 1.0
+		newTrack.PlaybackSpeed = speed
 		newTrack.Parent = SoundService
 		newTrack:Play()
 		TweenService:Create(newTrack, TweenInfo.new(4.0), {Volume = vol}):Play()

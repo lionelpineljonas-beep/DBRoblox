@@ -112,7 +112,7 @@ end)
 local START_CASH = 100
 local WALK_SPEED = 16
 local SCOOTER_SPEED = 30
-local VERSION = "v74"
+local VERSION = "v75"
 
 -- ==============================================================================================
 -- LIGHTING & DAY/NIGHT CYCLE
