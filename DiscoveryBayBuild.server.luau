@@ -298,7 +298,7 @@ local function newPart(parent, name, size, cframe, color, material, transparency
 	p.CFrame = cframe
 	p.Anchored = true
 	p.Color = color
-	p.Material = material or Enum.Material.SmoothPlastic
+	p.Material = Enum.Material.Plastic -- force Plastic so legacy studs are visible
 	p.Transparency = transparency or 0
 	p.TopSurface = Enum.SurfaceType.Studs
 	p.BottomSurface = Enum.SurfaceType.Studs
@@ -318,7 +318,7 @@ local function newWedge(parent, name, size, cframe, color, material)
 	p.CFrame = cframe
 	p.Anchored = true
 	p.Color = color
-	p.Material = material or Enum.Material.SmoothPlastic
+	p.Material = Enum.Material.Plastic -- force Plastic so legacy studs are visible
 	p.TopSurface = Enum.SurfaceType.Studs
 	p.BottomSurface = Enum.SurfaceType.Studs
 	p.LeftSurface = Enum.SurfaceType.Studs
