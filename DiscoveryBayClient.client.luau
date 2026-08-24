@@ -68,8 +68,8 @@ task.spawn(function()
 		if activeTrack and activeTrack.SoundId == id and activeTrack.PlaybackSpeed == speed then return end
 		local oldTrack = activeTrack
 		if oldTrack then
-			TweenService:Create(oldTrack, TweenInfo.new(1.5), {Volume = 0}):Play()
-			task.delay(1.5, function() oldTrack:Destroy() end)
+			TweenService:Create(oldTrack, TweenInfo.new(4.0), {Volume = 0}):Play()
+			task.delay(4.0, function() oldTrack:Destroy() end)
 		end
 		
 		local newTrack = Instance.new("Sound")
@@ -80,7 +80,7 @@ task.spawn(function()
 		newTrack.PlaybackSpeed = speed or 1.0
 		newTrack.Parent = SoundService
 		newTrack:Play()
-		TweenService:Create(newTrack, TweenInfo.new(1.5), {Volume = vol}):Play()
+		TweenService:Create(newTrack, TweenInfo.new(4.0), {Volume = vol}):Play()
 		activeTrack = newTrack
 	end
 	
@@ -92,8 +92,12 @@ task.spawn(function()
 		local hrp = char and char:FindFirstChild("HumanoidRootPart")
 		if town and hrp then
 			local foundZone = "Outdoor"
-			local targetId = OUTDOOR_MUSIC
-			local targetSpeed = OUTDOOR_SPEED
+			
+			local Lighting = game:GetService("Lighting")
+			local isNight = Lighting.ClockTime >= 17.5 or Lighting.ClockTime <= 6.5
+			local targetId = isNight and "rbxassetid://1848354536" or OUTDOOR_MUSIC
+			local targetSpeed = isNight and 1.0 or OUTDOOR_SPEED
+			
 			for _, z in ipairs(ZONES) do
 				local shop = town:FindFirstChild(z.name, true)
 				if shop then
@@ -102,8 +106,6 @@ task.spawn(function()
 						local localPos = shopPart.CFrame:PointToObjectSpace(hrp.Position)
 						local halfSize = shopPart.Size / 2
 						
-						-- Check if player is inside the XZ bounding box of the floor (with a small margin)
-						-- and within a reasonable vertical range (Y) above the floor
 						if math.abs(localPos.X) <= halfSize.X + 10 and math.abs(localPos.Z) <= halfSize.Z + 10 then
 							if hrp.Position.Y >= shopPart.Position.Y - 5 and hrp.Position.Y <= shopPart.Position.Y + 30 then
 								foundZone = z.name
@@ -115,10 +117,8 @@ task.spawn(function()
 					end
 				end
 			end
-			if currentZone ~= foundZone then
-				currentZone = foundZone
-				playTrack(targetId, 0.4, targetSpeed)
-			end
+			currentZone = foundZone
+			playTrack(targetId, 0.4, targetSpeed)
 		end
 	end
 end)

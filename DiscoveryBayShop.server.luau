@@ -150,25 +150,10 @@ atmos.Glare = 0
 atmos.Haze = 0
 atmos.Parent = Lighting
 
-local nightMusic = Instance.new("Sound")
-nightMusic.Name = "NightMusic"
-nightMusic.SoundId = "rbxassetid://1848354536" -- Classic relaxing piano / Break In vibe
-nightMusic.Volume = 0.4
-nightMusic.Looped = true
-nightMusic.Parent = game:GetService("Workspace")
-
 task.spawn(function()
 	while task.wait(0.1) do
 		-- Slowly moving sun! Moves 1 hour every ~24 seconds.
 		Lighting.ClockTime = Lighting.ClockTime + 0.005
-		
-		-- Night time is typically after 17.5 (5:30 PM) or before 6.5 (6:30 AM)
-		local isNight = Lighting.ClockTime >= 17.5 or Lighting.ClockTime <= 6.5
-		if isNight and not nightMusic.IsPlaying then
-			nightMusic:Play()
-		elseif not isNight and nightMusic.IsPlaying then
-			nightMusic:Stop()
-		end
 	end
 end)
 
