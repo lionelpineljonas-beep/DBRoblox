@@ -301,7 +301,11 @@ local function newPart(parent, name, size, cframe, color, material, transparency
 	p.Material = material or Enum.Material.SmoothPlastic
 	p.Transparency = transparency or 0
 	p.TopSurface = Enum.SurfaceType.Studs
-	p.BottomSurface = Enum.SurfaceType.Smooth
+	p.BottomSurface = Enum.SurfaceType.Studs
+	p.LeftSurface = Enum.SurfaceType.Studs
+	p.RightSurface = Enum.SurfaceType.Studs
+	p.FrontSurface = Enum.SurfaceType.Studs
+	p.BackSurface = Enum.SurfaceType.Studs
 	p.Parent = parent
 	tick()
 	return p
@@ -316,7 +320,11 @@ local function newWedge(parent, name, size, cframe, color, material)
 	p.Color = color
 	p.Material = material or Enum.Material.SmoothPlastic
 	p.TopSurface = Enum.SurfaceType.Studs
-	p.BottomSurface = Enum.SurfaceType.Smooth
+	p.BottomSurface = Enum.SurfaceType.Studs
+	p.LeftSurface = Enum.SurfaceType.Studs
+	p.RightSurface = Enum.SurfaceType.Studs
+	p.FrontSurface = Enum.SurfaceType.Studs
+	p.BackSurface = Enum.SurfaceType.Studs
 	p.Parent = parent
 	tick()
 	return p
@@ -529,6 +537,18 @@ for _, fname in ipairs({ "Ground", "Water", "Roads", "Buildings", "Golf", "Docks
 	f.Name = fname
 	f.Parent = root
 	FOLDERS[fname] = f
+end
+
+-- Force default baseplate to be studded if it exists
+local bp = workspace:FindFirstChild("Baseplate")
+if bp and bp:IsA("BasePart") then
+	bp.Material = Enum.Material.Plastic
+	bp.TopSurface = Enum.SurfaceType.Studs
+	bp.BottomSurface = Enum.SurfaceType.Studs
+	bp.LeftSurface = Enum.SurfaceType.Studs
+	bp.RightSurface = Enum.SurfaceType.Studs
+	bp.FrontSurface = Enum.SurfaceType.Studs
+	bp.BackSurface = Enum.SurfaceType.Studs
 end
 
 local KIT = Instance.new("Folder")
