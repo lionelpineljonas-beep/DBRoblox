@@ -302,6 +302,11 @@ local function newPart(parent, name, size, cframe, color, material, transparency
 	p.Transparency = transparency or 0
 	p.TopSurface = Enum.SurfaceType.Studs
 	p.BottomSurface = Enum.SurfaceType.Studs
+	p.LeftSurface = Enum.SurfaceType.Studs
+	p.RightSurface = Enum.SurfaceType.Studs
+	p.FrontSurface = Enum.SurfaceType.Studs
+	p.BackSurface = Enum.SurfaceType.Studs
+	p.Parent = parent
 	tick()
 	return p
 end
@@ -317,6 +322,11 @@ local function newWedge(parent, name, size, cframe, color, material)
 	p.TopSurface = Enum.SurfaceType.Studs
 	p.BottomSurface = Enum.SurfaceType.Studs
 	p.LeftSurface = Enum.SurfaceType.Studs
+	p.RightSurface = Enum.SurfaceType.Studs
+	p.FrontSurface = Enum.SurfaceType.Studs
+	p.BackSurface = Enum.SurfaceType.Studs
+	p.Parent = parent
+	tick()
 	return p
 end
 
