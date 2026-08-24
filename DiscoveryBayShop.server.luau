@@ -112,7 +112,7 @@ end)
 local START_CASH = 100
 local WALK_SPEED = 16
 local SCOOTER_SPEED = 30
-local VERSION = "v71"
+local VERSION = "v72"
 
 -- ==============================================================================================
 -- LIGHTING & DAY/NIGHT CYCLE
@@ -1795,56 +1795,32 @@ local function hollowHouse(house)
 	cLight.Shadows = true
 	cLight.Parent = ceilingLight
 	
-	-- NEW MECHANIC: Auto Petter outside the front door
-	local apBtn = wall("AutoPetter", Vector3.new(2, 3, 2), CFrame.new(doorX + 5, -h / 2 + 1.5, -d / 2 - 1.5),
-		Color3.fromRGB(40, 150, 80), Enum.Material.SmoothPlastic)
-	local apPrompt = Instance.new("ProximityPrompt")
-	apPrompt.ActionText = "Buy Auto Petter"
-	apPrompt.ObjectText = "$500"
-	apPrompt.HoldDuration = 1
-	apPrompt.Parent = apBtn
-	
-	local hasAutoPetter = false
-	apPrompt.Triggered:Connect(function(who)
-		local ownerId = house:GetAttribute("OwnerUserId")
-		if not ownerId or who.UserId ~= ownerId then
-			TrickResult:FireClient(who, "You don't own this house!", 0)
-			return
-		end
-		if hasAutoPetter then return end
-		local cash = getCash(who)
-		if not cash or cash.Value < 500 then
-			TrickResult:FireClient(who, "Not enough cash for Auto Petter!", 0)
-			return
-		end
-		cash.Value = cash.Value - 500
-		hasAutoPetter = true
-		apPrompt.ActionText = "Auto Petter Active"
-		apPrompt.ObjectText = ""
-		apPrompt.Enabled = false
-		apBtn.Color = Color3.fromRGB(80, 220, 120)
-		
-		task.spawn(function()
-			while hasAutoPetter do
-				local currOwnerId = house:GetAttribute("OwnerUserId")
-				if currOwnerId then
-					local ownerPlr = game.Players:GetPlayerByUserId(currOwnerId)
-					if ownerPlr then
-						local mdl = playerDog[currOwnerId]
-						if mdl then
-							local pay = mdl:GetAttribute("Pay")
-							local dogName = mdl:GetAttribute("DogName")
-							local oCash = getCash(ownerPlr)
-							if pay and dogName and oCash then
-								oCash.Value = oCash.Value + pay
-								TrickResult:FireClient(ownerPlr, dogName .. " loves the Auto Petter!", pay)
-							end
+	-- Auto-Petter Machine (corner of the room, pre-built and active when owned)
+	local apSpot = CFrame.new(w/2 - 2, -h / 2 + 2, d/2 - 2)
+	local ap = wall("AutoPetter", Vector3.new(3, 4, 3), apSpot, Color3.fromRGB(80, 200, 120), Enum.Material.Neon)
+	local apScreen = wall("AutoPetterScreen", Vector3.new(2.8, 1.5, 0.2), apSpot * CFrame.new(0, 1.5, -1.6), Color3.fromRGB(30, 30, 30))
+	makeSign(apScreen, Enum.NormalId.Front, "AUTO-PETTER", Color3.fromRGB(30, 30, 30), Color3.fromRGB(80, 200, 120))
+
+	task.spawn(function()
+		while true do
+			local currOwnerId = house:GetAttribute("OwnerUserId")
+			if currOwnerId then
+				local ownerPlr = game.Players:GetPlayerByUserId(currOwnerId)
+				if ownerPlr then
+					local mdl = playerDog[currOwnerId]
+					if mdl then
+						local pay = mdl:GetAttribute("Pay")
+						local dogName = mdl:GetAttribute("DogName")
+						local oCash = getCash(ownerPlr)
+						if pay and dogName and oCash and pay > 0 then
+							oCash.Value = oCash.Value + pay
+							TrickResult:FireClient(ownerPlr, dogName .. " loves the Auto-Petter 3000!", pay)
 						end
 					end
 				end
-				task.wait(1)
 			end
-		end)
+			task.wait(4)
+		end
 	end)
 
 	-- where a hatched dog waits: on the dog bed, inside
@@ -2986,6 +2962,11 @@ task.spawn(function()
 			elseif d:GetAttribute("StudyButton") then
 				hookStudy(d)
 			elseif d:GetAttribute("RentSign") then
+				local house = d.Parent
+				if house then
+					local ok, err = pcall(hollowHouse, house)
+					if not ok then warn("[DiscoveryBayShop] Pre-hollowing failed: " .. tostring(err)) end
+				end
 				hookRent(d)
 			elseif d:GetAttribute("EggShop") then
 				hookEgg(d)
