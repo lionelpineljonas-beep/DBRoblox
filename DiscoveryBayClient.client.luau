@@ -11,7 +11,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 
-local VERSION = "v77"
+local VERSION = "v78"
 local SPEED_PASS_ID = 0 -- paste the real Game Pass ID here (same one as in DiscoveryBayShop)
 local RunService = game:GetService("RunService")
 local plr = Players.LocalPlayer
@@ -2181,7 +2181,7 @@ deathText.Font = Enum.Font.LuckiestGuy
 deathText.Text = "DEAD"
 deathText.TextColor3 = Color3.fromRGB(220, 20, 20)
 deathText.TextStrokeColor3 = Color3.new(0, 0, 0)
-deathText.TextStrokeTransparency = 0
+deathText.TextStrokeTransparency = 1
 deathText.TextScaled = true
 deathText.TextTransparency = 1
 deathText.ZIndex = 101
@@ -2195,7 +2195,7 @@ roastText.Font = Enum.Font.GothamBold
 roastText.Text = ""
 roastText.TextColor3 = Color3.fromRGB(255, 255, 255)
 roastText.TextStrokeColor3 = Color3.new(0, 0, 0)
-roastText.TextStrokeTransparency = 0.3
+roastText.TextStrokeTransparency = 1
 roastText.TextScaled = true
 roastText.TextTransparency = 1
 roastText.ZIndex = 101
@@ -2216,7 +2216,9 @@ local function onDied()
 	deathText.Size = UDim2.new(1, 0, 0, 600)
 	deathText.Position = UDim2.new(0, 0, 0.5, -300)
 	deathText.TextTransparency = 1
+	deathText.TextStrokeTransparency = 1
 	roastText.TextTransparency = 1
+	roastText.TextStrokeTransparency = 1
 	roastText.Text = ROASTS[math.random(1, #ROASTS)]
 	
 	-- Darken and grayscale screen
@@ -2229,21 +2231,22 @@ local function onDied()
 	local stampTween = TweenService:Create(deathText, TweenInfo.new(0.3, Enum.EasingStyle.Bounce, Enum.EasingDirection.Out), {
 		Size = UDim2.new(1, 0, 0, 180),
 		Position = UDim2.new(0, 0, 0.5, -120),
-		TextTransparency = 0
+		TextTransparency = 0,
+		TextStrokeTransparency = 0
 	})
 	stampTween:Play()
 	playSound("rbxassetid://138081509", 1) -- OOF / Slam sound
 	
 	task.wait(0.5)
 	-- Fade in roast
-	TweenService:Create(roastText, TweenInfo.new(0.5), {TextTransparency = 0}):Play()
+	TweenService:Create(roastText, TweenInfo.new(0.5), {TextTransparency = 0, TextStrokeTransparency = 0.3}):Play()
 end
 
 local function onSpawn(char)
 	isDead = false
 	-- Reset effects smoothly
-	TweenService:Create(deathText, TweenInfo.new(0.5), {TextTransparency = 1}):Play()
-	TweenService:Create(roastText, TweenInfo.new(0.5), {TextTransparency = 1}):Play()
+	TweenService:Create(deathText, TweenInfo.new(0.5), {TextTransparency = 1, TextStrokeTransparency = 1}):Play()
+	TweenService:Create(roastText, TweenInfo.new(0.5), {TextTransparency = 1, TextStrokeTransparency = 1}):Play()
 	TweenService:Create(deathBG, TweenInfo.new(0.5), {BackgroundTransparency = 1}):Play()
 	TweenService:Create(deathColorCorrection, TweenInfo.new(0.5), {Saturation = 0, Contrast = 0}):Play()
 	
