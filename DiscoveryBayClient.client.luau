@@ -11,7 +11,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 
-local VERSION = "v76"
+local VERSION = "v77"
 local SPEED_PASS_ID = 0 -- paste the real Game Pass ID here (same one as in DiscoveryBayShop)
 local RunService = game:GetService("RunService")
 local plr = Players.LocalPlayer
@@ -2123,3 +2123,135 @@ FishGame.OnClientEvent:Connect(function()
 		end
 	end)
 end)
+
+--==============================================================================================
+-- WASTED / DEATH SCREEN
+--==============================================================================================
+local ROASTS = {
+	"Really bro?", "Did you even try?", "Skill issue.", "Oof, that was embarrassing.",
+	"My grandma plays better than that.", "Try turning your monitor on.", "Was your controller upside down?",
+	"Bro forgot how to play.", "Tragic.", "Better luck next time.", "You're built like a soggy noodle.",
+	"Is your mouse unplugged?", "Imagine dying to that.", "Just uninstall at this point.",
+	"That was painful to watch.", "Do you need a tutorial?", "Even a noob wouldn't do that.",
+	"Rest in pieces.", "A spectacular failure.", "You tried... I think.", "Not your best moment.",
+	"Wasted.", "You got absolutely deleted.", "F in the chat.", "Bruh.", "Get good.", 
+	"I'm not mad, I'm just disappointed.", "Can we get a replay of that?", "That was definitely a choice.",
+	"I'd say nice try, but it wasn't.", "Lag... right?", "Your Wi-Fi must be acting up.", 
+	"It's okay to cry.", "Maybe try playing with your eyes open?", "Are you allergic to staying alive?",
+	"That was a speedrun to the grave.", "Another one bites the dust.", "Yikes.", "Embarrassing.",
+	"I've seen bots play better.", "You're a legend... at dying.", "Mission Failed. We'll get 'em next time.",
+	"Take a breath and try again.", "You zigged when you should have zagged.", "A tragic end to a tragic life.",
+	"You were doing so well... until you died.", "Absolutely cooked.", "You just got sent to the shadow realm.",
+	"Go touch some grass.", "Did you drop your keyboard?", "Are you playing with your feet?", 
+	"Wow. Just wow.", "That's going in the cringe compilation.", "You really just did that.",
+	"Don't worry, nobody saw that.", "Except me. I saw that.", "You need some milk.", "He needs some milk!",
+	"Are you practicing how to die?", "Flawless execution... of a death.", "That was a masterpiece of failure.",
+	"Did someone unplug your router?", "Have you tried not dying?", "Error 404: Skill not found.",
+	"You just got clapped.", "I hope you have insurance.", "That's gonna leave a mark.", 
+	"You're making this look hard.", "Are you AFK?", "That was a creative way to go out.",
+	"You belong in a museum of failures.", "Is this your first time playing?", "You are the weak link.",
+	"Goodbye.", "You will not be remembered.", "A moment of silence for that play.", 
+	"You really thought you could do that?", "I'm literally cringing.", "You're the reason there are warning labels.",
+	"I'd clap, but I don't want to encourage that.", "That was a tactical death.", "It's all part of the plan, right?",
+	"You're built different. (Incorrectly)", "Even gravity is disappointed in you.", "Please tell me you lagged.",
+	"My eyes are burning from watching that.", "Do you want a participation trophy?", "At least you're consistent.",
+	"Consistently bad.", "You're the tutorial boss.", "I have no words.", "That was historically bad.",
+	"You should probably retire.", "Time for a new hobby.", "Are you even trying?", "That was a 10/10... on the fail scale.",
+	"I've seen better gameplay from a toaster.", "You're just giving them free kills."
+}
+
+local deathGui = Instance.new("ScreenGui")
+deathGui.Name = "DeathScreen"
+deathGui.ResetOnSpawn = false
+deathGui.IgnoreGuiInset = true
+deathGui.Parent = plr:WaitForChild("PlayerGui")
+
+local deathBG = Instance.new("Frame")
+deathBG.Size = UDim2.new(1, 0, 1, 0)
+deathBG.BackgroundColor3 = Color3.new(0, 0, 0)
+deathBG.BackgroundTransparency = 1
+deathBG.ZIndex = 100
+deathBG.Parent = deathGui
+
+local deathText = Instance.new("TextLabel")
+deathText.Size = UDim2.new(1, 0, 0, 150)
+deathText.Position = UDim2.new(0, 0, 0.5, -120)
+deathText.BackgroundTransparency = 1
+deathText.Font = Enum.Font.LuckiestGuy
+deathText.Text = "DEAD"
+deathText.TextColor3 = Color3.fromRGB(220, 20, 20)
+deathText.TextStrokeColor3 = Color3.new(0, 0, 0)
+deathText.TextStrokeTransparency = 0
+deathText.TextScaled = true
+deathText.TextTransparency = 1
+deathText.ZIndex = 101
+deathText.Parent = deathBG
+
+local roastText = Instance.new("TextLabel")
+roastText.Size = UDim2.new(1, 0, 0, 45)
+roastText.Position = UDim2.new(0, 0, 0.5, 40)
+roastText.BackgroundTransparency = 1
+roastText.Font = Enum.Font.GothamBold
+roastText.Text = ""
+roastText.TextColor3 = Color3.fromRGB(255, 255, 255)
+roastText.TextStrokeColor3 = Color3.new(0, 0, 0)
+roastText.TextStrokeTransparency = 0.3
+roastText.TextScaled = true
+roastText.TextTransparency = 1
+roastText.ZIndex = 101
+roastText.Parent = deathBG
+
+local deathColorCorrection = Instance.new("ColorCorrectionEffect")
+deathColorCorrection.Saturation = 0
+deathColorCorrection.Contrast = 0
+deathColorCorrection.Parent = game:GetService("Lighting")
+
+local isDead = false
+
+local function onDied()
+	if isDead then return end
+	isDead = true
+	
+	-- Stamp animation preparation
+	deathText.Size = UDim2.new(1, 0, 0, 600)
+	deathText.Position = UDim2.new(0, 0, 0.5, -300)
+	deathText.TextTransparency = 1
+	roastText.TextTransparency = 1
+	roastText.Text = ROASTS[math.random(1, #ROASTS)]
+	
+	-- Darken and grayscale screen
+	TweenService:Create(deathBG, TweenInfo.new(0.4), {BackgroundTransparency = 0.45}):Play()
+	TweenService:Create(deathColorCorrection, TweenInfo.new(0.5), {Saturation = -1, Contrast = 0.2}):Play()
+	
+	task.wait(0.2)
+	
+	-- Slam stamp
+	local stampTween = TweenService:Create(deathText, TweenInfo.new(0.3, Enum.EasingStyle.Bounce, Enum.EasingDirection.Out), {
+		Size = UDim2.new(1, 0, 0, 180),
+		Position = UDim2.new(0, 0, 0.5, -120),
+		TextTransparency = 0
+	})
+	stampTween:Play()
+	playSound("rbxassetid://138081509", 1) -- OOF / Slam sound
+	
+	task.wait(0.5)
+	-- Fade in roast
+	TweenService:Create(roastText, TweenInfo.new(0.5), {TextTransparency = 0}):Play()
+end
+
+local function onSpawn(char)
+	isDead = false
+	-- Reset effects smoothly
+	TweenService:Create(deathText, TweenInfo.new(0.5), {TextTransparency = 1}):Play()
+	TweenService:Create(roastText, TweenInfo.new(0.5), {TextTransparency = 1}):Play()
+	TweenService:Create(deathBG, TweenInfo.new(0.5), {BackgroundTransparency = 1}):Play()
+	TweenService:Create(deathColorCorrection, TweenInfo.new(0.5), {Saturation = 0, Contrast = 0}):Play()
+	
+	local humanoid = char:WaitForChild("Humanoid", 10)
+	if humanoid then
+		humanoid.Died:Connect(onDied)
+	end
+end
+
+if plr.Character then onSpawn(plr.Character) end
+plr.CharacterAdded:Connect(onSpawn)
