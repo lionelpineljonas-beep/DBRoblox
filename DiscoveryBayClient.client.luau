@@ -11,7 +11,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 
-local VERSION = "v80"
+local VERSION = "v81"
 local SPEED_PASS_ID = 0 -- paste the real Game Pass ID here (same one as in DiscoveryBayShop)
 local RunService = game:GetService("RunService")
 local plr = Players.LocalPlayer
@@ -2211,6 +2211,8 @@ local isDead = false
 local function onDied()
 	if isDead then return end
 	isDead = true
+	
+	playSound("rbxassetid://413988628", 1) -- GTA 5 Wasted slowmo sound
 	
 	-- Stamp animation preparation
 	deathText.Size = UDim2.new(1, 0, 0, 600)
