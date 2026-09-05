@@ -1,4 +1,4 @@
--- DISCOVERY BAY, CALIFORNIA — OSM-accurate procedural Roblox build (v76)
+-- DISCOVERY BAY, CALIFORNIA — OSM-accurate procedural Roblox build (v79)
 --==============================================================================================
 -- Builds the real Discovery Bay from OpenStreetMap geometry (© OpenStreetMap contributors):
 --   * real terrain raster: every lagoon/bay polygon, Old River, golf fairways/greens/
@@ -1995,6 +1995,16 @@ local function buildBigSchool(parent, lm)
 	local pos = toWorld(cxF, czF, Y_LAND)
 	-- front faces the campus sign at the landmark point
 	local cf = CFrame.lookAt(pos, toWorld(lm.x, lm.z, Y_LAND))
+	
+	local spawnLoc = Instance.new("SpawnLocation")
+	spawnLoc.Name = "TownSpawn"
+	spawnLoc.Size = Vector3.new(12, 1, 12) * S
+	spawnLoc.CFrame = cf * CFrame.new(0, 0.6 * S, -20 * S)
+	spawnLoc.Anchored = true
+	spawnLoc.Transparency = 1
+	spawnLoc.CanCollide = true
+	spawnLoc.Parent = m
+	
 	local w, d, h = 170, 100, 15
 	local wallS = Color3.fromRGB(222, 214, 196)
 	newPart(m, "Floor", Vector3.new(w, 0.4, d) * S, cf * CFrame.new(0, 0.22 * S, 0),
