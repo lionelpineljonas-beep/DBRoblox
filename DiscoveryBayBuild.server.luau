@@ -1,4 +1,4 @@
--- DISCOVERY BAY, CALIFORNIA — OSM-accurate procedural Roblox build (v80)
+-- DISCOVERY BAY, CALIFORNIA — OSM-accurate procedural Roblox build (v82)
 --==============================================================================================
 -- Builds the real Discovery Bay from OpenStreetMap geometry (© OpenStreetMap contributors):
 --   * real terrain raster: every lagoon/bay polygon, Old River, golf fairways/greens/
@@ -49,6 +49,21 @@ end
 -- Otherwise: build now. In edit mode this is the normal command-bar path; in Play
 -- mode it auto-builds so "just press Play" works — that copy vanishes on Stop, so to
 -- make it permanent run the command-bar line in edit mode once and save.
+
+if not workspace:FindFirstChild("SafeSpawn") then
+	local safeSpawn = Instance.new("SpawnLocation")
+	safeSpawn.Name = "SafeSpawn"
+	safeSpawn.Size = Vector3.new(500, 10, 500)
+	safeSpawn.Position = Vector3.new(0, 45, 0)
+	safeSpawn.Anchored = true
+	safeSpawn.Transparency = 1
+	safeSpawn.Parent = workspace
+end
+for _, plr in ipairs(game:GetService("Players"):GetPlayers()) do
+	if plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+		plr.Character.HumanoidRootPart.Anchored = true
+	end
+end
 
 local ServerScriptService = game:GetService("ServerScriptService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -529,14 +544,6 @@ if oldKit then oldKit:Destroy() end
 local root = Instance.new("Model")
 root.Name = "DiscoveryBay"
 root.Parent = workspace
-
-local safeSpawn = Instance.new("SpawnLocation")
-safeSpawn.Name = "SafeSpawn"
-safeSpawn.Size = Vector3.new(500, 10, 500)
-safeSpawn.Position = Vector3.new(0, 45, 0)
-safeSpawn.Anchored = true
-safeSpawn.Transparency = 1
-safeSpawn.Parent = root
 
 local FOLDERS = {}
 for _, fname in ipairs({ "Ground", "Water", "Roads", "Buildings", "Golf", "Docks", "Landmarks", "Props" }) do
@@ -2493,7 +2500,7 @@ print("[DiscoveryBay] Businesses at the Discovery Bay Blvd plaza: Callahan's Cof
 	"Discovery Bay Jiu Jitsu, ShellBlox Gas Station, Egg Shop.")
 print("[DiscoveryBay] StreamingEnabled=" .. tostring(workspace.StreamingEnabled) .. ". All parts anchored.")
 
-local ss = root:FindFirstChild("SafeSpawn")
+local ss = workspace:FindFirstChild("SafeSpawn")
 if ss then ss:Destroy() end
 
 if RunService:IsRunning() then
