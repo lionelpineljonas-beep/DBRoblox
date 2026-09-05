@@ -1,4 +1,4 @@
--- DISCOVERY BAY, CALIFORNIA — OSM-accurate procedural Roblox build (v79)
+-- DISCOVERY BAY, CALIFORNIA — OSM-accurate procedural Roblox build (v80)
 --==============================================================================================
 -- Builds the real Discovery Bay from OpenStreetMap geometry (© OpenStreetMap contributors):
 --   * real terrain raster: every lagoon/bay polygon, Old River, golf fairways/greens/
@@ -529,6 +529,14 @@ if oldKit then oldKit:Destroy() end
 local root = Instance.new("Model")
 root.Name = "DiscoveryBay"
 root.Parent = workspace
+
+local safeSpawn = Instance.new("SpawnLocation")
+safeSpawn.Name = "SafeSpawn"
+safeSpawn.Size = Vector3.new(500, 10, 500)
+safeSpawn.Position = Vector3.new(0, 45, 0)
+safeSpawn.Anchored = true
+safeSpawn.Transparency = 1
+safeSpawn.Parent = root
 
 local FOLDERS = {}
 for _, fname in ipairs({ "Ground", "Water", "Roads", "Buildings", "Golf", "Docks", "Landmarks", "Props" }) do
@@ -2484,6 +2492,9 @@ print(("[DiscoveryBay] DONE in %.1fs — %d parts. Homes %d, docks %d (every wat
 print("[DiscoveryBay] Businesses at the Discovery Bay Blvd plaza: Callahan's Coffee and Cones, " ..
 	"Discovery Bay Jiu Jitsu, ShellBlox Gas Station, Egg Shop.")
 print("[DiscoveryBay] StreamingEnabled=" .. tostring(workspace.StreamingEnabled) .. ". All parts anchored.")
+
+local ss = root:FindFirstChild("SafeSpawn")
+if ss then ss:Destroy() end
 
 if RunService:IsRunning() then
 	-- Auto-built during Play: respawn everyone at the plaza SpawnLocation.
