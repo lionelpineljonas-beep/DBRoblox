@@ -33,127 +33,178 @@ local SPEED_PASS_ID = 0
 -- day/night cycle: one full day every 10 minutes
 local DAY_LENGTH = 600
 
+local START_CASH = 100
+local WALK_SPEED = 16
+local SCOOTER_SPEED = 30
+local VERSION = "v111"
+
+-- ==============================================================================================
+-- LIGHTING, DYNAMIC SUNSET & STARRY NIGHT SKY SYSTEM
+-- ==============================================================================================
+local function lerpColor(a, b, t)
+	return Color3.new(
+		a.R + (b.R - a.R) * t,
+		a.G + (b.G - a.G) * t,
+		a.B + (b.B - a.B) * t
+	)
+end
+
+local sky, atmo, bloom, cc, sunRays, dof
+
 local function initializeLighting()
 	pcall(function()
-		-- Clean up any existing custom lighting effects
 		for _, child in ipairs(Lighting:GetChildren()) do
-			if child.Name == "DiscoveryBayAtmosphere" or child.Name == "DiscoveryBayBloom" 
-				or child.Name == "DiscoveryBayColorCorrection" or child.Name == "DiscoveryBaySunRays"
-				or child.Name == "DiscoveryBayDOF" then
+			if child:IsA("Atmosphere") or child:IsA("BloomEffect")
+				or child:IsA("ColorCorrectionEffect") or child:IsA("SunRaysEffect")
+				or child:IsA("DepthOfFieldEffect") or child:IsA("Sky") then
 				child:Destroy()
 			end
 		end
-		
-		-- High-end "Shaders" (RoShade style) settings
+
 		Lighting.Technology = Enum.Technology.Future
-		Lighting.ShadowSoftness = 0.1 -- extremely sharp shadows
-		Lighting.Brightness = 3.5
+		Lighting.ShadowSoftness = 0.12
+		Lighting.Brightness = 3.2
 		Lighting.GlobalShadows = true
-		Lighting.Ambient = Color3.fromRGB(30, 30, 40)
-		Lighting.OutdoorAmbient = Color3.fromRGB(90, 100, 110)
-		-- Max specular makes all SmoothPlastic reflect the skybox (wet/shiny look)
+		Lighting.Ambient = Color3.fromRGB(35, 38, 52)
+		Lighting.OutdoorAmbient = Color3.fromRGB(95, 108, 125)
+		Lighting.ColorShift_Top = Color3.fromRGB(255, 240, 215)
+		Lighting.GeographicLatitude = 38
 		Lighting.EnvironmentDiffuseScale = 1
 		Lighting.EnvironmentSpecularScale = 1
 
-		-- Cinematic Atmosphere (rich haze and glare)
-		local atmo = Instance.new("Atmosphere")
+		-- Starry Night Skybox with 5,000 stars and a large glowing Moon
+		sky = Instance.new("Sky")
+		sky.Name = "DiscoveryBaySky"
+		sky.CelestialBodiesShown = true
+		sky.StarCount = 5000
+		sky.MoonAngularSize = 20
+		sky.SunAngularSize = 16
+		sky.Parent = Lighting
+
+		-- Dynamic Atmosphere (clears up at night so all 5,000 stars & Moon shine through!)
+		atmo = Instance.new("Atmosphere")
 		atmo.Name = "DiscoveryBayAtmosphere"
-		atmo.Density = 0.18
-		atmo.Offset = 0.4
-		atmo.Color = Color3.fromRGB(190, 200, 210)
-		atmo.Decay = Color3.fromRGB(130, 140, 160)
-		atmo.Glare = 1.5
-		atmo.Haze = 2.5
+		atmo.Density = 0.16
+		atmo.Offset = 0.25
+		atmo.Color = Color3.fromRGB(185, 215, 250)
+		atmo.Decay = Color3.fromRGB(120, 145, 185)
+		atmo.Glare = 0.8
+		atmo.Haze = 1.4
 		atmo.Parent = Lighting
 
-		-- Intense Bloom (glowing neon and bright surfaces)
-		local bloom = Instance.new("BloomEffect")
+		-- Bloom (neon signs, streetlights, moon reflection, and shooting stars glow at night)
+		bloom = Instance.new("BloomEffect")
 		bloom.Name = "DiscoveryBayBloom"
-		bloom.Intensity = 1.2
-		bloom.Size = 24
-		bloom.Threshold = 1.5
+		bloom.Intensity = 1.1
+		bloom.Size = 28
+		bloom.Threshold = 1.4
 		bloom.Parent = Lighting
 
-		-- Strong Color Correction (vibrant, warm, high contrast)
-		local cc = Instance.new("ColorCorrectionEffect")
+		-- Color Correction
+		cc = Instance.new("ColorCorrectionEffect")
 		cc.Name = "DiscoveryBayColorCorrection"
-		cc.Contrast = 0.25
-		cc.Saturation = 0.25
-		cc.TintColor = Color3.fromRGB(255, 250, 240)
+		cc.Contrast = 0.22
+		cc.Saturation = 0.28
+		cc.TintColor = Color3.fromRGB(255, 250, 244)
 		cc.Parent = Lighting
 
 		-- God Rays
-		local sun = Instance.new("SunRaysEffect")
-		sun.Name = "DiscoveryBaySunRays"
-		sun.Intensity = 0.12
-		sun.Spread = 0.9
-		sun.Parent = Lighting
-		
-		-- Cinematic Depth of Field (blur distant background slightly)
-		local dof = Instance.new("DepthOfFieldEffect")
+		sunRays = Instance.new("SunRaysEffect")
+		sunRays.Name = "DiscoveryBaySunRays"
+		sunRays.Intensity = 0.12
+		sunRays.Spread = 0.85
+		sunRays.Parent = Lighting
+
+		-- Subtle Cinematic Depth of Field
+		dof = Instance.new("DepthOfFieldEffect")
 		dof.Name = "DiscoveryBayDOF"
-		dof.FocusDistance = 50
-		dof.InFocusRadius = 60
+		dof.FocusDistance = 55
+		dof.InFocusRadius = 65
 		dof.NearIntensity = 0
-		dof.FarIntensity = 0.15
+		dof.FarIntensity = 0.12
 		dof.Parent = Lighting
 	end)
 end
 
-task.spawn(function()
-	initializeLighting()
-	Lighting.ClockTime = 9 -- start on a sunny morning
-	while true do
-		task.wait(1)
-		Lighting.ClockTime = (Lighting.ClockTime + 24 / DAY_LENGTH) % 24
+local weatherActive = false
+
+local function updateSkyForClock(ct)
+	if not atmo or not atmo.Parent then return end
+	-- Compute day (0..1), sunset/sunrise (0..1), and night (0..1) weights
+	-- Sunrise ~ 5.5..7.5, Day ~ 7.5..16.5, Sunset ~ 16.5..18.8, Night ~ 18.8..5.5
+	local nightW = 0
+	local sunsetW = 0
+	if ct >= 18.8 or ct <= 5.2 then
+		nightW = 1
+	elseif ct > 16.5 and ct < 18.8 then
+		local u = (ct - 16.5) / (18.8 - 16.5)
+		nightW = math.clamp((u - 0.35) / 0.65, 0, 1)
+		sunsetW = math.sin(u * math.pi)
+	elseif ct > 5.2 and ct < 7.5 then
+		local u = (ct - 5.2) / (7.5 - 5.2)
+		nightW = math.clamp(1 - u / 0.65, 0, 1)
+		sunsetW = math.sin(u * math.pi)
 	end
-end)
 
-local START_CASH = 100
-local WALK_SPEED = 16
-local SCOOTER_SPEED = 30
-local VERSION = "v102"
+	-- Blend Day -> Sunset -> Starry Night
+	local dayAtmoColor = Color3.fromRGB(185, 215, 250)
+	local sunsetAtmoColor = Color3.fromRGB(255, 125, 95)
+	local nightAtmoColor = Color3.fromRGB(20, 34, 86)
 
--- ==============================================================================================
--- LIGHTING & DAY/NIGHT CYCLE
--- ==============================================================================================
-local Lighting = game:GetService("Lighting")
+	local dayDecay = Color3.fromRGB(120, 145, 185)
+	local sunsetDecay = Color3.fromRGB(135, 55, 165)
+	local nightDecay = Color3.fromRGB(10, 16, 48)
+
+	local targetAtmoColor = lerpColor(lerpColor(dayAtmoColor, nightAtmoColor, nightW), sunsetAtmoColor, sunsetW * 0.85)
+	local targetDecay = lerpColor(lerpColor(dayDecay, nightDecay, nightW), sunsetDecay, sunsetW * 0.85)
+
+	atmo.Color = targetAtmoColor
+	atmo.Decay = targetDecay
+	-- Drop Density & Haze at night so all 5,000 stars and the Moon are crystal-clear!
+	atmo.Density = 0.16 * (1 - nightW) + 0.045 * nightW + 0.04 * sunsetW
+	atmo.Haze = 1.4 * (1 - nightW) + 0.0 * nightW + 1.8 * sunsetW
+	atmo.Glare = 0.8 * (1 - nightW) + 0.0 * nightW + 1.6 * sunsetW
+	atmo.Offset = 0.25 * (1 - nightW) + 0.05 * nightW
+
+	if not weatherActive then
+		local dayOA = Color3.fromRGB(105, 115, 132)
+		local sunsetOA = Color3.fromRGB(155, 95, 115)
+		local nightOA = Color3.fromRGB(56, 74, 128)
+		Lighting.OutdoorAmbient = lerpColor(lerpColor(dayOA, nightOA, nightW), sunsetOA, sunsetW * 0.7)
+
+		local dayAmb = Color3.fromRGB(38, 42, 55)
+		local nightAmb = Color3.fromRGB(30, 40, 76)
+		Lighting.Ambient = lerpColor(dayAmb, nightAmb, nightW)
+
+		local dayTop = Color3.fromRGB(255, 240, 215)
+		local sunsetTop = Color3.fromRGB(255, 160, 110)
+		local nightTop = Color3.fromRGB(130, 180, 255)
+		Lighting.ColorShift_Top = lerpColor(lerpColor(dayTop, nightTop, nightW), sunsetTop, sunsetW * 0.85)
+		Lighting.Brightness = 3.2 * (1 - nightW) + 1.85 * nightW
+	end
+
+	if bloom then
+		bloom.Intensity = 1.0 * (1 - nightW) + 1.65 * nightW
+		bloom.Threshold = 1.45 * (1 - nightW) + 1.05 * nightW
+	end
+	if cc then
+		local dayTint = Color3.fromRGB(255, 250, 244)
+		local sunsetTint = Color3.fromRGB(255, 232, 220)
+		local nightTint = Color3.fromRGB(222, 234, 255)
+		cc.TintColor = lerpColor(lerpColor(dayTint, nightTint, nightW), sunsetTint, sunsetW * 0.6)
+		cc.Saturation = 0.28 + 0.06 * nightW + 0.08 * sunsetW
+	end
+end
+
+initializeLighting()
 Lighting.ClockTime = 14
-Lighting.GlobalShadows = true
-Lighting.OutdoorAmbient = Color3.fromRGB(110, 110, 130)
-Lighting.ColorShift_Top = Color3.fromRGB(255, 230, 200)
-Lighting.GeographicLatitude = 41
-Lighting.Brightness = 2.5
-
-local bloom = Instance.new("BloomEffect")
-bloom.Intensity = 0.3
-bloom.Size = 24
-bloom.Threshold = 2
-bloom.Parent = Lighting
-
-local sunRays = Instance.new("SunRaysEffect")
-sunRays.Intensity = 0.05
-sunRays.Spread = 0.1
-sunRays.Parent = Lighting
-
-local colorCorrection = Instance.new("ColorCorrectionEffect")
-colorCorrection.Saturation = 0.3
-colorCorrection.Contrast = 0.15
-colorCorrection.Parent = Lighting
-
-local atmos = Instance.new("Atmosphere")
-atmos.Density = 0.25
-atmos.Offset = 0.25
-atmos.Color = Color3.fromRGB(199, 199, 199)
-atmos.Decay = Color3.fromRGB(106, 112, 125)
-atmos.Glare = 0
-atmos.Haze = 0
-atmos.Parent = Lighting
+updateSkyForClock(Lighting.ClockTime)
 
 task.spawn(function()
 	while task.wait(0.1) do
-		-- Slowly moving sun! Moves 1 hour every ~24 seconds.
-		Lighting.ClockTime = Lighting.ClockTime + 0.005
+		-- Smoothly advance sun & moon (~1 hour every 20s) and wrap cleanly at 24:00
+		Lighting.ClockTime = (Lighting.ClockTime + 0.005) % 24
+		updateSkyForClock(Lighting.ClockTime)
 	end
 end)
 
@@ -220,6 +271,11 @@ local CLASSIC_FACE_CATALOG = {
 	Sniffles        = 14516578,
 	Vampire         = 7074836,
 	Skeptic         = 31117192,
+	-- open-mouth faces the client flips to while an NPC is talking
+	OpenO           = 7317773,   -- ":-o"
+	JoyfulSmile     = 209995366,
+	Fang            = 7075142,
+	TongueOut       = 14861743,  -- ":P"
 }
 local classicFacesFolder = remotes:FindFirstChild("ClassicFaces")
 if not classicFacesFolder then
@@ -337,7 +393,7 @@ local function setRideAnimations(char, humanoid, riding)
 			local group = animate:FindFirstChild(groupName)
 			local anim = group and group:FindFirstChild(animName)
 			if anim and anim:IsA("Animation") then
-				anim.AnimationId = id
+				anim.Parent = nil; anim.AnimationId = id; anim.Parent = group
 			end
 		end
 		setId("run", "RunAnim", riding and GLIDE_ANIM or DEFAULT_RUN)
@@ -881,9 +937,12 @@ end)
 
 CompleteQuest.OnServerEvent:Connect(function(plr, questId)
 	if questId == "TerrysSoda" then
+		if plr:GetAttribute("TerryQuestCompleted") then return end
+		plr:SetAttribute("TerryQuestCompleted", true)
 		local cash = getCash(plr)
 		if cash then
 			cash.Value = cash.Value + 200
+			TrickResult:FireClient(plr, "Terry's Soda Delivered", 200)
 			print("[SERVER]: " .. plr.Name .. " found Terry's Soda and got $200!")
 		end
 	end
@@ -1856,8 +1915,91 @@ local function setRentSign(board, text, color)
 	end
 end
 
--- Renting a house makes it REAL: the solid body is swapped for walls with a
--- walk-through front door, plus a furnished living room. Runs once per house.
+local function makeSign(part, face, text, bg, fg)
+	local sg = Instance.new("SurfaceGui")
+	sg.Face = face
+	sg.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+	sg.PixelsPerStud = 40
+	sg.Parent = part
+	local label = Instance.new("TextLabel")
+	label.Size = UDim2.fromScale(1, 1)
+	label.BackgroundColor3 = bg
+	label.TextColor3 = fg
+	label.Font = Enum.Font.LuckiestGuy
+	label.TextScaled = true
+	label.Text = text
+	label.Parent = sg
+end
+
+local WALL_PAINTS = { Color3.fromRGB(226, 208, 180), Color3.fromRGB(188, 212, 226), Color3.fromRGB(206, 222, 190),
+	Color3.fromRGB(232, 200, 188), Color3.fromRGB(212, 202, 230) }
+local SOFA_COLORS = { Color3.fromRGB(70, 95, 140), Color3.fromRGB(150, 70, 60), Color3.fromRGB(85, 120, 90),
+	Color3.fromRGB(125, 115, 105), Color3.fromRGB(200, 150, 60) }
+local ACCENTS = { Color3.fromRGB(230, 90, 80), Color3.fromRGB(80, 150, 230), Color3.fromRGB(250, 200, 70),
+	Color3.fromRGB(140, 90, 200), Color3.fromRGB(70, 180, 140) }
+local WOOD = Color3.fromRGB(160, 115, 72)
+local DARK_WOOD = Color3.fromRGB(85, 58, 38)
+local WHITE = Color3.fromRGB(240, 238, 232)
+local STEEL = Color3.fromRGB(200, 205, 210)
+local BLACK = Color3.fromRGB(28, 28, 32)
+local LEAF = Color3.fromRGB(70, 150, 70)
+local WARM = Color3.fromRGB(255, 214, 160)
+
+local function mk(parent, name, sz, cf, color, material, shape)
+	local p = Instance.new("Part")
+	p.Name = name
+	p.Size = sz
+	p.CFrame = cf
+	p.Color = color
+	p.Material = material or Enum.Material.SmoothPlastic
+	p.Anchored = true
+	p.TopSurface = Enum.SurfaceType.Smooth
+	p.BottomSurface = Enum.SurfaceType.Smooth
+	if shape then p.Shape = shape end
+	p.Parent = parent
+	return p
+end
+
+-- A wall along the frame's local X (centre of the wall), local +Z pointing into the room, with
+-- rectangular holes { x0, x1, y0, y1 } (y measured up from the wall's bottom) left open.
+local function holedWall(parent, name, frame, L, H, T, zOff, holes, color, material)
+	local xs = { -L / 2, L / 2 }
+	for _, ho in ipairs(holes) do
+		if ho.x1 > -L / 2 and ho.x0 < L / 2 then
+			table.insert(xs, math.clamp(ho.x0, -L / 2, L / 2))
+			table.insert(xs, math.clamp(ho.x1, -L / 2, L / 2))
+		end
+	end
+	table.sort(xs)
+	for i = 1, #xs - 1 do
+		local a, b = xs[i], xs[i + 1]
+		if b - a > 0.05 then
+			local mid = (a + b) / 2
+			local covering = {}
+			for _, ho in ipairs(holes) do
+				if ho.x0 < mid and ho.x1 > mid then table.insert(covering, ho) end
+			end
+			table.sort(covering, function(p, q) return p.y0 < q.y0 end)
+			local function seg(y0, y1)
+				if y1 - y0 > 0.05 then
+					mk(parent, name, Vector3.new(b - a, y1 - y0, T),
+						frame * CFrame.new(mid, -H / 2 + (y0 + y1) / 2, zOff), color, material)
+				end
+			end
+			local y = 0
+			for _, ho in ipairs(covering) do
+				seg(y, ho.y0)
+				y = math.max(y, ho.y1)
+			end
+			seg(y, H)
+		end
+	end
+end
+
+-- Renting a house makes it REAL: the solid body is swapped for two-layer walls (outside finish +
+-- painted inside) with see-through windows and a walk-through front door, plus a furnished
+-- open-plan home: living room, kitchen, dining, bed corner and a dog corner with the Auto-Petter.
+-- Runs once per house (when a player first walks near it, or rents it).
 local function hollowHouse(house)
 	if house:GetAttribute("Hollowed") then return end
 	house:SetAttribute("Hollowed", true)
@@ -1867,32 +2009,52 @@ local function hollowHouse(house)
 	local col, mat = body.Color, body.Material
 	local w, h, d = size.X, size.Y, size.Z
 	body:Destroy()
-	local function wall(name, sz, off, wcol, wmat)
-		local p = Instance.new("Part")
-		p.Name = name
-		p.Size = sz
-		p.CFrame = cfB * off
-		p.Color = wcol or col
-		p.Material = wmat or mat
-		p.Anchored = true
-		p.TopSurface = Enum.SurfaceType.Smooth
-		p.BottomSurface = Enum.SurfaceType.Smooth
-		p.Parent = house
-		return p
+
+	local rnd = Random.new(math.floor(cfB.X * 7 + cfB.Z * 13))
+	local function pick(t) return t[rnd:NextInteger(1, #t)] end
+	local paint = pick(WALL_PAINTS)
+	local sofaCol = pick(SOFA_COLORS)
+	local accent = pick(ACCENTS)
+
+	local interior = Instance.new("Model")
+	interior.Name = "Interior"
+	interior.Parent = house
+
+	local function addHole(list, xc, wdt, y0, y1)
+		table.insert(list, { x0 = xc - wdt / 2, x1 = xc + wdt / 2, y0 = y0, y1 = y1 })
 	end
-	wall("Floor", Vector3.new(w, 0.4, d), CFrame.new(0, -h / 2 + 0.2, 0),
-		Color3.fromRGB(160, 125, 85), Enum.Material.WoodPlanks)
-	wall("Ceiling", Vector3.new(w, 0.4, d), CFrame.new(0, h / 2 - 0.2, 0),
-		Color3.fromRGB(238, 234, 224), Enum.Material.SmoothPlastic)
-	wall("BackWall", Vector3.new(w, h, 0.8), CFrame.new(0, 0, d / 2 - 0.4))
-	wall("SideL", Vector3.new(0.8, h, d - 1.6), CFrame.new(-w / 2 + 0.4, 0, 0))
-	wall("SideR", Vector3.new(0.8, h, d - 1.6), CFrame.new(w / 2 - 0.4, 0, 0))
-	-- front wall with a doorway where the door visual stands
-	local doorX = 0
+	local function buildWall(name, frame, L, H, holes, paintL)
+		holedWall(house, name, frame, L, H, 0.5, -0.15, holes, col, mat)
+		holedWall(interior, name .. "Paint", frame, paintL or (L - 1.6), H, 0.3, 0.25, holes, paint)
+	end
+	-- glass already on the outside of a wall becomes a real window: cut a hole behind it
+	local glassParts = {}
+	for _, c in ipairs(house:GetChildren()) do
+		if c:IsA("BasePart") and (c.Name == "Window" or c.Name == "WindowMain" or c.Name == "Window2" or c.Name == "GlassBand") then
+			table.insert(glassParts, c)
+		end
+	end
+	local function glassHolesOn(list, frontZ, centerX, centerY, H)
+		for _, g in ipairs(glassParts) do
+			local rel = cfB:ToObjectSpace(g.CFrame)
+			if math.abs(rel.Z - frontZ) < 0.8 then
+				addHole(list, rel.X - centerX, g.Size.X - 0.3,
+					rel.Y - centerY + H / 2 - g.Size.Y / 2 + 0.15, rel.Y - centerY + H / 2 + g.Size.Y / 2 - 0.15)
+				g.Transparency = 0.55
+			end
+		end
+	end
+	local function newWindowPane(frame, xLocal, y0, y1, wdt, H)
+		mk(interior, "WindowPane", Vector3.new(wdt + 0.2, y1 - y0 + 0.2, 0.15),
+			frame * CFrame.new(xLocal, -H / 2 + (y0 + y1) / 2, -0.15), Color3.fromRGB(170, 215, 235), Enum.Material.Glass).Transparency = 0.6
+		mk(interior, "WindowSill", Vector3.new(wdt + 0.8, 0.25, 0.9),
+			frame * CFrame.new(xLocal, -H / 2 + y0 - 0.1, 0.35), WHITE)
+	end
+
+	-- door: on the main front wall, or on the front of an L-shaped house's wing
 	local door = house:FindFirstChild("Door")
+	local doorRel = door and cfB:PointToObjectSpace(door.Position)
 	if door then
-		local rel = cfB:PointToObjectSpace(door.Position)
-		doorX = math.clamp(rel.X, -w / 2 + 5, w / 2 - 5)
 		-- a REAL front door: swings open on its hinges when you walk up
 		door:SetAttribute("SwingDoor", true)
 		hookSwingDoor(door)
@@ -1902,87 +2064,393 @@ local function hollowHouse(house)
 	if oldFrame then
 		oldFrame.CanCollide = false
 	end
-	local gapW = 5.5
-	local leftW = (doorX - gapW / 2) - (-w / 2)
-	if leftW > 0.6 then
-		wall("FrontL", Vector3.new(leftW, h, 0.8), CFrame.new(-w / 2 + leftW / 2, 0, -d / 2 + 0.4))
-	end
-	local rightW = (w / 2) - (doorX + gapW / 2)
-	if rightW > 0.6 then
-		wall("FrontR", Vector3.new(rightW, h, 0.8), CFrame.new(w / 2 - rightW / 2, 0, -d / 2 + 0.4))
-	end
-	if h > 8.4 then
-		wall("DoorHeader", Vector3.new(gapW, h - 7.6, 0.8),
-			CFrame.new(doorX, h / 2 - (h - 7.6) / 2, -d / 2 + 0.4))
-	end
-	-- cozy furnishing
-	wall("Rug", Vector3.new(math.min(w * 0.4, 12), 0.15, math.min(d * 0.35, 9)),
-		CFrame.new(0, -h / 2 + 0.5, 0), Color3.fromRGB(170, 60, 60), Enum.Material.Fabric)
-	wall("Sofa", Vector3.new(8, 2.4, 3), CFrame.new(-w * 0.22, -h / 2 + 1.6, d * 0.22),
-		Color3.fromRGB(90, 110, 150), Enum.Material.Fabric)
-	wall("SofaBack", Vector3.new(8, 2, 0.8), CFrame.new(-w * 0.22, -h / 2 + 3.6, d * 0.22 + 1.1),
-		Color3.fromRGB(90, 110, 150), Enum.Material.Fabric)
-	wall("Table", Vector3.new(4.5, 2.2, 3), CFrame.new(0, -h / 2 + 1.5, -d * 0.05),
-		Color3.fromRGB(140, 105, 70), Enum.Material.WoodPlanks)
-	wall("Bed", Vector3.new(6.5, 1.8, 4), CFrame.new(w * 0.26, -h / 2 + 1.3, d * 0.28),
-		Color3.fromRGB(230, 230, 240), Enum.Material.Fabric)
-	wall("DogBed", Vector3.new(3.5, 0.6, 3.5), CFrame.new(w * 0.28, -h / 2 + 0.7, -d * 0.22),
-		Color3.fromRGB(120, 85, 60), Enum.Material.Fabric)
-	local lampPart = wall("Lamp", Vector3.new(1, 4.5, 1), CFrame.new(w * 0.4 - 1.5, -h / 2 + 2.6, -d * 0.4 + 1.5),
-		Color3.fromRGB(240, 230, 200), Enum.Material.Neon)
-	local lampLight = Instance.new("PointLight")
-	lampLight.Range = 22
-	lampLight.Brightness = 1.2
-	lampLight.Parent = lampPart
-	
-	-- NEW FURNITURE: TV, Kitchen Island, Bookshelf, Ceiling Light, Coffee Table, Plant, Dining, Fridge, Window
-	wall("TV", Vector3.new(0.6, 3, 5.5), CFrame.new(-w / 2 + 0.5, -h / 2 + 3.8, d * 0.22),
-		Color3.fromRGB(20, 20, 25), Enum.Material.SmoothPlastic)
-	wall("TVScreen", Vector3.new(0.7, 2.7, 5.1), CFrame.new(-w / 2 + 0.6, -h / 2 + 3.8, d * 0.22),
-		Color3.fromRGB(40, 45, 60), Enum.Material.Neon)
-		
-	wall("CoffeeTable", Vector3.new(5, 0.8, 3.5), CFrame.new(-w * 0.05, -h / 2 + 0.6, d * 0.22),
-		Color3.fromRGB(50, 40, 30), Enum.Material.WoodPlanks)
-		
-	wall("PottedPlantBase", Vector3.new(2, 2, 2), CFrame.new(-w * 0.4, -h / 2 + 1, -d * 0.35),
-		Color3.fromRGB(150, 140, 130), Enum.Material.Marble)
-	wall("PottedPlantLeaves", Vector3.new(3, 4, 3), CFrame.new(-w * 0.4, -h / 2 + 4, -d * 0.35),
-		Color3.fromRGB(60, 140, 50), Enum.Material.Grass)
+	local DOOR_W, DOOR_H = 5.5, 7.6
 
-	wall("KitchenIsland", Vector3.new(3, 2.5, 6), CFrame.new(w * 0.1, -h / 2 + 1.25, -d * 0.25),
-		Color3.fromRGB(200, 210, 220), Enum.Material.Marble)
-	wall("Fridge", Vector3.new(2.5, 5.5, 2.5), CFrame.new(w * 0.22, -h / 2 + 2.75, -d * 0.4),
-		Color3.fromRGB(230, 230, 230), Enum.Material.SmoothPlastic)
-	
-	wall("DiningTable", Vector3.new(4, 2.2, 4), CFrame.new(w * 0.35, -h / 2 + 1.5, d * 0.05),
-		Color3.fromRGB(120, 80, 50), Enum.Material.WoodPlanks)
-	wall("DiningChair1", Vector3.new(1.5, 1.5, 1.5), CFrame.new(w * 0.35, -h / 2 + 1, d * 0.05 - 3),
-		Color3.fromRGB(80, 50, 30), Enum.Material.WoodPlanks)
-	wall("DiningChair2", Vector3.new(1.5, 1.5, 1.5), CFrame.new(w * 0.35, -h / 2 + 1, d * 0.05 + 3),
-		Color3.fromRGB(80, 50, 30), Enum.Material.WoodPlanks)
+	local frontHoles, backHoles, leftHoles, rightHoles = {}, {}, {}, {}
+	local doorX = 0
+	local doorOnBody = doorRel ~= nil and math.abs(doorRel.Z + d / 2) < 1.2
+	if doorOnBody then
+		doorX = math.clamp(doorRel.X, -w / 2 + 4, w / 2 - 4)
+		addHole(frontHoles, doorX, DOOR_W, 0, DOOR_H)
+	end
+	glassHolesOn(frontHoles, -d / 2, 0, 0, h)
 
-	wall("Bookshelf", Vector3.new(4, 6, 1.2), CFrame.new(w / 2 - 0.7, -h / 2 + 3, d * 0.1),
-		Color3.fromRGB(120, 80, 50), Enum.Material.WoodPlanks)
-		
-	wall("Window", Vector3.new(12, 5, 0.9), CFrame.new(0, -h / 2 + 5, d / 2 - 0.4),
-		Color3.fromRGB(150, 200, 255), Enum.Material.Glass)
-		
-	local ceilingLight = wall("CeilingLight", Vector3.new(3, 0.4, 3), CFrame.new(0, h / 2 - 0.4, 0),
-		Color3.fromRGB(255, 245, 230), Enum.Material.Neon)
-	local cLight = Instance.new("PointLight")
-	cLight.Range = 30
-	cLight.Brightness = 0.8
-	cLight.Shadows = true
-	cLight.Parent = ceilingLight
-	
-	-- Auto-Petter Machine (corner of the room, pre-built and active when owned)
-	local apSpot = CFrame.new(w/2 - 2, -h / 2 + 2, d/2 - 2)
-	local ap = wall("AutoPetter", Vector3.new(3, 4, 3), apSpot, Color3.fromRGB(80, 200, 120), Enum.Material.Neon)
-	local apScreen = wall("AutoPetterScreen", Vector3.new(2.8, 1.5, 0.2), apSpot * CFrame.new(0, 1.5, -1.6), Color3.fromRGB(30, 30, 30))
-	makeSign(apScreen, Enum.NormalId.Front, "AUTO-PETTER", Color3.fromRGB(30, 30, 30), Color3.fromRGB(80, 200, 120))
+	-- L-shaped houses: the wing becomes an entry hall that opens into the main room
+	local wing = house:FindFirstChild("Wing")
+	local wingInfo = nil
+	if wing then
+		local wrel = cfB:ToObjectSpace(wing.CFrame)
+		local ws = wing.Size
+		local wf, bf = wrel.Z - ws.Z / 2, -d / 2
+		if wf < bf - 3 then
+			wing:Destroy()
+			local wx, wy, wh = wrel.X, wrel.Y, ws.Y
+			-- the wing's roof ran back into the main body; trim it at the main front wall so it
+			-- doesn't poke down into the main room (its ridge runs along body Z, i.e. its local X)
+			for _, r in ipairs(house:GetChildren()) do
+				if r:IsA("WedgePart") then
+					local rr = cfB:ToObjectSpace(r.CFrame)
+					if math.abs(rr.X - wx) < ws.X / 2 + 1 and rr.Y - r.Size.Y / 2 < h / 2 - 0.5 then
+						local z0 = rr.Z - r.Size.X / 2
+						local z1 = math.min(rr.Z + r.Size.X / 2, bf + 0.4)
+						if z1 - z0 > 1 then
+							r.Size = Vector3.new(z1 - z0, r.Size.Y, r.Size.Z)
+							r.CFrame = cfB * CFrame.new(rr.X, rr.Y, (z0 + z1) / 2) * rr.Rotation
+						end
+					end
+				end
+			end
+			local len = bf - wf
+			wingInfo = { x = wx, front = wf, len = len, wdt = ws.X, h = wh, floorY = wy - wh / 2 + 0.4 }
+			mk(house, "Floor", Vector3.new(ws.X, 0.4, len), cfB * CFrame.new(wx, wy - wh / 2 + 0.2, wf + len / 2),
+				Color3.fromRGB(160, 125, 85), Enum.Material.WoodPlanks)
+			mk(house, "Ceiling", Vector3.new(ws.X, 0.4, len), cfB * CFrame.new(wx, wy + wh / 2 - 0.2, wf + len / 2),
+				Color3.fromRGB(238, 234, 224))
+			local wHoles = {}
+			if doorRel and not doorOnBody then
+				addHole(wHoles, doorRel.X - wx, DOOR_W, 0, DOOR_H)
+				doorX = wx
+			end
+			glassHolesOn(wHoles, wf, wx, wy, wh)
+			buildWall("WingFront", cfB * CFrame.new(wx, wy, wf + 0.4), ws.X, wh, wHoles)
+			local sideLen = len - 0.8
+			local zc = wf + 0.8 + sideLen / 2
+			buildWall("WingSideL", cfB * CFrame.new(wx - ws.X / 2 + 0.4, wy, zc) * CFrame.Angles(0, math.pi / 2, 0), sideLen, wh, {}, sideLen)
+			buildWall("WingSideR", cfB * CFrame.new(wx + ws.X / 2 - 0.4, wy, zc) * CFrame.Angles(0, -math.pi / 2, 0), sideLen, wh, {}, sideLen)
+			-- wide opening from the wing into the main room
+			addHole(frontHoles, wx, ws.X - 1.6, 0, math.min(wh, h) - 1.2)
+		end
+	end
+
+	local iw, idp = w - 1.6, d - 1.6
+	local zMin, zMax = -idp / 2, idp / 2
+	local y0 = -h / 2 + 0.4
+	local sD = doorX >= 0 and 1 or -1 -- door side
+	local sA = -sD                    -- living side
+	local function F(x, z, yaw)
+		return cfB * CFrame.new(x, y0, z) * CFrame.Angles(0, yaw or 0, 0)
+	end
+	-- yaw that turns a piece's front (local -Z) to face +X / -X / +Z
+	local FACE_PX, FACE_NX, FACE_PZ = -math.pi / 2, math.pi / 2, math.pi
+
+	local hasKitchen = iw >= 22 and idp >= 12
+	local hasDining = iw >= 30 and idp >= 22
+	local hasBed = iw >= 22 and idp >= 22
+	local sofaDist = math.clamp(idp * 0.45, 7, 12)
+	local runLen = math.clamp(iw * 0.32, 10.5, 15)
+	local SINK_DIST = 4.9                                  -- from the door-side wall
+	local stoveDist = math.max(runLen - 1.6, SINK_DIST + 3.7) -- clear of the sink window
+	local sinkX = sD * (iw / 2 - SINK_DIST)
+	local diningZ = zMax - 9
+
+	-- extra windows: over the kitchen sink and beside the dining table
+	if hasKitchen and h >= 9 then
+		addHole(backHoles, -sinkX, 4.4, 4.4, 7.4)
+	end
+	if hasDining and h >= 9 then
+		addHole(sD > 0 and rightHoles or leftHoles, sD > 0 and diningZ or -diningZ, 5, 3.4, 7.2)
+	end
+
+	mk(house, "Floor", Vector3.new(w, 0.4, d), cfB * CFrame.new(0, -h / 2 + 0.2, 0),
+		Color3.fromRGB(160, 125, 85), Enum.Material.WoodPlanks)
+	mk(house, "Ceiling", Vector3.new(w, 0.4, d), cfB * CFrame.new(0, h / 2 - 0.2, 0), Color3.fromRGB(238, 234, 224))
+	buildWall("FrontWall", cfB * CFrame.new(0, 0, -d / 2 + 0.4), w, h, frontHoles)
+	buildWall("BackWall", cfB * CFrame.new(0, 0, d / 2 - 0.4) * CFrame.Angles(0, math.pi, 0), w, h, backHoles)
+	buildWall("SideL", cfB * CFrame.new(-w / 2 + 0.4, 0, 0) * CFrame.Angles(0, math.pi / 2, 0), d - 1.6, h, leftHoles, d - 1.6)
+	buildWall("SideR", cfB * CFrame.new(w / 2 - 0.4, 0, 0) * CFrame.Angles(0, -math.pi / 2, 0), d - 1.6, h, rightHoles, d - 1.6)
+	for _, ho in ipairs(backHoles) do
+		newWindowPane(cfB * CFrame.new(0, 0, d / 2 - 0.4) * CFrame.Angles(0, math.pi, 0), (ho.x0 + ho.x1) / 2, ho.y0, ho.y1, ho.x1 - ho.x0, h)
+	end
+	for _, ho in ipairs(leftHoles) do
+		newWindowPane(cfB * CFrame.new(-w / 2 + 0.4, 0, 0) * CFrame.Angles(0, math.pi / 2, 0), (ho.x0 + ho.x1) / 2, ho.y0, ho.y1, ho.x1 - ho.x0, h)
+	end
+	for _, ho in ipairs(rightHoles) do
+		newWindowPane(cfB * CFrame.new(w / 2 - 0.4, 0, 0) * CFrame.Angles(0, -math.pi / 2, 0), (ho.x0 + ho.x1) / 2, ho.y0, ho.y1, ho.x1 - ho.x0, h)
+	end
+	-- baseboards (no front one so the doorway stays flat)
+	mk(interior, "Baseboard", Vector3.new(iw, 0.6, 0.15), F(0, zMax - 0.05) * CFrame.new(0, 0.3, 0), WHITE)
+	mk(interior, "Baseboard", Vector3.new(0.15, 0.6, idp), F(-iw / 2 + 0.05, 0) * CFrame.new(0, 0.3, 0), WHITE)
+	mk(interior, "Baseboard", Vector3.new(0.15, 0.6, idp), F(iw / 2 - 0.05, 0) * CFrame.new(0, 0.3, 0), WHITE)
+
+	local function ceilingLight(x, z, withLight, ceilH)
+		local yTop = (ceilH or h) - 0.8
+		local hang = math.max(yTop - 9.2, 0)
+		if hang > 0.5 then
+			mk(interior, "LightCord", Vector3.new(0.12, hang, 0.12), F(x, z) * CFrame.new(0, yTop - hang / 2, 0), BLACK)
+		end
+		local fixture = mk(interior, "CeilingLight", Vector3.new(0.5, 2.6, 2.6),
+			F(x, z) * CFrame.new(0, yTop - hang - 0.25, 0) * CFrame.Angles(0, 0, math.pi / 2), WARM, Enum.Material.Neon, Enum.PartType.Cylinder)
+		if withLight then
+			local l = Instance.new("PointLight")
+			l.Range = 22
+			l.Brightness = 0.6
+			l.Color = WARM
+			l.Parent = fixture
+		end
+	end
+	local function plant(x, z)
+		mk(interior, "PlantPot", Vector3.new(1.6, 1.8, 1.8), F(x, z) * CFrame.new(0, 0.8, 0) * CFrame.Angles(0, 0, math.pi / 2),
+			Color3.fromRGB(190, 105, 70), Enum.Material.SmoothPlastic, Enum.PartType.Cylinder)
+		mk(interior, "PlantLeaves", Vector3.new(2.6, 2.6, 2.6), F(x, z) * CFrame.new(0, 2.6, 0), LEAF, Enum.Material.Grass, Enum.PartType.Ball)
+		mk(interior, "PlantLeaves", Vector3.new(1.8, 1.8, 1.8), F(x, z) * CFrame.new(0.3, 3.7, -0.2),
+			Color3.fromRGB(95, 175, 85), Enum.Material.Grass, Enum.PartType.Ball)
+	end
+
+	-- LIVING ROOM (living side, back): TV console against the back wall, sofa facing it, rug + coffee table
+	if iw >= 14 and idp >= 10 then
+		local lx = sA * math.min(iw * 0.25, iw / 2 - 5)
+		local tv = F(lx, zMax - 0.9)
+		mk(interior, "TVConsole", Vector3.new(7, 1.8, 1.6), tv * CFrame.new(0, 0.9, 0), DARK_WOOD, Enum.Material.WoodPlanks)
+		mk(interior, "TV", Vector3.new(6, 3.4, 0.3), tv * CFrame.new(0, 3.85, 0.3), BLACK)
+		mk(interior, "TVScreen", Vector3.new(5.6, 3, 0.1), tv * CFrame.new(0, 3.85, 0.12), Color3.fromRGB(60, 120, 200), Enum.Material.Neon)
+		mk(interior, "Soundbar", Vector3.new(3.6, 0.4, 0.6), tv * CFrame.new(0, 2, -0.3), BLACK)
+		mk(interior, "GameConsole", Vector3.new(1.2, 0.3, 0.9), tv * CFrame.new(2.4, 1.95, -0.1), WHITE)
+
+		local sofa = F(lx, zMax - sofaDist, FACE_PZ)
+		mk(interior, "Sofa", Vector3.new(7, 1.4, 3), sofa * CFrame.new(0, 0.7, 0), sofaCol, Enum.Material.Fabric)
+		for _, sx in ipairs({ -1.7, 1.7 }) do
+			mk(interior, "SofaCushion", Vector3.new(3.3, 0.6, 2.5), sofa * CFrame.new(sx, 1.7, -0.15), sofaCol:Lerp(WHITE, 0.15), Enum.Material.Fabric)
+		end
+		mk(interior, "SofaBack", Vector3.new(7, 2.4, 0.8), sofa * CFrame.new(0, 2.6, 1.1), sofaCol, Enum.Material.Fabric)
+		for _, sx in ipairs({ -3.9, 3.9 }) do
+			mk(interior, "SofaArm", Vector3.new(0.8, 2.3, 3), sofa * CFrame.new(sx, 1.15, 0), sofaCol:Lerp(BLACK, 0.12), Enum.Material.Fabric)
+		end
+		mk(interior, "ThrowPillow", Vector3.new(1.4, 1.3, 0.5), sofa * CFrame.new(-2.6, 2.4, 0.5) * CFrame.Angles(0, 0, math.rad(12)), accent, Enum.Material.Fabric)
+
+		local midZ = zMax - 0.9 - (sofaDist - 0.9) * 0.5
+		mk(interior, "Rug", Vector3.new(9.5, 0.1, math.max(sofaDist - 2.2, 4)), F(lx, midZ) * CFrame.new(0, 0.05, 0), accent:Lerp(WHITE, 0.35), Enum.Material.Fabric)
+		mk(interior, "RugBorder", Vector3.new(10.3, 0.08, math.max(sofaDist - 1.4, 4.8)), F(lx, midZ) * CFrame.new(0, 0.04, 0), accent:Lerp(BLACK, 0.3), Enum.Material.Fabric)
+		local ct = F(lx, midZ)
+		mk(interior, "CoffeeTable", Vector3.new(4.2, 0.3, 2.2), ct * CFrame.new(0, 1.55, 0), WOOD, Enum.Material.WoodPlanks)
+		for _, sx in ipairs({ -1.8, 1.8 }) do
+			mk(interior, "CoffeeTableLeg", Vector3.new(0.3, 1.4, 2), ct * CFrame.new(sx, 0.7, 0), DARK_WOOD, Enum.Material.WoodPlanks)
+		end
+		mk(interior, "Mug", Vector3.new(0.5, 0.45, 0.45), ct * CFrame.new(0.9, 1.92, 0.2) * CFrame.Angles(0, 0, math.pi / 2), accent, Enum.Material.SmoothPlastic, Enum.PartType.Cylinder)
+		mk(interior, "Magazine", Vector3.new(1.2, 0.08, 0.9), ct * CFrame.new(-0.8, 1.74, 0) * CFrame.Angles(0, 0.3, 0), WHITE)
+		if iw >= 34 then
+			-- armchair on the room side of the coffee table, turned toward it
+			local arm = F(lx - sA * 5.4, midZ, sA > 0 and FACE_PX or FACE_NX)
+			local armCol = accent:Lerp(BLACK, 0.25)
+			mk(interior, "Armchair", Vector3.new(3.2, 1.4, 3), arm * CFrame.new(0, 0.7, 0), armCol, Enum.Material.Fabric)
+			mk(interior, "ArmchairCushion", Vector3.new(2.4, 0.5, 2.4), arm * CFrame.new(0, 1.65, -0.15), armCol:Lerp(WHITE, 0.15), Enum.Material.Fabric)
+			mk(interior, "ArmchairBack", Vector3.new(3.2, 2.4, 0.7), arm * CFrame.new(0, 2.6, 1.15), armCol, Enum.Material.Fabric)
+			for _, ax in ipairs({ -1.45, 1.45 }) do
+				mk(interior, "ArmchairArm", Vector3.new(0.5, 2.1, 3), arm * CFrame.new(ax, 1.05, 0), armCol, Enum.Material.Fabric)
+			end
+		end
+
+		-- floor lamp at the outer end of the sofa
+		local lampX = lx + sA * 5.3
+		if math.abs(lampX) < iw / 2 - 0.8 then
+			local lamp = F(lampX, zMax - sofaDist + 0.4)
+			mk(interior, "LampBase", Vector3.new(0.2, 1.4, 1.4), lamp * CFrame.new(0, 0.1, 0) * CFrame.Angles(0, 0, math.pi / 2), BLACK, Enum.Material.SmoothPlastic, Enum.PartType.Cylinder)
+			mk(interior, "LampPole", Vector3.new(0.2, 4.6, 0.2), lamp * CFrame.new(0, 2.4, 0), BLACK)
+			local shade = mk(interior, "LampShade", Vector3.new(1.3, 1.6, 1.6), lamp * CFrame.new(0, 5.1, 0) * CFrame.Angles(0, 0, math.pi / 2), WARM, Enum.Material.Neon, Enum.PartType.Cylinder)
+			local l = Instance.new("PointLight")
+			l.Range = 14
+			l.Brightness = 0.6
+			l.Color = WARM
+			l.Parent = shade
+			plant(lampX, zMax - 1.4)
+		end
+		ceilingLight(lx, midZ, true)
+	end
+
+	-- KITCHEN (door side, back): fridge in the corner, counter run with sink + stove, cabinets above
+	if hasKitchen then
+		local fx = sD * (iw / 2 - 1.6)
+		local fridge = F(fx, zMax - 1.4)
+		mk(interior, "Fridge", Vector3.new(3, 6.6, 2.6), fridge * CFrame.new(0, 3.3, 0), STEEL, Enum.Material.Metal)
+		mk(interior, "FridgeSeam", Vector3.new(2.9, 0.08, 0.05), fridge * CFrame.new(0, 4.4, -1.31), Color3.fromRGB(120, 125, 130))
+		mk(interior, "FridgeHandle", Vector3.new(0.18, 1.6, 0.25), fridge * CFrame.new(-sD * 1.1, 5.4, -1.42), BLACK)
+		mk(interior, "FridgeHandle", Vector3.new(0.18, 1.6, 0.25), fridge * CFrame.new(-sD * 1.1, 3.2, -1.42), BLACK)
+		local fridgeMagnet = mk(interior, "FridgeDrawing", Vector3.new(1, 1.2, 0.05), fridge * CFrame.new(sD * 0.4, 5, -1.32), WHITE)
+		fridgeMagnet.CanCollide = false
+
+		local xa, xb = sD * (iw / 2 - 3.3), sD * (iw / 2 - runLen)
+		local xc, len = (xa + xb) / 2, math.abs(xa - xb)
+		local run = F(xc, zMax - 1.25)
+		mk(interior, "Cabinets", Vector3.new(len, 2.8, 2.3), run * CFrame.new(0, 1.4, 0), WHITE)
+		mk(interior, "Countertop", Vector3.new(len + 0.2, 0.25, 2.5), run * CFrame.new(0, 2.92, -0.05), Color3.fromRGB(60, 62, 68), Enum.Material.Marble)
+		mk(interior, "CabinetToeKick", Vector3.new(len, 0.35, 0.1), run * CFrame.new(0, 0.18, -1.12), BLACK)
+		-- cabinet door lines
+		for i = 1, math.floor(len / 2.4) - 1 do
+			mk(interior, "CabinetLine", Vector3.new(0.06, 2.1, 0.05), run * CFrame.new(-len / 2 + i * 2.4, 1.55, -1.17), Color3.fromRGB(190, 188, 182))
+		end
+		-- sink + faucet under the back window
+		local sink = F(sinkX, zMax - 1.25)
+		mk(interior, "Sink", Vector3.new(2.4, 0.1, 1.5), sink * CFrame.new(0, 3.06, -0.1), STEEL, Enum.Material.Metal)
+		mk(interior, "Faucet", Vector3.new(0.2, 1.1, 0.2), sink * CFrame.new(0, 3.55, 0.8), STEEL, Enum.Material.Metal)
+		mk(interior, "FaucetSpout", Vector3.new(0.2, 0.2, 0.8), sink * CFrame.new(0, 4.05, 0.45), STEEL, Enum.Material.Metal)
+		-- stove near the inner end of the counter
+		local sx = sD * (iw / 2 - stoveDist)
+		local stove = F(sx, zMax - 1.25)
+		mk(interior, "Cooktop", Vector3.new(2.6, 0.06, 2.1), stove * CFrame.new(0, 3.08, -0.05), BLACK)
+		for _, b in ipairs({ { -0.6, -0.5 }, { 0.6, -0.5 }, { -0.6, 0.45 }, { 0.6, 0.45 } }) do
+			mk(interior, "Burner", Vector3.new(0.05, 0.8, 0.8), stove * CFrame.new(b[1], 3.12, b[2]) * CFrame.Angles(0, 0, math.pi / 2),
+				Color3.fromRGB(70, 70, 75), Enum.Material.SmoothPlastic, Enum.PartType.Cylinder)
+		end
+		mk(interior, "OvenDoor", Vector3.new(2.4, 1.7, 0.08), stove * CFrame.new(0, 1.45, -1.18), Color3.fromRGB(40, 40, 46), Enum.Material.Glass)
+		mk(interior, "OvenHandle", Vector3.new(2, 0.15, 0.2), stove * CFrame.new(0, 2.45, -1.28), STEEL, Enum.Material.Metal)
+		mk(interior, "Pot", Vector3.new(0.9, 1.1, 1.1), stove * CFrame.new(-0.6, 3.6, -0.5) * CFrame.Angles(0, 0, math.pi / 2), Color3.fromRGB(190, 60, 50), Enum.Material.SmoothPlastic, Enum.PartType.Cylinder)
+		if h >= 9 then
+			mk(interior, "RangeHood", Vector3.new(2.8, 0.9, 1.8), stove * CFrame.new(0, 6.9, 0.2), STEEL, Enum.Material.Metal)
+			-- upper cabinets between the sink window and the range hood
+			local da, db = SINK_DIST + 2.4, stoveDist - 1.5
+			if db - da > 1.5 then
+				mk(interior, "UpperCabinets", Vector3.new(db - da, 2.4, 1.3), F(sD * (iw / 2 - (da + db) / 2), zMax - 0.65) * CFrame.new(0, 6.6, 0), WHITE)
+			end
+		end
+		mk(interior, "KitchenTiles", Vector3.new(runLen + 0.6, 0.06, 6.2), F(sD * (iw / 2 - runLen / 2 - 0.1), zMax - 3.1) * CFrame.new(0, 0.03, 0),
+			Color3.fromRGB(210, 214, 218), Enum.Material.Slate)
+		ceilingLight(sinkX, zMax - 3.5, true)
+	end
+
+	-- DINING (door side, middle): round table, four chairs, flower vase
+	if hasDining then
+		local dx = sD * math.min(iw * 0.24, iw / 2 - 5)
+		local tbl = F(dx, diningZ)
+		mk(interior, "DiningTable", Vector3.new(0.3, 4.4, 4.4), tbl * CFrame.new(0, 2.7, 0) * CFrame.Angles(0, 0, math.pi / 2), WOOD, Enum.Material.WoodPlanks, Enum.PartType.Cylinder)
+		mk(interior, "TablePedestal", Vector3.new(0.6, 2.5, 0.6), tbl * CFrame.new(0, 1.35, 0), DARK_WOOD, Enum.Material.WoodPlanks)
+		mk(interior, "TableFoot", Vector3.new(0.2, 2, 2), tbl * CFrame.new(0, 0.1, 0) * CFrame.Angles(0, 0, math.pi / 2), DARK_WOOD, Enum.Material.WoodPlanks, Enum.PartType.Cylinder)
+		mk(interior, "Vase", Vector3.new(0.6, 1, 0.6), tbl * CFrame.new(0, 3.35, 0), WHITE, Enum.Material.Glass)
+		mk(interior, "Flowers", Vector3.new(1.1, 1.1, 1.1), tbl * CFrame.new(0, 4.1, 0), accent, Enum.Material.SmoothPlastic, Enum.PartType.Ball)
+		for i = 0, 3 do
+			local a = i * math.pi / 2
+			local chair = tbl * CFrame.Angles(0, a, 0) * CFrame.new(0, 0, 3.1)
+			mk(interior, "ChairSeat", Vector3.new(1.8, 0.3, 1.8), chair * CFrame.new(0, 1.7, 0), WOOD, Enum.Material.WoodPlanks)
+			mk(interior, "ChairBack", Vector3.new(1.8, 2, 0.25), chair * CFrame.new(0, 2.85, 0.8), WOOD, Enum.Material.WoodPlanks)
+			mk(interior, "ChairLegs", Vector3.new(1.3, 1.55, 1.3), chair * CFrame.new(0, 0.78, 0), DARK_WOOD, Enum.Material.WoodPlanks)
+		end
+		ceilingLight(dx, diningZ, false)
+	end
+
+	-- BED CORNER (living side, front): bed with headboard against the side wall, nightstand, art above
+	if hasBed then
+		local bx = sA * (iw / 2 - 4.4)
+		local bz = zMin + 4.2
+		local bed = F(bx, bz, sA * math.pi / 2) -- head (local +Z) against the side wall
+		mk(interior, "BedFrame", Vector3.new(5.6, 1.2, 8), bed * CFrame.new(0, 0.6, 0), WOOD, Enum.Material.WoodPlanks)
+		mk(interior, "Mattress", Vector3.new(5.2, 0.8, 7.6), bed * CFrame.new(0, 1.6, 0), WHITE, Enum.Material.Fabric)
+		mk(interior, "Blanket", Vector3.new(5.4, 0.35, 5), bed * CFrame.new(0, 2.05, -1.35), accent, Enum.Material.Fabric)
+		for _, px in ipairs({ -1.3, 1.3 }) do
+			mk(interior, "Pillow", Vector3.new(2.1, 0.55, 1.4), bed * CFrame.new(px, 2.25, 2.85), WHITE, Enum.Material.Fabric)
+		end
+		mk(interior, "Headboard", Vector3.new(6, 4.2, 0.5), bed * CFrame.new(0, 2.1, 4.15), DARK_WOOD, Enum.Material.WoodPlanks)
+		-- nightstand with a little glowing lamp, toward the back of the bed
+		local ns = F(sA * (iw / 2 - 1.1), bz + 4.1)
+		mk(interior, "Nightstand", Vector3.new(1.8, 2, 1.8), ns * CFrame.new(0, 1, 0), WOOD, Enum.Material.WoodPlanks)
+		mk(interior, "NightstandDrawer", Vector3.new(0.05, 0.6, 1.3), ns * CFrame.new(-sA * 0.92, 1.3, 0), DARK_WOOD)
+		mk(interior, "BedsideLamp", Vector3.new(0.9, 0.9, 0.9), ns * CFrame.new(0, 2.6, 0), WARM, Enum.Material.Neon, Enum.PartType.Ball)
+		if h >= 9 then
+			-- painting above the headboard: frame, sky, sun and a hill
+			local art = cfB * CFrame.new(sA * (iw / 2 - 0.05), y0 + 6.4, bz) * CFrame.Angles(0, sA * math.pi / 2, 0)
+			mk(interior, "PaintingFrame", Vector3.new(4.6, 3.2, 0.15), art, DARK_WOOD)
+			mk(interior, "PaintingSky", Vector3.new(4.1, 2.7, 0.06), art * CFrame.new(0, 0, -0.09), Color3.fromRGB(140, 195, 235))
+			mk(interior, "PaintingHill", Vector3.new(4.1, 1, 0.06), art * CFrame.new(0, -0.85, -0.11), Color3.fromRGB(90, 160, 80))
+			mk(interior, "PaintingSun", Vector3.new(0.05, 0.9, 0.9), art * CFrame.new(1.2, 0.6, -0.12) * CFrame.Angles(0, math.pi / 2, 0),
+				Color3.fromRGB(255, 210, 80), Enum.Material.Neon, Enum.PartType.Cylinder)
+		end
+		ceilingLight(bx, bz, false)
+		local roomEndZ = bz + 6
+		if iw >= 34 and h >= 9 then
+			local px, pz = sA * (iw / 2 - 11), zMin + 10.5
+			-- side partition runs back from the front wall, doorway beside the foot of the bed
+			local sideLen = pz - zMin
+			local sideZc = zMin + sideLen / 2
+			local doorLocal = -((zMin + 6.5) - sideZc) * sA
+			holedWall(interior, "BedroomWall", cfB * CFrame.new(px, 0, sideZc) * CFrame.Angles(0, sA * math.pi / 2, 0),
+				sideLen, h, 0.4, 0, { { x0 = doorLocal - 2.3, x1 = doorLocal + 2.3, y0 = 0, y1 = DOOR_H } }, paint)
+			holedWall(interior, "BedroomWall", cfB * CFrame.new(sA * (iw / 2 - 5.5), 0, pz), 11, h, 0.4, 0, {}, paint)
+			mk(interior, "BedroomDoorTrim", Vector3.new(0.6, 0.4, 5.2), cfB * CFrame.new(px, y0 + DOOR_H + 0.2, zMin + 6.5), WHITE)
+			roomEndZ = pz + 1
+		end
+
+		-- bookshelf against the living-side wall, between the bed(room) and the sofa
+		local shelfZ = (roomEndZ + zMax - sofaDist - 1.5) / 2
+		if (zMax - sofaDist - 1.5) - roomEndZ > 5.5 then
+			local sh = F(sA * (iw / 2 - 0.75), shelfZ, sA * math.pi / 2)
+			mk(interior, "ShelfBack", Vector3.new(5, 7, 0.25), sh * CFrame.new(0, 3.5, 0.6), DARK_WOOD, Enum.Material.WoodPlanks)
+			for _, sxo in ipairs({ -2.4, 2.4 }) do
+				mk(interior, "ShelfSide", Vector3.new(0.25, 7, 1.4), sh * CFrame.new(sxo, 3.5, 0), DARK_WOOD, Enum.Material.WoodPlanks)
+			end
+			for i, yy in ipairs({ 0.15, 2.4, 4.6, 6.85 }) do
+				mk(interior, "Shelf", Vector3.new(4.6, 0.25, 1.3), sh * CFrame.new(0, yy, 0), DARK_WOOD, Enum.Material.WoodPlanks)
+				if i <= 3 then
+					-- two rows of book spines per shelf, a different color each
+					mk(interior, "Books", Vector3.new(2, 1.6, 1), sh * CFrame.new(-1.1, yy + 0.95, 0.05), pick(ACCENTS))
+					mk(interior, "Books", Vector3.new(1.4, 1.3, 1), sh * CFrame.new(1.2, yy + 0.8, 0.05) * CFrame.Angles(0, 0, math.rad(-8)), pick(ACCENTS))
+				end
+			end
+		end
+	end
+
+	-- GAME AREA in the middle of big houses: an area rug and a pool table (shifted away from the door path)
+	if iw >= 40 and idp >= 30 then
+		local gx = -sD * 3
+		local gz = (zMin + 12 + zMax - sofaDist - 2) / 2
+		mk(interior, "AreaRug", Vector3.new(0.1, 13, 13), F(gx, gz) * CFrame.new(0, 0.05, 0) * CFrame.Angles(0, 0, math.pi / 2),
+			accent:Lerp(WHITE, 0.55), Enum.Material.Fabric, Enum.PartType.Cylinder)
+		local pt = F(gx, gz)
+		mk(interior, "PoolTable", Vector3.new(7, 2.3, 4), pt * CFrame.new(0, 1.15, 0), DARK_WOOD, Enum.Material.WoodPlanks)
+		mk(interior, "PoolTableFelt", Vector3.new(6.2, 0.12, 3.2), pt * CFrame.new(0, 2.36, 0), Color3.fromRGB(40, 130, 70), Enum.Material.Fabric)
+		mk(interior, "PoolBall", Vector3.new(0.45, 0.45, 0.45), pt * CFrame.new(1.6, 2.65, 0.3), WHITE, Enum.Material.SmoothPlastic, Enum.PartType.Ball)
+		mk(interior, "PoolBall", Vector3.new(0.45, 0.45, 0.45), pt * CFrame.new(-1.4, 2.65, -0.4), Color3.fromRGB(230, 60, 50), Enum.Material.SmoothPlastic, Enum.PartType.Ball)
+		mk(interior, "PoolBall", Vector3.new(0.45, 0.45, 0.45), pt * CFrame.new(-1.9, 2.65, 0.2), Color3.fromRGB(250, 200, 40), Enum.Material.SmoothPlastic, Enum.PartType.Ball)
+		mk(interior, "PoolCue", Vector3.new(4.8, 0.12, 0.12), pt * CFrame.new(0.4, 2.5, 1.3) * CFrame.Angles(0, 0.15, 0), Color3.fromRGB(210, 170, 110))
+		ceilingLight(gx, gz, false)
+	end
+
+	-- DOG CORNER: in an L-house's entry wing, otherwise the front corner on the door side
+	local dogX, dogZ, dogY, dogFace
+	if wingInfo then
+		dogX = wingInfo.x - sD * (wingInfo.wdt / 2 - 2.8)
+		dogZ = wingInfo.front + 3.2
+		dogY = wingInfo.floorY
+		dogFace = sD > 0 and FACE_PX or FACE_NX
+	else
+		dogX = sD * (iw / 2 - 2.6)
+		dogZ = zMin + 2.8
+		if math.abs(dogX - doorX) < 6 then dogZ = zMin + 8.5 end
+		dogY = y0
+		dogFace = sD > 0 and FACE_NX or FACE_PX
+	end
+	local function G(x, z, yaw) return cfB * CFrame.new(x, dogY, z) * CFrame.Angles(0, yaw or 0, 0) end
+	mk(interior, "DogBed", Vector3.new(0.7, 4, 4), G(dogX, dogZ) * CFrame.new(0, 0.35, 0) * CFrame.Angles(0, 0, math.pi / 2),
+		Color3.fromRGB(120, 85, 60), Enum.Material.Fabric, Enum.PartType.Cylinder)
+	mk(interior, "DogBedCushion", Vector3.new(0.5, 3.1, 3.1), G(dogX, dogZ) * CFrame.new(0, 0.55, 0) * CFrame.Angles(0, 0, math.pi / 2),
+		Color3.fromRGB(235, 220, 190), Enum.Material.Fabric, Enum.PartType.Cylinder)
+	local bowlX = dogX - (dogFace == FACE_PX and -1 or 1) * 3.2
+	mk(interior, "DogBowl", Vector3.new(0.5, 1.4, 1.4), G(bowlX, dogZ - 0.6) * CFrame.new(0, 0.25, 0) * CFrame.Angles(0, 0, math.pi / 2),
+		Color3.fromRGB(200, 60, 60), Enum.Material.SmoothPlastic, Enum.PartType.Cylinder)
+	mk(interior, "Kibble", Vector3.new(0.1, 1.1, 1.1), G(bowlX, dogZ - 0.6) * CFrame.new(0, 0.5, 0) * CFrame.Angles(0, 0, math.pi / 2),
+		Color3.fromRGB(150, 95, 50), Enum.Material.SmoothPlastic, Enum.PartType.Cylinder)
+	mk(interior, "ChewBone", Vector3.new(1.2, 0.3, 0.3), G(dogX + 0.8, dogZ - 2.5) * CFrame.new(0, 0.15, 0) * CFrame.Angles(0, 0.6, 0), WHITE)
+
+	-- Auto-Petter 3000 beside the dog bed
+	local apSpot = G(dogX, dogZ + 4.2, dogFace) * CFrame.new(0, 2, 0)
+	local ap = mk(interior, "AutoPetter", Vector3.new(3, 4, 2.6), apSpot, Color3.fromRGB(70, 75, 85), Enum.Material.Metal)
+	mk(interior, "AutoPetterStripe", Vector3.new(3.05, 0.35, 2.65), apSpot * CFrame.new(0, -1.2, 0), Color3.fromRGB(80, 220, 120), Enum.Material.Neon)
+	mk(interior, "AutoPetterArm", Vector3.new(0.35, 0.35, 2.4), apSpot * CFrame.new(0, 1.6, -2.3), STEEL, Enum.Material.Metal)
+	mk(interior, "AutoPetterHand", Vector3.new(1, 1, 1), apSpot * CFrame.new(0, 1.4, -3.5), Color3.fromRGB(255, 200, 160), Enum.Material.SmoothPlastic, Enum.PartType.Ball)
+	local apScreen = mk(interior, "AutoPetterScreen", Vector3.new(2.6, 1.4, 0.15), apSpot * CFrame.new(0, 0.6, -1.36), BLACK)
+	makeSign(apScreen, Enum.NormalId.Front, "AUTO-PETTER", BLACK, Color3.fromRGB(80, 220, 120))
+	ap:SetAttribute("AutoPetter", true)
+
+	-- welcome mat inside the front door
+	if wingInfo then
+		mk(interior, "Doormat", Vector3.new(3.8, 0.1, 2.2), cfB * CFrame.new(wingInfo.x, wingInfo.floorY + 0.05, wingInfo.front + 2), Color3.fromRGB(140, 100, 60), Enum.Material.Fabric)
+		ceilingLight(wingInfo.x, wingInfo.front + wingInfo.len / 2, true, wingInfo.h)
+	else
+		mk(interior, "Doormat", Vector3.new(3.8, 0.1, 2.2), F(doorX, zMin + 1.6) * CFrame.new(0, 0.05, 0), Color3.fromRGB(140, 100, 60), Enum.Material.Fabric)
+		ceilingLight(doorX, zMin + 4, true)
+	end
+	if iw >= 20 and not wingInfo and not hasDining then
+		plant(sD * (iw / 2 - 1.4), zMax - (hasKitchen and 4.4 or 1.4))
+	end
 
 	task.spawn(function()
-		while true do
+		while house.Parent do
 			local currOwnerId = house:GetAttribute("OwnerUserId")
 			if currOwnerId then
 				local ownerPlr = game.Players:GetPlayerByUserId(currOwnerId)
@@ -2004,8 +2472,57 @@ local function hollowHouse(house)
 	end)
 
 	-- where a hatched dog waits: on the dog bed, inside
-	house:SetAttribute("DogSpotInside", (cfB * CFrame.new(w * 0.28, -h / 2 + 1, -d * 0.22)).Position)
+	house:SetAttribute("DogSpotInside", (G(dogX, dogZ) * CFrame.new(0, 0.6, 0)).Position)
 end
+
+-- Houses are hollowed + furnished on demand, when a player first comes near (5000+ houses would
+-- otherwise mean ~150k interior parts nobody ever sees).
+local HOLLOW_GRID = 100
+local HOLLOW_RADIUS = 80
+local unhollowedByCell = {}
+local function queueHouseForHollowing(house)
+	local body = house:FindFirstChild("Body")
+	if not body or house:GetAttribute("Hollowed") then return end
+	local p = body.Position
+	local key = math.floor(p.X / HOLLOW_GRID) .. ":" .. math.floor(p.Z / HOLLOW_GRID)
+	local list = unhollowedByCell[key]
+	if not list then
+		list = {}
+		unhollowedByCell[key] = list
+	end
+	table.insert(list, house)
+end
+task.spawn(function()
+	while true do
+		for _, plr in ipairs(Players:GetPlayers()) do
+			local root = plr.Character and plr.Character:FindFirstChild("HumanoidRootPart")
+			if root then
+				local p = root.Position
+				local gx, gz = math.floor(p.X / HOLLOW_GRID), math.floor(p.Z / HOLLOW_GRID)
+				for dx = -1, 1 do
+					for dz = -1, 1 do
+						local list = unhollowedByCell[(gx + dx) .. ":" .. (gz + dz)]
+						if list then
+							for i = #list, 1, -1 do
+								local house = list[i]
+								local body = house.Parent and house:FindFirstChild("Body")
+								if not body or house:GetAttribute("Hollowed") then
+									table.remove(list, i)
+								elseif (body.Position - p).Magnitude < HOLLOW_RADIUS + math.max(body.Size.X, body.Size.Z) / 2 then
+									table.remove(list, i)
+									local ok, err = pcall(hollowHouse, house)
+									if not ok then warn("[DiscoveryBayShop] hollowing failed: " .. tostring(err)) end
+									task.wait()
+								end
+							end
+						end
+					end
+				end
+			end
+		end
+		task.wait(0.4)
+	end
+end)
 
 local function hookRent(board)
 	local click = board:FindFirstChildOfClass("ClickDetector")
@@ -2816,6 +3333,7 @@ local function tickFunnel(funnel)
 end
 
 local function runWeather(w)
+	weatherActive = true
 	weatherAnnounce("WEATHER: " .. w.name .. "! " .. w.desc)
 	if w.fog then Lighting.FogEnd = w.fog end
 	if w.oa then Lighting.OutdoorAmbient = w.oa end
@@ -2858,8 +3376,9 @@ local function runWeather(w)
 		task.wait(1)
 	end
 	if funnel then funnel:Destroy() end
+	weatherActive = false
 	Lighting.FogEnd = 100000
-	Lighting.OutdoorAmbient = Color3.fromRGB(128, 128, 128)
+	updateSkyForClock(Lighting.ClockTime)
 	workspace.Gravity = 196.2
 	for _, p in ipairs(Players:GetPlayers()) do
 		p:SetAttribute("WeatherBoost", 0)
@@ -3196,7 +3715,9 @@ task.spawn(function()
 	local hooked = 0
 	for _, d in ipairs(town:GetDescendants()) do
 		if d:IsA("BasePart") then
-			if d:GetAttribute("Product") then
+			if d.Name == "Register" then
+				d:Destroy()
+			elseif d:GetAttribute("Product") then
 				hookProduct(d)
 				hooked = hooked + 1
 			elseif d:GetAttribute("AutoDoor") then
@@ -3206,10 +3727,8 @@ task.spawn(function()
 			elseif d:GetAttribute("StudyButton") then
 				hookStudy(d)
 			elseif d:GetAttribute("RentSign") then
-				local house = d.Parent
-				if house then
-					local ok, err = pcall(hollowHouse, house)
-					if not ok then warn("[DiscoveryBayShop] Pre-hollowing failed: " .. tostring(err)) end
+				if d.Parent then
+					queueHouseForHollowing(d.Parent)
 				end
 				hookRent(d)
 			elseif d:GetAttribute("EggShop") then
@@ -3218,6 +3737,17 @@ task.spawn(function()
 				hookFishSell(d)
 			elseif d:GetAttribute("ScooterShop") then
 				hookScooterShop(d)
+			end
+		end
+	end
+	local terry = town:FindFirstChild("Thirsty Terry", true)
+	if terry and terry:IsA("Model") then
+		local tTorso = terry:FindFirstChild("Torso")
+		local kioskBack = terry.Parent and terry.Parent:FindFirstChild("KioskBack")
+		if tTorso and kioskBack then
+			local toWall = (kioskBack.Position - tTorso.Position).Unit
+			if tTorso.CFrame.LookVector:Dot(toWall) > 0.2 then
+				terry:PivotTo(terry:GetPivot() * CFrame.Angles(0, math.pi, 0))
 			end
 		end
 	end

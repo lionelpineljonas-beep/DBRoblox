@@ -13,7 +13,7 @@
       <Properties>
         <string name="Name">DiscoveryBayBuild</string>
         <token name="RunContext">0</token>
-        <string name="Source"><![CDATA[-- DISCOVERY BAY, CALIFORNIA — OSM-accurate procedural Roblox build (v102)
+        <string name="Source"><![CDATA[-- DISCOVERY BAY, CALIFORNIA — OSM-accurate procedural Roblox build (v111)
 --==============================================================================================
 -- Builds the real Discovery Bay from OpenStreetMap geometry (© OpenStreetMap contributors):
 --   * real terrain raster: every lagoon/bay polygon, Old River, golf fairways/greens/
@@ -57,15 +57,15 @@ local S = CONFIG.worldScale
 local rng = Random.new(CONFIG.seed)
 
 local RunService = game:GetService("RunService")
-if RunService:IsRunning() and workspace:FindFirstChild("DiscoveryBay") then
-	-- Town already exists (built + saved in edit mode): nothing to do during Play.
+local existingSavedTown = RunService:IsRunning() and workspace:FindFirstChild("DiscoveryBay")
+if existingSavedTown and existingSavedTown:GetAttribute("GroundTiled") then
+	-- Town already exists (built + saved in edit mode with tiled ground): nothing to do during Play.
 	return
 end
--- Otherwise: build now. In edit mode this is the normal command-bar path; in Play
--- mode it auto-builds so "just press Play" works — that copy vanishes on Stop, so to
--- make it permanent run the command-bar line in edit mode once and save.
+-- Otherwise: build now (or patch Ground/Water if existingSavedTown is an older save).
+local patchGroundOnly = (existingSavedTown ~= nil)
 
-if not workspace:FindFirstChild("SafeSpawn") then
+if not patchGroundOnly and not workspace:FindFirstChild("SafeSpawn") then
 	local safeSpawn = Instance.new("SpawnLocation")
 	safeSpawn.Name = "SafeSpawn"
 	safeSpawn.Size = Vector3.new(500, 10, 500)
@@ -74,9 +74,11 @@ if not workspace:FindFirstChild("SafeSpawn") then
 	safeSpawn.Transparency = 1
 	safeSpawn.Parent = workspace
 end
-for _, plr in ipairs(game:GetService("Players"):GetPlayers()) do
-	if plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
-		plr.Character.HumanoidRootPart.Anchored = true
+if not patchGroundOnly then
+	for _, plr in ipairs(game:GetService("Players"):GetPlayers()) do
+		if plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+			plr.Character.HumanoidRootPart.Anchored = true
+		end
 	end
 end
 
@@ -220,7 +222,7 @@ local function segClosest(px, pz, ax, az, bx, bz)
 end
 
 do
-	local MAXGAP = 45
+	local MAXGAP = 85
 	local connectors = {}
 	for ri, rd in ipairs(roads) do
 		for _, endIdx in ipairs({ 1, #rd.pts }) do
@@ -245,10 +247,10 @@ do
 					end
 				end
 			end
-			if bestD > 4 and bestD < MAXGAP then
+			if bestD > 2 and bestD < MAXGAP then
 				local vx, vz = bestX - p[1], bestZ - p[2]
 				local vl = math.max(math.sqrt(vx * vx + vz * vz), 1e-6)
-				if (vx * ox + vz * oz) / vl > 0.57 then -- continues roughly straight ahead
+				if (vx * ox + vz * oz) / vl > 0.35 then -- continues ahead into the nearby road
 					connectors[#connectors + 1] = { name = "", cls = rd.cls, width = rd.width,
 						pts = { { p[1], p[2] }, { bestX, bestZ } } }
 				end
@@ -566,26 +568,40 @@ end
 --==============================================================================================
 -- 5. SCAFFOLD (idempotent)
 --==============================================================================================
-local old = workspace:FindFirstChild("DiscoveryBay")
-if old then old:Destroy() end
-local oldKit = ReplicatedStorage:FindFirstChild("DiscoveryBayKit")
-if oldKit then oldKit:Destroy() end
-
-local root = Instance.new("Model")
-root.Name = "DiscoveryBay"
-root.Parent = workspace
-
+local root
 local FOLDERS = {}
-for _, fname in ipairs({ "Ground", "Water", "Roads", "Buildings", "Golf", "Docks", "Landmarks", "Props" }) do
-	local f = Instance.new("Folder")
-	f.Name = fname
-	f.Parent = root
-	FOLDERS[fname] = f
-end
+local KIT
+if patchGroundOnly then
+	root = existingSavedTown
+	for _, fname in ipairs({ "Ground", "Water" }) do
+		local oldF = root:FindFirstChild(fname)
+		if oldF then oldF:Destroy() end
+		local f = Instance.new("Folder")
+		f.Name = fname
+		f.Parent = root
+		FOLDERS[fname] = f
+	end
+else
+	local old = workspace:FindFirstChild("DiscoveryBay")
+	if old then old:Destroy() end
+	local oldKit = ReplicatedStorage:FindFirstChild("DiscoveryBayKit")
+	if oldKit then oldKit:Destroy() end
 
-local KIT = Instance.new("Folder")
-KIT.Name = "DiscoveryBayKit"
-KIT.Parent = ReplicatedStorage
+	root = Instance.new("Model")
+	root.Name = "DiscoveryBay"
+	root.Parent = workspace
+
+	for _, fname in ipairs({ "Ground", "Water", "Roads", "Buildings", "Golf", "Docks", "Landmarks", "Props" }) do
+		local f = Instance.new("Folder")
+		f.Name = fname
+		f.Parent = root
+		FOLDERS[fname] = f
+	end
+
+	KIT = Instance.new("Folder")
+	KIT.Name = "DiscoveryBayKit"
+	KIT.Parent = ReplicatedStorage
+end
 
 pcall(function() workspace.StreamingEnabled = true end)
 
@@ -817,6 +833,7 @@ end
 --==============================================================================================
 local function buildGround()
 	local zOff = H_FT - RASTER_NORTH -- align raster rows with the exact-feet frame
+	local MAX_TILE = 2000 -- Roblox Part.Size max is 2048 studs; tile strips >2000 so nothing is ever clamped!
 	for _, g in ipairs(rasterGroups) do
 		local z0 = g.startRow * CELL + zOff   -- feet from NORTH edge
 		local z1 = (g.startRow + g.span) * CELL + zOff
@@ -827,15 +844,26 @@ local function buildGround()
 			local style = GROUND_STYLE[run.class]
 			if style then
 				-- world Z: row 0 = north = Z 0, so strip spans Z [z0,z1]*S directly
-				local size = Vector3.new((x1 - x0) * S, style.thick * S, (z1 - z0) * S)
-				local center = Vector3.new((x0 + x1) / 2 * S,
-					style.top * S - style.thick * S / 2, (z0 + z1) / 2 * S)
+				local totalW = (x1 - x0) * S
+				local totalD = (z1 - z0) * S
+				local nx = math.max(1, math.ceil(totalW / MAX_TILE))
+				local nz = math.max(1, math.ceil(totalD / MAX_TILE))
+				local tileW = totalW / nx
+				local tileD = totalD / nz
 				local parent = run.class == "w" and FOLDERS.Water or FOLDERS.Ground
-				local p = newPart(parent, "G_" .. run.class, size, CFrame.new(center),
-					style.color, style.material, style.transparency)
-				p.CastShadow = false
-				if run.class == "w" then
-					p:SetAttribute("Water", true) -- fishable (Fishing Rod checks this)
+				local cy = style.top * S - style.thick * S / 2
+				for ix = 0, nx - 1 do
+					for iz = 0, nz - 1 do
+						local cx = x0 * S + (ix + 0.5) * tileW
+						local cz = z0 * S + (iz + 0.5) * tileD
+						local size = Vector3.new(tileW + 0.5, style.thick * S, tileD + 0.5)
+						local p = newPart(parent, "G_" .. run.class, size, CFrame.new(cx, cy, cz),
+							style.color, style.material, style.transparency)
+						p.CastShadow = false
+						if run.class == "w" then
+							p:SetAttribute("Water", true) -- fishable (Fishing Rod checks this)
+						end
+					end
 				end
 			end
 		end
@@ -1208,16 +1236,50 @@ local function buildResidential(m, cf, b)
 
 	local frontZ = -d / 2
 	local doorX = w * 0.12
+	-- decoration picks come from a per-house generator so the shared seeded stream (and so the
+	-- rest of the town's layout) stays the same
+	local hr = Random.new(math.floor(cf.Position.X * 13 + cf.Position.Z * 7))
+	local FLOWERS = { Color3.fromRGB(235, 80, 110), Color3.fromRGB(250, 205, 60), Color3.fromRGB(170, 110, 230),
+		Color3.fromRGB(250, 140, 60), Color3.fromRGB(245, 245, 245) }
+	local hasGarage = w > 34 and style ~= "lshape"
+	local flowerBoxXs = {}
+	-- a dressed-up window: glass, sill, header trim, centre mullion and (optionally) a flower box
+	local function frontWindow(name, x, y, wz, ww, wh, flowerBox)
+		newPart(m, name, Vector3.new(ww, wh, 0.25) * S, cf * CFrame.new(x * S, (0.5 + y) * S, (wz - 0.1) * S), glass, Enum.Material.Glass)
+		newPart(m, "Sill", Vector3.new(ww + 0.8, 0.35, 0.8) * S,
+			cf * CFrame.new(x * S, (0.5 + y - wh / 2 - 0.15) * S, (wz - 0.35) * S), trim, Enum.Material.Concrete)
+		newPart(m, "WindowHeader", Vector3.new(ww + 0.8, 0.45, 0.5) * S,
+			cf * CFrame.new(x * S, (0.5 + y + wh / 2 + 0.22) * S, (wz - 0.25) * S), trim, Enum.Material.Concrete)
+		newPart(m, "Mullion", Vector3.new(0.25, wh, 0.12) * S,
+			cf * CFrame.new(x * S, (0.5 + y) * S, (wz - 0.29) * S), Color3.fromRGB(245, 245, 240))
+		if flowerBox then
+			table.insert(flowerBoxXs, x)
+			newPart(m, "FlowerBox", Vector3.new(ww + 0.4, 0.9, 1.1) * S,
+				cf * CFrame.new(x * S, (0.5 + y - wh / 2 - 0.85) * S, (wz - 1.0) * S), Color3.fromRGB(120, 80, 50), Enum.Material.WoodPlanks)
+			newPart(m, "Flowers", Vector3.new(ww, 0.55, 0.8) * S,
+				cf * CFrame.new(x * S, (0.5 + y - wh / 2 - 0.2) * S, (wz - 1.0) * S), FLOWERS[hr:NextInteger(1, #FLOWERS)])
+		end
+	end
 
 	if style == "modern" then
 		newPart(m, "Body", Vector3.new(w, h, d) * S, cf * CFrame.new(0, (0.5 + h / 2) * S, 0),
 			wall, Enum.Material.Concrete)
 		newPart(m, "Parapet", Vector3.new(w + 1, 1.2, d + 1) * S,
 			cf * CFrame.new(0, (0.5 + h + 0.6) * S, 0), trim, Enum.Material.Concrete)
-		newPart(m, "Accent", Vector3.new(w * 0.3, h, 0.5) * S,
-			cf * CFrame.new(w * 0.3 * S, (0.5 + h / 2) * S, (frontZ - 0.15) * S), roof, Enum.Material.WoodPlanks)
-		newPart(m, "GlassBand", Vector3.new(w * 0.42, h * 0.55, 0.3) * S,
-			cf * CFrame.new(-w * 0.2 * S, (0.5 + h * 0.55) * S, (frontZ - 0.1) * S), glass, Enum.Material.Glass, 0.2)
+		-- wood accent panel fills the wall right of the door; glass band fills the left
+		-- (between the garage and the door when there is a garage)
+		local accL, accR = doorX + 3.4, w / 2 - 0.5
+		if accR - accL > 2 then
+			newPart(m, "Accent", Vector3.new(accR - accL, h, 0.5) * S,
+				cf * CFrame.new((accL + accR) / 2 * S, (0.5 + h / 2) * S, (frontZ - 0.15) * S), roof, Enum.Material.WoodPlanks)
+		end
+		local gL, gR = (hasGarage and -w * 0.3 + 5.2 or -w / 2 + 2), doorX - 3.4
+		if gR - gL > 3 then
+			newPart(m, "GlassBand", Vector3.new(gR - gL, h * 0.55, 0.3) * S,
+				cf * CFrame.new((gL + gR) / 2 * S, (0.5 + h * 0.55) * S, (frontZ - 0.1) * S), glass, Enum.Material.Glass, 0.2)
+			newPart(m, "GlassBandFrame", Vector3.new(gR - gL + 0.8, 0.4, 0.5) * S,
+				cf * CFrame.new((gL + gR) / 2 * S, (0.5 + h * 0.55 + h * 0.275 + 0.2) * S, (frontZ - 0.25) * S), trim, Enum.Material.Concrete)
+		end
 		newPart(m, "Canopy", Vector3.new(8, 0.4, 4) * S,
 			cf * CFrame.new(doorX * S, (0.5 + 7.4) * S, (frontZ - 2) * S), trim, Enum.Material.Concrete)
 	elseif style == "lshape" then
@@ -1235,20 +1297,23 @@ local function buildResidential(m, cf, b)
 			* CFrame.Angles(0, math.rad(90), 0),
 			(d * 0.55 + 1.5) * S, (wingW + 1.5) * S, math.clamp(wingW * 0.3, 3, 7) * S, roof)
 		doorX = wingX
-		-- windows: one on the wing front, one on the recessed main front
-		newPart(m, "Window", Vector3.new(5, 3.4, 0.25) * S,
-			cf * CFrame.new((wingX + wingW * 0.3) * S, (0.5 + 5) * S, (frontZ - 0.1) * S), glass, Enum.Material.Glass)
-		newPart(m, "WindowMain", Vector3.new(6, 3.4, 0.25) * S,
-			cf * CFrame.new(w * 0.22 * S, (0.5 + 5) * S, (mainFront - 0.1) * S), glass, Enum.Material.Glass)
+		-- windows: one on the wing front (beside the door, if it fits), one on the recessed main front
+		local wingWinX = math.max(wingW * 0.3, 5.8)
+		if wingWinX + 2.8 < wingW / 2 - 0.4 then
+			frontWindow("Window", wingX + wingWinX, 5, frontZ, 5, 3.4, true)
+		end
+		frontWindow("WindowMain", w * 0.22, 5, mainFront, 6, 3.4, true)
 	else -- gable ranch
 		newPart(m, "Body", Vector3.new(w, h, d) * S, cf * CFrame.new(0, (0.5 + h / 2) * S, 0), wall, wallMat)
-		gableRoof(m, cf * CFrame.new(0, (0.5 + h) * S, 0), (w + 1.5) * S, (d + 1.5) * S,
-			math.clamp(d * 0.28, 4, 9) * S, roof)
+		local roofH = math.clamp(d * 0.28, 4, 9)
+		gableRoof(m, cf * CFrame.new(0, (0.5 + h) * S, 0), (w + 1.5) * S, (d + 1.5) * S, roofH * S, roof)
+		newPart(m, "RidgeCap", Vector3.new(w + 1.9, 0.5, 0.9) * S, cf * CFrame.new(0, (0.5 + h + roofH) * S, 0),
+			roof:Lerp(Color3.new(0, 0, 0), 0.35))
 		if rng:NextNumber() < 0.28 then
 			-- front porch
-			newPart(m, "PorchRoof", Vector3.new(w * 0.4, 0.4, 4.5) * S,
+			newPart(m, "PorchRoof", Vector3.new(10, 0.4, 4.5) * S,
 				cf * CFrame.new(doorX * S, (0.5 + 7.6) * S, (frontZ - 2.2) * S), roof)
-			for _, px in ipairs({ doorX - w * 0.14, doorX + w * 0.14 }) do
+			for _, px in ipairs({ doorX - 4.2, doorX + 4.2 }) do
 				newColumn(m, "PorchPost", 7.4 * S, 0.7 * S,
 					cf * CFrame.new(px * S, (0.5 + 3.7) * S, (frontZ - 3.8) * S), Color3.fromRGB(235, 232, 225))
 			end
@@ -1284,15 +1349,17 @@ local function buildResidential(m, cf, b)
 		cf * CFrame.new(doorX * S, 0.55 * S, (frontZ - 1.6) * S),
 		Color3.fromRGB(190, 185, 175), Enum.Material.Concrete)
 
-	if style ~= "lshape" then
-		for _, off in ipairs({ -0.28, 0.32 }) do
-			local wx = w * off
-			newPart(m, "Window", Vector3.new(5, 3.4, 0.25) * S,
-				cf * CFrame.new(wx * S, (0.5 + 5) * S, (frontZ - 0.1) * S), glass, Enum.Material.Glass)
-			newPart(m, "Sill", Vector3.new(5.8, 0.35, 0.8) * S,
-				cf * CFrame.new(wx * S, (0.5 + 3.15) * S, (frontZ - 0.35) * S),
-				trim, Enum.Material.Concrete)
-			if style == "gable" and rng:NextNumber() < 0.4 then
+	-- porch light beside the door
+	newPart(m, "PorchLight", Vector3.new(0.6, 1, 0.5) * S,
+		cf * CFrame.new((doorX + 3.4) * S, (0.5 + 5.4) * S, (frontZ - 0.35) * S), Color3.fromRGB(255, 220, 150), Enum.Material.Neon)
+
+	if style == "gable" then
+		-- (the glass band is a modern house's window.) With a garage on the left, the left window
+		-- sits between the garage and the door instead of being covered by the garage door.
+		local leftX = hasGarage and ((-w * 0.3 + 4.5) + (doorX - 3.05)) / 2 or -w * 0.28
+		for _, wx in ipairs({ leftX, w * 0.32 }) do
+			frontWindow("Window", wx, 5, frontZ, 5, 3.4, true)
+			if rng:NextNumber() < 0.4 then
 				for _, sxo in ipairs({ -3.1, 3.1 }) do
 					newPart(m, "Shutter", Vector3.new(1, 3.4, 0.2) * S,
 						cf * CFrame.new((wx + sxo) * S, (0.5 + 5) * S, (frontZ - 0.08) * S), trim)
@@ -1301,23 +1368,57 @@ local function buildResidential(m, cf, b)
 		end
 	end
 	if stories == 2 then
-		newPart(m, "Window2", Vector3.new(5, 3.2, 0.25) * S,
-			cf * CFrame.new(0, 13.5 * S, (frontZ - 0.1) * S), glass, Enum.Material.Glass)
+		-- on an L-house the front line at x = 0 is open yard, so use the recessed main front
+		if style == "lshape" then
+			frontWindow("Window2", w * 0.22, 13, d / 2 - d * 0.6, 5, 3.2, false)
+		else
+			frontWindow("Window2", 0, 13, frontZ, 5, 3.2, false)
+		end
 	end
-	if w > 34 and style ~= "lshape" then
+	if hasGarage then
 		newPart(m, "Garage", Vector3.new(9, 6.4, 0.3) * S,
 			cf * CFrame.new(-w * 0.3 * S, (0.5 + 3.2) * S, (frontZ - 0.12) * S),
 			Color3.fromRGB(220, 215, 205))
+		newPart(m, "GarageTrim", Vector3.new(9.8, 0.5, 0.45) * S,
+			cf * CFrame.new(-w * 0.3 * S, (0.5 + 6.6) * S, (frontZ - 0.2) * S), trim, Enum.Material.Concrete)
 		newPart(m, "Driveway", Vector3.new(10, 0.25, 12) * S,
 			cf * CFrame.new(-w * 0.3 * S, 0.15 * S, (frontZ - 6.5) * S),
 			Color3.fromRGB(165, 160, 152), Enum.Material.Concrete)
 	end
-	-- RENT sign out front: click it in-game to own this house
+
+	-- front yard: stone walkway to the door, shrubs either side, a mailbox at the street end
+	newPart(m, "Walkway", Vector3.new(3.8, 0.22, 9) * S,
+		cf * CFrame.new(doorX * S, 0.12 * S, (frontZ - 7.4) * S), Color3.fromRGB(196, 180, 160), Enum.Material.Slate)
+	for _, sx in ipairs({ -4.4, 4.4 }) do
+		local shrubX = doorX + sx
+		local clear = math.abs(shrubX) < w / 2 - 1
+		for _, fx in ipairs(flowerBoxXs) do
+			if math.abs(shrubX - fx) < 4.2 then clear = false end
+		end
+		if clear then
+			newBall(m, "Shrub", 2.6 * S, cf * CFrame.new(shrubX * S, 1.4 * S, (frontZ - 1.8) * S),
+				Color3.fromRGB(hr:NextInteger(50, 80), hr:NextInteger(120, 150), hr:NextInteger(50, 70)), Enum.Material.Grass)
+		end
+	end
+	local MAILBOX = { Color3.fromRGB(40, 60, 110), Color3.fromRGB(170, 40, 40), Color3.fromRGB(35, 35, 40), Color3.fromRGB(60, 110, 70) }
+	newPart(m, "MailboxPost", Vector3.new(0.35, 3.4, 0.35) * S,
+		cf * CFrame.new((doorX - 3.2) * S, 1.7 * S, (frontZ - 11.4) * S), Color3.fromRGB(245, 245, 240), Enum.Material.Wood)
+	newPart(m, "Mailbox", Vector3.new(1.1, 1, 1.8) * S,
+		cf * CFrame.new((doorX - 3.2) * S, 3.8 * S, (frontZ - 11.4) * S), MAILBOX[hr:NextInteger(1, #MAILBOX)], Enum.Material.Metal)
+	newPart(m, "MailboxFlag", Vector3.new(0.12, 0.8, 0.35) * S,
+		cf * CFrame.new((doorX - 3.2 + 0.62) * S, 4.3 * S, (frontZ - 11.0) * S), Color3.fromRGB(230, 50, 40))
+
+	-- RENT sign out front: a hanging real-estate sign (white post, arm, chains). Click it to rent.
 	local signCf = cf * CFrame.new((doorX + 7) * S, 0, (frontZ - 5) * S)
-	newPart(m, "RentPost", Vector3.new(0.35, 4.2, 0.35) * S, signCf * CFrame.new(0, 2.1 * S, 0),
-		Color3.fromRGB(110, 90, 70), Enum.Material.Wood)
+	local SIGN_WHITE = Color3.fromRGB(245, 245, 240)
+	newPart(m, "RentPost", Vector3.new(0.45, 6, 0.45) * S, signCf * CFrame.new(0, 3 * S, 0), SIGN_WHITE, Enum.Material.Wood)
+	newBall(m, "RentPostCap", 0.75 * S, signCf * CFrame.new(0, 6.2 * S, 0), SIGN_WHITE)
+	newPart(m, "RentArm", Vector3.new(5.6, 0.35, 0.35) * S, signCf * CFrame.new(2.6 * S, 5.5 * S, 0), SIGN_WHITE, Enum.Material.Wood)
+	for _, cx in ipairs({ 0.9, 4.3 }) do
+		newPart(m, "RentChain", Vector3.new(0.12, 0.6, 0.12) * S, signCf * CFrame.new(cx * S, 5.0 * S, 0), Color3.fromRGB(60, 60, 65))
+	end
 	local rentBoard = newPart(m, "RentSign", Vector3.new(4.6, 2.4, 0.25) * S,
-		signCf * CFrame.new(0, 4.6 * S, 0), Color3.fromRGB(200, 60, 50))
+		signCf * CFrame.new(2.6 * S, 3.5 * S, 0), Color3.fromRGB(200, 60, 50))
 	rentBoard:SetAttribute("RentSign", true)
 	makeSign(rentBoard, Enum.NormalId.Front, "RENT", Color3.fromRGB(200, 60, 50), Color3.new(1, 1, 1))
 	local rentClick = Instance.new("ClickDetector")
@@ -1639,14 +1740,12 @@ local function buildPlaza()
 	kioskLight.Parent = lightPanel
 	newPart(shell, "Counter", Vector3.new(8, 3.2, 2.5) * S, K * CFrame.new(-7 * S, 2.05 * S, -5 * S),
 		Color3.fromRGB(120, 90, 70), Enum.Material.Wood)
-	newPart(shell, "Register", Vector3.new(1.4, 1.4, 1) * S, K * CFrame.new(-7 * S, 4.4 * S, -5 * S),
-		Color3.fromRGB(50, 50, 55))
 	buildNPC(shell, "Sal", K * CFrame.new(-7 * S, 0.4 * S, -2 * S),
 		{ face = "rbxassetid://7699174", hairAccessory = "63690008", hatAccessory = "1033284090", shirtTemplate = "rbxassetid://607785314", pantsTemplate = "rbxassetid://129458426" },
 		"Welcome to ShellBlox! Fuel for cars, Bloxy Cola for scooters - every can makes that scooter a little quicker. Stacks five times!",
 		{ { "Anything else?",
 			"Snacks, lots of snacks. And don't let Callahan tell you ice cream is fuel. It is delicious though." } })
-	buildNPC(shell, "Thirsty Terry", K * CFrame.new(0, 0.4 * S, 14 * S),
+	buildNPC(shell, "Thirsty Terry", K * CFrame.new(0, 0.4 * S, 14 * S) * CFrame.Angles(0, math.pi, 0),
 		{ face = "rbxassetid://13014074", hairAccessory = "20573078", hatAccessory = "212450372", shirtTemplate = "rbxassetid://398633812", pantsTemplate = "rbxassetid://144076370" })
 	for _, sy in ipairs({ 2.2, 4.8 }) do
 		newPart(shell, "Shelf", Vector3.new(1.8, 0.3, 12) * S, K * CFrame.new(10.4 * S, sy * S, 0),
@@ -2325,8 +2424,6 @@ local function buildBloxway()
 		local cx = -21 + i * 8
 		newPart(m, "Checkout", Vector3.new(6, 3, 2.2) * S,
 			cf * CFrame.new(cx * S, 1.9 * S, (-d / 2 + 14) * S), Color3.fromRGB(90, 110, 130))
-		newPart(m, "Register", Vector3.new(1.2, 1.3, 1) * S,
-			cf * CFrame.new(cx * S, 4.1 * S, (-d / 2 + 14) * S), Color3.fromRGB(50, 50, 55))
 	end
 	local bob = buildNPC(m, "Manager Bob", cf * CFrame.new(26 * S, 0.4 * S, (-d / 2 + 18) * S),
 		{ face = "rbxassetid://7074749", hairAccessory = "63690008", shirtTemplate = "rbxassetid://144076358", pantsTemplate = "rbxassetid://144076370" })
@@ -2480,6 +2577,13 @@ print(("[DiscoveryBay] building real Discovery Bay: %.0f x %.0f studs (scale %.2
 	:format(W_FT * S, H_FT * S, S, CONFIG.seed))
 local t0 = os.clock()
 
+if patchGroundOnly then
+	buildGround()
+	root:SetAttribute("GroundTiled", true)
+	print("[DiscoveryBay] Patched existing town Ground & Water with 2000-stud tiles (0 gaps).")
+	return
+end
+
 buildKit()
 if CONFIG.build.ground then buildGround() print("[DiscoveryBay] ground done") end
 if CONFIG.build.roads then
@@ -2513,6 +2617,7 @@ end
 
 root:SetAttribute("WorldW", W_FT * S) -- world extents in studs, used by the client map
 root:SetAttribute("WorldH", H_FT * S)
+root:SetAttribute("GroundTiled", true)
 root:SetAttribute("BuildComplete", true) -- signals the DiscoveryBayShop runtime script
 
 print(("[DiscoveryBay] DONE in %.1fs — %d parts. Homes %d, docks %d (every waterfront lot)."):format(
@@ -3457,127 +3562,178 @@ local SPEED_PASS_ID = 0
 -- day/night cycle: one full day every 10 minutes
 local DAY_LENGTH = 600
 
+local START_CASH = 100
+local WALK_SPEED = 16
+local SCOOTER_SPEED = 30
+local VERSION = "v111"
+
+-- ==============================================================================================
+-- LIGHTING, DYNAMIC SUNSET & STARRY NIGHT SKY SYSTEM
+-- ==============================================================================================
+local function lerpColor(a, b, t)
+	return Color3.new(
+		a.R + (b.R - a.R) * t,
+		a.G + (b.G - a.G) * t,
+		a.B + (b.B - a.B) * t
+	)
+end
+
+local sky, atmo, bloom, cc, sunRays, dof
+
 local function initializeLighting()
 	pcall(function()
-		-- Clean up any existing custom lighting effects
 		for _, child in ipairs(Lighting:GetChildren()) do
-			if child.Name == "DiscoveryBayAtmosphere" or child.Name == "DiscoveryBayBloom" 
-				or child.Name == "DiscoveryBayColorCorrection" or child.Name == "DiscoveryBaySunRays"
-				or child.Name == "DiscoveryBayDOF" then
+			if child:IsA("Atmosphere") or child:IsA("BloomEffect")
+				or child:IsA("ColorCorrectionEffect") or child:IsA("SunRaysEffect")
+				or child:IsA("DepthOfFieldEffect") or child:IsA("Sky") then
 				child:Destroy()
 			end
 		end
-		
-		-- High-end "Shaders" (RoShade style) settings
+
 		Lighting.Technology = Enum.Technology.Future
-		Lighting.ShadowSoftness = 0.1 -- extremely sharp shadows
-		Lighting.Brightness = 3.5
+		Lighting.ShadowSoftness = 0.12
+		Lighting.Brightness = 3.2
 		Lighting.GlobalShadows = true
-		Lighting.Ambient = Color3.fromRGB(30, 30, 40)
-		Lighting.OutdoorAmbient = Color3.fromRGB(90, 100, 110)
-		-- Max specular makes all SmoothPlastic reflect the skybox (wet/shiny look)
+		Lighting.Ambient = Color3.fromRGB(35, 38, 52)
+		Lighting.OutdoorAmbient = Color3.fromRGB(95, 108, 125)
+		Lighting.ColorShift_Top = Color3.fromRGB(255, 240, 215)
+		Lighting.GeographicLatitude = 38
 		Lighting.EnvironmentDiffuseScale = 1
 		Lighting.EnvironmentSpecularScale = 1
 
-		-- Cinematic Atmosphere (rich haze and glare)
-		local atmo = Instance.new("Atmosphere")
+		-- Starry Night Skybox with 5,000 stars and a large glowing Moon
+		sky = Instance.new("Sky")
+		sky.Name = "DiscoveryBaySky"
+		sky.CelestialBodiesShown = true
+		sky.StarCount = 5000
+		sky.MoonAngularSize = 20
+		sky.SunAngularSize = 16
+		sky.Parent = Lighting
+
+		-- Dynamic Atmosphere (clears up at night so all 5,000 stars & Moon shine through!)
+		atmo = Instance.new("Atmosphere")
 		atmo.Name = "DiscoveryBayAtmosphere"
-		atmo.Density = 0.18
-		atmo.Offset = 0.4
-		atmo.Color = Color3.fromRGB(190, 200, 210)
-		atmo.Decay = Color3.fromRGB(130, 140, 160)
-		atmo.Glare = 1.5
-		atmo.Haze = 2.5
+		atmo.Density = 0.16
+		atmo.Offset = 0.25
+		atmo.Color = Color3.fromRGB(185, 215, 250)
+		atmo.Decay = Color3.fromRGB(120, 145, 185)
+		atmo.Glare = 0.8
+		atmo.Haze = 1.4
 		atmo.Parent = Lighting
 
-		-- Intense Bloom (glowing neon and bright surfaces)
-		local bloom = Instance.new("BloomEffect")
+		-- Bloom (neon signs, streetlights, moon reflection, and shooting stars glow at night)
+		bloom = Instance.new("BloomEffect")
 		bloom.Name = "DiscoveryBayBloom"
-		bloom.Intensity = 1.2
-		bloom.Size = 24
-		bloom.Threshold = 1.5
+		bloom.Intensity = 1.1
+		bloom.Size = 28
+		bloom.Threshold = 1.4
 		bloom.Parent = Lighting
 
-		-- Strong Color Correction (vibrant, warm, high contrast)
-		local cc = Instance.new("ColorCorrectionEffect")
+		-- Color Correction
+		cc = Instance.new("ColorCorrectionEffect")
 		cc.Name = "DiscoveryBayColorCorrection"
-		cc.Contrast = 0.25
-		cc.Saturation = 0.25
-		cc.TintColor = Color3.fromRGB(255, 250, 240)
+		cc.Contrast = 0.22
+		cc.Saturation = 0.28
+		cc.TintColor = Color3.fromRGB(255, 250, 244)
 		cc.Parent = Lighting
 
 		-- God Rays
-		local sun = Instance.new("SunRaysEffect")
-		sun.Name = "DiscoveryBaySunRays"
-		sun.Intensity = 0.12
-		sun.Spread = 0.9
-		sun.Parent = Lighting
-		
-		-- Cinematic Depth of Field (blur distant background slightly)
-		local dof = Instance.new("DepthOfFieldEffect")
+		sunRays = Instance.new("SunRaysEffect")
+		sunRays.Name = "DiscoveryBaySunRays"
+		sunRays.Intensity = 0.12
+		sunRays.Spread = 0.85
+		sunRays.Parent = Lighting
+
+		-- Subtle Cinematic Depth of Field
+		dof = Instance.new("DepthOfFieldEffect")
 		dof.Name = "DiscoveryBayDOF"
-		dof.FocusDistance = 50
-		dof.InFocusRadius = 60
+		dof.FocusDistance = 55
+		dof.InFocusRadius = 65
 		dof.NearIntensity = 0
-		dof.FarIntensity = 0.15
+		dof.FarIntensity = 0.12
 		dof.Parent = Lighting
 	end)
 end
 
-task.spawn(function()
-	initializeLighting()
-	Lighting.ClockTime = 9 -- start on a sunny morning
-	while true do
-		task.wait(1)
-		Lighting.ClockTime = (Lighting.ClockTime + 24 / DAY_LENGTH) % 24
+local weatherActive = false
+
+local function updateSkyForClock(ct)
+	if not atmo or not atmo.Parent then return end
+	-- Compute day (0..1), sunset/sunrise (0..1), and night (0..1) weights
+	-- Sunrise ~ 5.5..7.5, Day ~ 7.5..16.5, Sunset ~ 16.5..18.8, Night ~ 18.8..5.5
+	local nightW = 0
+	local sunsetW = 0
+	if ct >= 18.8 or ct <= 5.2 then
+		nightW = 1
+	elseif ct > 16.5 and ct < 18.8 then
+		local u = (ct - 16.5) / (18.8 - 16.5)
+		nightW = math.clamp((u - 0.35) / 0.65, 0, 1)
+		sunsetW = math.sin(u * math.pi)
+	elseif ct > 5.2 and ct < 7.5 then
+		local u = (ct - 5.2) / (7.5 - 5.2)
+		nightW = math.clamp(1 - u / 0.65, 0, 1)
+		sunsetW = math.sin(u * math.pi)
 	end
-end)
 
-local START_CASH = 100
-local WALK_SPEED = 16
-local SCOOTER_SPEED = 30
-local VERSION = "v102"
+	-- Blend Day -> Sunset -> Starry Night
+	local dayAtmoColor = Color3.fromRGB(185, 215, 250)
+	local sunsetAtmoColor = Color3.fromRGB(255, 125, 95)
+	local nightAtmoColor = Color3.fromRGB(20, 34, 86)
 
--- ==============================================================================================
--- LIGHTING & DAY/NIGHT CYCLE
--- ==============================================================================================
-local Lighting = game:GetService("Lighting")
+	local dayDecay = Color3.fromRGB(120, 145, 185)
+	local sunsetDecay = Color3.fromRGB(135, 55, 165)
+	local nightDecay = Color3.fromRGB(10, 16, 48)
+
+	local targetAtmoColor = lerpColor(lerpColor(dayAtmoColor, nightAtmoColor, nightW), sunsetAtmoColor, sunsetW * 0.85)
+	local targetDecay = lerpColor(lerpColor(dayDecay, nightDecay, nightW), sunsetDecay, sunsetW * 0.85)
+
+	atmo.Color = targetAtmoColor
+	atmo.Decay = targetDecay
+	-- Drop Density & Haze at night so all 5,000 stars and the Moon are crystal-clear!
+	atmo.Density = 0.16 * (1 - nightW) + 0.045 * nightW + 0.04 * sunsetW
+	atmo.Haze = 1.4 * (1 - nightW) + 0.0 * nightW + 1.8 * sunsetW
+	atmo.Glare = 0.8 * (1 - nightW) + 0.0 * nightW + 1.6 * sunsetW
+	atmo.Offset = 0.25 * (1 - nightW) + 0.05 * nightW
+
+	if not weatherActive then
+		local dayOA = Color3.fromRGB(105, 115, 132)
+		local sunsetOA = Color3.fromRGB(155, 95, 115)
+		local nightOA = Color3.fromRGB(56, 74, 128)
+		Lighting.OutdoorAmbient = lerpColor(lerpColor(dayOA, nightOA, nightW), sunsetOA, sunsetW * 0.7)
+
+		local dayAmb = Color3.fromRGB(38, 42, 55)
+		local nightAmb = Color3.fromRGB(30, 40, 76)
+		Lighting.Ambient = lerpColor(dayAmb, nightAmb, nightW)
+
+		local dayTop = Color3.fromRGB(255, 240, 215)
+		local sunsetTop = Color3.fromRGB(255, 160, 110)
+		local nightTop = Color3.fromRGB(130, 180, 255)
+		Lighting.ColorShift_Top = lerpColor(lerpColor(dayTop, nightTop, nightW), sunsetTop, sunsetW * 0.85)
+		Lighting.Brightness = 3.2 * (1 - nightW) + 1.85 * nightW
+	end
+
+	if bloom then
+		bloom.Intensity = 1.0 * (1 - nightW) + 1.65 * nightW
+		bloom.Threshold = 1.45 * (1 - nightW) + 1.05 * nightW
+	end
+	if cc then
+		local dayTint = Color3.fromRGB(255, 250, 244)
+		local sunsetTint = Color3.fromRGB(255, 232, 220)
+		local nightTint = Color3.fromRGB(222, 234, 255)
+		cc.TintColor = lerpColor(lerpColor(dayTint, nightTint, nightW), sunsetTint, sunsetW * 0.6)
+		cc.Saturation = 0.28 + 0.06 * nightW + 0.08 * sunsetW
+	end
+end
+
+initializeLighting()
 Lighting.ClockTime = 14
-Lighting.GlobalShadows = true
-Lighting.OutdoorAmbient = Color3.fromRGB(110, 110, 130)
-Lighting.ColorShift_Top = Color3.fromRGB(255, 230, 200)
-Lighting.GeographicLatitude = 41
-Lighting.Brightness = 2.5
-
-local bloom = Instance.new("BloomEffect")
-bloom.Intensity = 0.3
-bloom.Size = 24
-bloom.Threshold = 2
-bloom.Parent = Lighting
-
-local sunRays = Instance.new("SunRaysEffect")
-sunRays.Intensity = 0.05
-sunRays.Spread = 0.1
-sunRays.Parent = Lighting
-
-local colorCorrection = Instance.new("ColorCorrectionEffect")
-colorCorrection.Saturation = 0.3
-colorCorrection.Contrast = 0.15
-colorCorrection.Parent = Lighting
-
-local atmos = Instance.new("Atmosphere")
-atmos.Density = 0.25
-atmos.Offset = 0.25
-atmos.Color = Color3.fromRGB(199, 199, 199)
-atmos.Decay = Color3.fromRGB(106, 112, 125)
-atmos.Glare = 0
-atmos.Haze = 0
-atmos.Parent = Lighting
+updateSkyForClock(Lighting.ClockTime)
 
 task.spawn(function()
 	while task.wait(0.1) do
-		-- Slowly moving sun! Moves 1 hour every ~24 seconds.
-		Lighting.ClockTime = Lighting.ClockTime + 0.005
+		-- Smoothly advance sun & moon (~1 hour every 20s) and wrap cleanly at 24:00
+		Lighting.ClockTime = (Lighting.ClockTime + 0.005) % 24
+		updateSkyForClock(Lighting.ClockTime)
 	end
 end)
 
@@ -3644,6 +3800,11 @@ local CLASSIC_FACE_CATALOG = {
 	Sniffles        = 14516578,
 	Vampire         = 7074836,
 	Skeptic         = 31117192,
+	-- open-mouth faces the client flips to while an NPC is talking
+	OpenO           = 7317773,   -- ":-o"
+	JoyfulSmile     = 209995366,
+	Fang            = 7075142,
+	TongueOut       = 14861743,  -- ":P"
 }
 local classicFacesFolder = remotes:FindFirstChild("ClassicFaces")
 if not classicFacesFolder then
@@ -3761,7 +3922,7 @@ local function setRideAnimations(char, humanoid, riding)
 			local group = animate:FindFirstChild(groupName)
 			local anim = group and group:FindFirstChild(animName)
 			if anim and anim:IsA("Animation") then
-				anim.AnimationId = id
+				anim.Parent = nil; anim.AnimationId = id; anim.Parent = group
 			end
 		end
 		setId("run", "RunAnim", riding and GLIDE_ANIM or DEFAULT_RUN)
@@ -4305,9 +4466,12 @@ end)
 
 CompleteQuest.OnServerEvent:Connect(function(plr, questId)
 	if questId == "TerrysSoda" then
+		if plr:GetAttribute("TerryQuestCompleted") then return end
+		plr:SetAttribute("TerryQuestCompleted", true)
 		local cash = getCash(plr)
 		if cash then
 			cash.Value = cash.Value + 200
+			TrickResult:FireClient(plr, "Terry's Soda Delivered", 200)
 			print("[SERVER]: " .. plr.Name .. " found Terry's Soda and got $200!")
 		end
 	end
@@ -5280,8 +5444,91 @@ local function setRentSign(board, text, color)
 	end
 end
 
--- Renting a house makes it REAL: the solid body is swapped for walls with a
--- walk-through front door, plus a furnished living room. Runs once per house.
+local function makeSign(part, face, text, bg, fg)
+	local sg = Instance.new("SurfaceGui")
+	sg.Face = face
+	sg.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+	sg.PixelsPerStud = 40
+	sg.Parent = part
+	local label = Instance.new("TextLabel")
+	label.Size = UDim2.fromScale(1, 1)
+	label.BackgroundColor3 = bg
+	label.TextColor3 = fg
+	label.Font = Enum.Font.LuckiestGuy
+	label.TextScaled = true
+	label.Text = text
+	label.Parent = sg
+end
+
+local WALL_PAINTS = { Color3.fromRGB(226, 208, 180), Color3.fromRGB(188, 212, 226), Color3.fromRGB(206, 222, 190),
+	Color3.fromRGB(232, 200, 188), Color3.fromRGB(212, 202, 230) }
+local SOFA_COLORS = { Color3.fromRGB(70, 95, 140), Color3.fromRGB(150, 70, 60), Color3.fromRGB(85, 120, 90),
+	Color3.fromRGB(125, 115, 105), Color3.fromRGB(200, 150, 60) }
+local ACCENTS = { Color3.fromRGB(230, 90, 80), Color3.fromRGB(80, 150, 230), Color3.fromRGB(250, 200, 70),
+	Color3.fromRGB(140, 90, 200), Color3.fromRGB(70, 180, 140) }
+local WOOD = Color3.fromRGB(160, 115, 72)
+local DARK_WOOD = Color3.fromRGB(85, 58, 38)
+local WHITE = Color3.fromRGB(240, 238, 232)
+local STEEL = Color3.fromRGB(200, 205, 210)
+local BLACK = Color3.fromRGB(28, 28, 32)
+local LEAF = Color3.fromRGB(70, 150, 70)
+local WARM = Color3.fromRGB(255, 214, 160)
+
+local function mk(parent, name, sz, cf, color, material, shape)
+	local p = Instance.new("Part")
+	p.Name = name
+	p.Size = sz
+	p.CFrame = cf
+	p.Color = color
+	p.Material = material or Enum.Material.SmoothPlastic
+	p.Anchored = true
+	p.TopSurface = Enum.SurfaceType.Smooth
+	p.BottomSurface = Enum.SurfaceType.Smooth
+	if shape then p.Shape = shape end
+	p.Parent = parent
+	return p
+end
+
+-- A wall along the frame's local X (centre of the wall), local +Z pointing into the room, with
+-- rectangular holes { x0, x1, y0, y1 } (y measured up from the wall's bottom) left open.
+local function holedWall(parent, name, frame, L, H, T, zOff, holes, color, material)
+	local xs = { -L / 2, L / 2 }
+	for _, ho in ipairs(holes) do
+		if ho.x1 > -L / 2 and ho.x0 < L / 2 then
+			table.insert(xs, math.clamp(ho.x0, -L / 2, L / 2))
+			table.insert(xs, math.clamp(ho.x1, -L / 2, L / 2))
+		end
+	end
+	table.sort(xs)
+	for i = 1, #xs - 1 do
+		local a, b = xs[i], xs[i + 1]
+		if b - a > 0.05 then
+			local mid = (a + b) / 2
+			local covering = {}
+			for _, ho in ipairs(holes) do
+				if ho.x0 < mid and ho.x1 > mid then table.insert(covering, ho) end
+			end
+			table.sort(covering, function(p, q) return p.y0 < q.y0 end)
+			local function seg(y0, y1)
+				if y1 - y0 > 0.05 then
+					mk(parent, name, Vector3.new(b - a, y1 - y0, T),
+						frame * CFrame.new(mid, -H / 2 + (y0 + y1) / 2, zOff), color, material)
+				end
+			end
+			local y = 0
+			for _, ho in ipairs(covering) do
+				seg(y, ho.y0)
+				y = math.max(y, ho.y1)
+			end
+			seg(y, H)
+		end
+	end
+end
+
+-- Renting a house makes it REAL: the solid body is swapped for two-layer walls (outside finish +
+-- painted inside) with see-through windows and a walk-through front door, plus a furnished
+-- open-plan home: living room, kitchen, dining, bed corner and a dog corner with the Auto-Petter.
+-- Runs once per house (when a player first walks near it, or rents it).
 local function hollowHouse(house)
 	if house:GetAttribute("Hollowed") then return end
 	house:SetAttribute("Hollowed", true)
@@ -5291,32 +5538,52 @@ local function hollowHouse(house)
 	local col, mat = body.Color, body.Material
 	local w, h, d = size.X, size.Y, size.Z
 	body:Destroy()
-	local function wall(name, sz, off, wcol, wmat)
-		local p = Instance.new("Part")
-		p.Name = name
-		p.Size = sz
-		p.CFrame = cfB * off
-		p.Color = wcol or col
-		p.Material = wmat or mat
-		p.Anchored = true
-		p.TopSurface = Enum.SurfaceType.Smooth
-		p.BottomSurface = Enum.SurfaceType.Smooth
-		p.Parent = house
-		return p
+
+	local rnd = Random.new(math.floor(cfB.X * 7 + cfB.Z * 13))
+	local function pick(t) return t[rnd:NextInteger(1, #t)] end
+	local paint = pick(WALL_PAINTS)
+	local sofaCol = pick(SOFA_COLORS)
+	local accent = pick(ACCENTS)
+
+	local interior = Instance.new("Model")
+	interior.Name = "Interior"
+	interior.Parent = house
+
+	local function addHole(list, xc, wdt, y0, y1)
+		table.insert(list, { x0 = xc - wdt / 2, x1 = xc + wdt / 2, y0 = y0, y1 = y1 })
 	end
-	wall("Floor", Vector3.new(w, 0.4, d), CFrame.new(0, -h / 2 + 0.2, 0),
-		Color3.fromRGB(160, 125, 85), Enum.Material.WoodPlanks)
-	wall("Ceiling", Vector3.new(w, 0.4, d), CFrame.new(0, h / 2 - 0.2, 0),
-		Color3.fromRGB(238, 234, 224), Enum.Material.SmoothPlastic)
-	wall("BackWall", Vector3.new(w, h, 0.8), CFrame.new(0, 0, d / 2 - 0.4))
-	wall("SideL", Vector3.new(0.8, h, d - 1.6), CFrame.new(-w / 2 + 0.4, 0, 0))
-	wall("SideR", Vector3.new(0.8, h, d - 1.6), CFrame.new(w / 2 - 0.4, 0, 0))
-	-- front wall with a doorway where the door visual stands
-	local doorX = 0
+	local function buildWall(name, frame, L, H, holes, paintL)
+		holedWall(house, name, frame, L, H, 0.5, -0.15, holes, col, mat)
+		holedWall(interior, name .. "Paint", frame, paintL or (L - 1.6), H, 0.3, 0.25, holes, paint)
+	end
+	-- glass already on the outside of a wall becomes a real window: cut a hole behind it
+	local glassParts = {}
+	for _, c in ipairs(house:GetChildren()) do
+		if c:IsA("BasePart") and (c.Name == "Window" or c.Name == "WindowMain" or c.Name == "Window2" or c.Name == "GlassBand") then
+			table.insert(glassParts, c)
+		end
+	end
+	local function glassHolesOn(list, frontZ, centerX, centerY, H)
+		for _, g in ipairs(glassParts) do
+			local rel = cfB:ToObjectSpace(g.CFrame)
+			if math.abs(rel.Z - frontZ) < 0.8 then
+				addHole(list, rel.X - centerX, g.Size.X - 0.3,
+					rel.Y - centerY + H / 2 - g.Size.Y / 2 + 0.15, rel.Y - centerY + H / 2 + g.Size.Y / 2 - 0.15)
+				g.Transparency = 0.55
+			end
+		end
+	end
+	local function newWindowPane(frame, xLocal, y0, y1, wdt, H)
+		mk(interior, "WindowPane", Vector3.new(wdt + 0.2, y1 - y0 + 0.2, 0.15),
+			frame * CFrame.new(xLocal, -H / 2 + (y0 + y1) / 2, -0.15), Color3.fromRGB(170, 215, 235), Enum.Material.Glass).Transparency = 0.6
+		mk(interior, "WindowSill", Vector3.new(wdt + 0.8, 0.25, 0.9),
+			frame * CFrame.new(xLocal, -H / 2 + y0 - 0.1, 0.35), WHITE)
+	end
+
+	-- door: on the main front wall, or on the front of an L-shaped house's wing
 	local door = house:FindFirstChild("Door")
+	local doorRel = door and cfB:PointToObjectSpace(door.Position)
 	if door then
-		local rel = cfB:PointToObjectSpace(door.Position)
-		doorX = math.clamp(rel.X, -w / 2 + 5, w / 2 - 5)
 		-- a REAL front door: swings open on its hinges when you walk up
 		door:SetAttribute("SwingDoor", true)
 		hookSwingDoor(door)
@@ -5326,87 +5593,393 @@ local function hollowHouse(house)
 	if oldFrame then
 		oldFrame.CanCollide = false
 	end
-	local gapW = 5.5
-	local leftW = (doorX - gapW / 2) - (-w / 2)
-	if leftW > 0.6 then
-		wall("FrontL", Vector3.new(leftW, h, 0.8), CFrame.new(-w / 2 + leftW / 2, 0, -d / 2 + 0.4))
-	end
-	local rightW = (w / 2) - (doorX + gapW / 2)
-	if rightW > 0.6 then
-		wall("FrontR", Vector3.new(rightW, h, 0.8), CFrame.new(w / 2 - rightW / 2, 0, -d / 2 + 0.4))
-	end
-	if h > 8.4 then
-		wall("DoorHeader", Vector3.new(gapW, h - 7.6, 0.8),
-			CFrame.new(doorX, h / 2 - (h - 7.6) / 2, -d / 2 + 0.4))
-	end
-	-- cozy furnishing
-	wall("Rug", Vector3.new(math.min(w * 0.4, 12), 0.15, math.min(d * 0.35, 9)),
-		CFrame.new(0, -h / 2 + 0.5, 0), Color3.fromRGB(170, 60, 60), Enum.Material.Fabric)
-	wall("Sofa", Vector3.new(8, 2.4, 3), CFrame.new(-w * 0.22, -h / 2 + 1.6, d * 0.22),
-		Color3.fromRGB(90, 110, 150), Enum.Material.Fabric)
-	wall("SofaBack", Vector3.new(8, 2, 0.8), CFrame.new(-w * 0.22, -h / 2 + 3.6, d * 0.22 + 1.1),
-		Color3.fromRGB(90, 110, 150), Enum.Material.Fabric)
-	wall("Table", Vector3.new(4.5, 2.2, 3), CFrame.new(0, -h / 2 + 1.5, -d * 0.05),
-		Color3.fromRGB(140, 105, 70), Enum.Material.WoodPlanks)
-	wall("Bed", Vector3.new(6.5, 1.8, 4), CFrame.new(w * 0.26, -h / 2 + 1.3, d * 0.28),
-		Color3.fromRGB(230, 230, 240), Enum.Material.Fabric)
-	wall("DogBed", Vector3.new(3.5, 0.6, 3.5), CFrame.new(w * 0.28, -h / 2 + 0.7, -d * 0.22),
-		Color3.fromRGB(120, 85, 60), Enum.Material.Fabric)
-	local lampPart = wall("Lamp", Vector3.new(1, 4.5, 1), CFrame.new(w * 0.4 - 1.5, -h / 2 + 2.6, -d * 0.4 + 1.5),
-		Color3.fromRGB(240, 230, 200), Enum.Material.Neon)
-	local lampLight = Instance.new("PointLight")
-	lampLight.Range = 22
-	lampLight.Brightness = 1.2
-	lampLight.Parent = lampPart
-	
-	-- NEW FURNITURE: TV, Kitchen Island, Bookshelf, Ceiling Light, Coffee Table, Plant, Dining, Fridge, Window
-	wall("TV", Vector3.new(0.6, 3, 5.5), CFrame.new(-w / 2 + 0.5, -h / 2 + 3.8, d * 0.22),
-		Color3.fromRGB(20, 20, 25), Enum.Material.SmoothPlastic)
-	wall("TVScreen", Vector3.new(0.7, 2.7, 5.1), CFrame.new(-w / 2 + 0.6, -h / 2 + 3.8, d * 0.22),
-		Color3.fromRGB(40, 45, 60), Enum.Material.Neon)
-		
-	wall("CoffeeTable", Vector3.new(5, 0.8, 3.5), CFrame.new(-w * 0.05, -h / 2 + 0.6, d * 0.22),
-		Color3.fromRGB(50, 40, 30), Enum.Material.WoodPlanks)
-		
-	wall("PottedPlantBase", Vector3.new(2, 2, 2), CFrame.new(-w * 0.4, -h / 2 + 1, -d * 0.35),
-		Color3.fromRGB(150, 140, 130), Enum.Material.Marble)
-	wall("PottedPlantLeaves", Vector3.new(3, 4, 3), CFrame.new(-w * 0.4, -h / 2 + 4, -d * 0.35),
-		Color3.fromRGB(60, 140, 50), Enum.Material.Grass)
+	local DOOR_W, DOOR_H = 5.5, 7.6
 
-	wall("KitchenIsland", Vector3.new(3, 2.5, 6), CFrame.new(w * 0.1, -h / 2 + 1.25, -d * 0.25),
-		Color3.fromRGB(200, 210, 220), Enum.Material.Marble)
-	wall("Fridge", Vector3.new(2.5, 5.5, 2.5), CFrame.new(w * 0.22, -h / 2 + 2.75, -d * 0.4),
-		Color3.fromRGB(230, 230, 230), Enum.Material.SmoothPlastic)
-	
-	wall("DiningTable", Vector3.new(4, 2.2, 4), CFrame.new(w * 0.35, -h / 2 + 1.5, d * 0.05),
-		Color3.fromRGB(120, 80, 50), Enum.Material.WoodPlanks)
-	wall("DiningChair1", Vector3.new(1.5, 1.5, 1.5), CFrame.new(w * 0.35, -h / 2 + 1, d * 0.05 - 3),
-		Color3.fromRGB(80, 50, 30), Enum.Material.WoodPlanks)
-	wall("DiningChair2", Vector3.new(1.5, 1.5, 1.5), CFrame.new(w * 0.35, -h / 2 + 1, d * 0.05 + 3),
-		Color3.fromRGB(80, 50, 30), Enum.Material.WoodPlanks)
+	local frontHoles, backHoles, leftHoles, rightHoles = {}, {}, {}, {}
+	local doorX = 0
+	local doorOnBody = doorRel ~= nil and math.abs(doorRel.Z + d / 2) < 1.2
+	if doorOnBody then
+		doorX = math.clamp(doorRel.X, -w / 2 + 4, w / 2 - 4)
+		addHole(frontHoles, doorX, DOOR_W, 0, DOOR_H)
+	end
+	glassHolesOn(frontHoles, -d / 2, 0, 0, h)
 
-	wall("Bookshelf", Vector3.new(4, 6, 1.2), CFrame.new(w / 2 - 0.7, -h / 2 + 3, d * 0.1),
-		Color3.fromRGB(120, 80, 50), Enum.Material.WoodPlanks)
-		
-	wall("Window", Vector3.new(12, 5, 0.9), CFrame.new(0, -h / 2 + 5, d / 2 - 0.4),
-		Color3.fromRGB(150, 200, 255), Enum.Material.Glass)
-		
-	local ceilingLight = wall("CeilingLight", Vector3.new(3, 0.4, 3), CFrame.new(0, h / 2 - 0.4, 0),
-		Color3.fromRGB(255, 245, 230), Enum.Material.Neon)
-	local cLight = Instance.new("PointLight")
-	cLight.Range = 30
-	cLight.Brightness = 0.8
-	cLight.Shadows = true
-	cLight.Parent = ceilingLight
-	
-	-- Auto-Petter Machine (corner of the room, pre-built and active when owned)
-	local apSpot = CFrame.new(w/2 - 2, -h / 2 + 2, d/2 - 2)
-	local ap = wall("AutoPetter", Vector3.new(3, 4, 3), apSpot, Color3.fromRGB(80, 200, 120), Enum.Material.Neon)
-	local apScreen = wall("AutoPetterScreen", Vector3.new(2.8, 1.5, 0.2), apSpot * CFrame.new(0, 1.5, -1.6), Color3.fromRGB(30, 30, 30))
-	makeSign(apScreen, Enum.NormalId.Front, "AUTO-PETTER", Color3.fromRGB(30, 30, 30), Color3.fromRGB(80, 200, 120))
+	-- L-shaped houses: the wing becomes an entry hall that opens into the main room
+	local wing = house:FindFirstChild("Wing")
+	local wingInfo = nil
+	if wing then
+		local wrel = cfB:ToObjectSpace(wing.CFrame)
+		local ws = wing.Size
+		local wf, bf = wrel.Z - ws.Z / 2, -d / 2
+		if wf < bf - 3 then
+			wing:Destroy()
+			local wx, wy, wh = wrel.X, wrel.Y, ws.Y
+			-- the wing's roof ran back into the main body; trim it at the main front wall so it
+			-- doesn't poke down into the main room (its ridge runs along body Z, i.e. its local X)
+			for _, r in ipairs(house:GetChildren()) do
+				if r:IsA("WedgePart") then
+					local rr = cfB:ToObjectSpace(r.CFrame)
+					if math.abs(rr.X - wx) < ws.X / 2 + 1 and rr.Y - r.Size.Y / 2 < h / 2 - 0.5 then
+						local z0 = rr.Z - r.Size.X / 2
+						local z1 = math.min(rr.Z + r.Size.X / 2, bf + 0.4)
+						if z1 - z0 > 1 then
+							r.Size = Vector3.new(z1 - z0, r.Size.Y, r.Size.Z)
+							r.CFrame = cfB * CFrame.new(rr.X, rr.Y, (z0 + z1) / 2) * rr.Rotation
+						end
+					end
+				end
+			end
+			local len = bf - wf
+			wingInfo = { x = wx, front = wf, len = len, wdt = ws.X, h = wh, floorY = wy - wh / 2 + 0.4 }
+			mk(house, "Floor", Vector3.new(ws.X, 0.4, len), cfB * CFrame.new(wx, wy - wh / 2 + 0.2, wf + len / 2),
+				Color3.fromRGB(160, 125, 85), Enum.Material.WoodPlanks)
+			mk(house, "Ceiling", Vector3.new(ws.X, 0.4, len), cfB * CFrame.new(wx, wy + wh / 2 - 0.2, wf + len / 2),
+				Color3.fromRGB(238, 234, 224))
+			local wHoles = {}
+			if doorRel and not doorOnBody then
+				addHole(wHoles, doorRel.X - wx, DOOR_W, 0, DOOR_H)
+				doorX = wx
+			end
+			glassHolesOn(wHoles, wf, wx, wy, wh)
+			buildWall("WingFront", cfB * CFrame.new(wx, wy, wf + 0.4), ws.X, wh, wHoles)
+			local sideLen = len - 0.8
+			local zc = wf + 0.8 + sideLen / 2
+			buildWall("WingSideL", cfB * CFrame.new(wx - ws.X / 2 + 0.4, wy, zc) * CFrame.Angles(0, math.pi / 2, 0), sideLen, wh, {}, sideLen)
+			buildWall("WingSideR", cfB * CFrame.new(wx + ws.X / 2 - 0.4, wy, zc) * CFrame.Angles(0, -math.pi / 2, 0), sideLen, wh, {}, sideLen)
+			-- wide opening from the wing into the main room
+			addHole(frontHoles, wx, ws.X - 1.6, 0, math.min(wh, h) - 1.2)
+		end
+	end
+
+	local iw, idp = w - 1.6, d - 1.6
+	local zMin, zMax = -idp / 2, idp / 2
+	local y0 = -h / 2 + 0.4
+	local sD = doorX >= 0 and 1 or -1 -- door side
+	local sA = -sD                    -- living side
+	local function F(x, z, yaw)
+		return cfB * CFrame.new(x, y0, z) * CFrame.Angles(0, yaw or 0, 0)
+	end
+	-- yaw that turns a piece's front (local -Z) to face +X / -X / +Z
+	local FACE_PX, FACE_NX, FACE_PZ = -math.pi / 2, math.pi / 2, math.pi
+
+	local hasKitchen = iw >= 22 and idp >= 12
+	local hasDining = iw >= 30 and idp >= 22
+	local hasBed = iw >= 22 and idp >= 22
+	local sofaDist = math.clamp(idp * 0.45, 7, 12)
+	local runLen = math.clamp(iw * 0.32, 10.5, 15)
+	local SINK_DIST = 4.9                                  -- from the door-side wall
+	local stoveDist = math.max(runLen - 1.6, SINK_DIST + 3.7) -- clear of the sink window
+	local sinkX = sD * (iw / 2 - SINK_DIST)
+	local diningZ = zMax - 9
+
+	-- extra windows: over the kitchen sink and beside the dining table
+	if hasKitchen and h >= 9 then
+		addHole(backHoles, -sinkX, 4.4, 4.4, 7.4)
+	end
+	if hasDining and h >= 9 then
+		addHole(sD > 0 and rightHoles or leftHoles, sD > 0 and diningZ or -diningZ, 5, 3.4, 7.2)
+	end
+
+	mk(house, "Floor", Vector3.new(w, 0.4, d), cfB * CFrame.new(0, -h / 2 + 0.2, 0),
+		Color3.fromRGB(160, 125, 85), Enum.Material.WoodPlanks)
+	mk(house, "Ceiling", Vector3.new(w, 0.4, d), cfB * CFrame.new(0, h / 2 - 0.2, 0), Color3.fromRGB(238, 234, 224))
+	buildWall("FrontWall", cfB * CFrame.new(0, 0, -d / 2 + 0.4), w, h, frontHoles)
+	buildWall("BackWall", cfB * CFrame.new(0, 0, d / 2 - 0.4) * CFrame.Angles(0, math.pi, 0), w, h, backHoles)
+	buildWall("SideL", cfB * CFrame.new(-w / 2 + 0.4, 0, 0) * CFrame.Angles(0, math.pi / 2, 0), d - 1.6, h, leftHoles, d - 1.6)
+	buildWall("SideR", cfB * CFrame.new(w / 2 - 0.4, 0, 0) * CFrame.Angles(0, -math.pi / 2, 0), d - 1.6, h, rightHoles, d - 1.6)
+	for _, ho in ipairs(backHoles) do
+		newWindowPane(cfB * CFrame.new(0, 0, d / 2 - 0.4) * CFrame.Angles(0, math.pi, 0), (ho.x0 + ho.x1) / 2, ho.y0, ho.y1, ho.x1 - ho.x0, h)
+	end
+	for _, ho in ipairs(leftHoles) do
+		newWindowPane(cfB * CFrame.new(-w / 2 + 0.4, 0, 0) * CFrame.Angles(0, math.pi / 2, 0), (ho.x0 + ho.x1) / 2, ho.y0, ho.y1, ho.x1 - ho.x0, h)
+	end
+	for _, ho in ipairs(rightHoles) do
+		newWindowPane(cfB * CFrame.new(w / 2 - 0.4, 0, 0) * CFrame.Angles(0, -math.pi / 2, 0), (ho.x0 + ho.x1) / 2, ho.y0, ho.y1, ho.x1 - ho.x0, h)
+	end
+	-- baseboards (no front one so the doorway stays flat)
+	mk(interior, "Baseboard", Vector3.new(iw, 0.6, 0.15), F(0, zMax - 0.05) * CFrame.new(0, 0.3, 0), WHITE)
+	mk(interior, "Baseboard", Vector3.new(0.15, 0.6, idp), F(-iw / 2 + 0.05, 0) * CFrame.new(0, 0.3, 0), WHITE)
+	mk(interior, "Baseboard", Vector3.new(0.15, 0.6, idp), F(iw / 2 - 0.05, 0) * CFrame.new(0, 0.3, 0), WHITE)
+
+	local function ceilingLight(x, z, withLight, ceilH)
+		local yTop = (ceilH or h) - 0.8
+		local hang = math.max(yTop - 9.2, 0)
+		if hang > 0.5 then
+			mk(interior, "LightCord", Vector3.new(0.12, hang, 0.12), F(x, z) * CFrame.new(0, yTop - hang / 2, 0), BLACK)
+		end
+		local fixture = mk(interior, "CeilingLight", Vector3.new(0.5, 2.6, 2.6),
+			F(x, z) * CFrame.new(0, yTop - hang - 0.25, 0) * CFrame.Angles(0, 0, math.pi / 2), WARM, Enum.Material.Neon, Enum.PartType.Cylinder)
+		if withLight then
+			local l = Instance.new("PointLight")
+			l.Range = 22
+			l.Brightness = 0.6
+			l.Color = WARM
+			l.Parent = fixture
+		end
+	end
+	local function plant(x, z)
+		mk(interior, "PlantPot", Vector3.new(1.6, 1.8, 1.8), F(x, z) * CFrame.new(0, 0.8, 0) * CFrame.Angles(0, 0, math.pi / 2),
+			Color3.fromRGB(190, 105, 70), Enum.Material.SmoothPlastic, Enum.PartType.Cylinder)
+		mk(interior, "PlantLeaves", Vector3.new(2.6, 2.6, 2.6), F(x, z) * CFrame.new(0, 2.6, 0), LEAF, Enum.Material.Grass, Enum.PartType.Ball)
+		mk(interior, "PlantLeaves", Vector3.new(1.8, 1.8, 1.8), F(x, z) * CFrame.new(0.3, 3.7, -0.2),
+			Color3.fromRGB(95, 175, 85), Enum.Material.Grass, Enum.PartType.Ball)
+	end
+
+	-- LIVING ROOM (living side, back): TV console against the back wall, sofa facing it, rug + coffee table
+	if iw >= 14 and idp >= 10 then
+		local lx = sA * math.min(iw * 0.25, iw / 2 - 5)
+		local tv = F(lx, zMax - 0.9)
+		mk(interior, "TVConsole", Vector3.new(7, 1.8, 1.6), tv * CFrame.new(0, 0.9, 0), DARK_WOOD, Enum.Material.WoodPlanks)
+		mk(interior, "TV", Vector3.new(6, 3.4, 0.3), tv * CFrame.new(0, 3.85, 0.3), BLACK)
+		mk(interior, "TVScreen", Vector3.new(5.6, 3, 0.1), tv * CFrame.new(0, 3.85, 0.12), Color3.fromRGB(60, 120, 200), Enum.Material.Neon)
+		mk(interior, "Soundbar", Vector3.new(3.6, 0.4, 0.6), tv * CFrame.new(0, 2, -0.3), BLACK)
+		mk(interior, "GameConsole", Vector3.new(1.2, 0.3, 0.9), tv * CFrame.new(2.4, 1.95, -0.1), WHITE)
+
+		local sofa = F(lx, zMax - sofaDist, FACE_PZ)
+		mk(interior, "Sofa", Vector3.new(7, 1.4, 3), sofa * CFrame.new(0, 0.7, 0), sofaCol, Enum.Material.Fabric)
+		for _, sx in ipairs({ -1.7, 1.7 }) do
+			mk(interior, "SofaCushion", Vector3.new(3.3, 0.6, 2.5), sofa * CFrame.new(sx, 1.7, -0.15), sofaCol:Lerp(WHITE, 0.15), Enum.Material.Fabric)
+		end
+		mk(interior, "SofaBack", Vector3.new(7, 2.4, 0.8), sofa * CFrame.new(0, 2.6, 1.1), sofaCol, Enum.Material.Fabric)
+		for _, sx in ipairs({ -3.9, 3.9 }) do
+			mk(interior, "SofaArm", Vector3.new(0.8, 2.3, 3), sofa * CFrame.new(sx, 1.15, 0), sofaCol:Lerp(BLACK, 0.12), Enum.Material.Fabric)
+		end
+		mk(interior, "ThrowPillow", Vector3.new(1.4, 1.3, 0.5), sofa * CFrame.new(-2.6, 2.4, 0.5) * CFrame.Angles(0, 0, math.rad(12)), accent, Enum.Material.Fabric)
+
+		local midZ = zMax - 0.9 - (sofaDist - 0.9) * 0.5
+		mk(interior, "Rug", Vector3.new(9.5, 0.1, math.max(sofaDist - 2.2, 4)), F(lx, midZ) * CFrame.new(0, 0.05, 0), accent:Lerp(WHITE, 0.35), Enum.Material.Fabric)
+		mk(interior, "RugBorder", Vector3.new(10.3, 0.08, math.max(sofaDist - 1.4, 4.8)), F(lx, midZ) * CFrame.new(0, 0.04, 0), accent:Lerp(BLACK, 0.3), Enum.Material.Fabric)
+		local ct = F(lx, midZ)
+		mk(interior, "CoffeeTable", Vector3.new(4.2, 0.3, 2.2), ct * CFrame.new(0, 1.55, 0), WOOD, Enum.Material.WoodPlanks)
+		for _, sx in ipairs({ -1.8, 1.8 }) do
+			mk(interior, "CoffeeTableLeg", Vector3.new(0.3, 1.4, 2), ct * CFrame.new(sx, 0.7, 0), DARK_WOOD, Enum.Material.WoodPlanks)
+		end
+		mk(interior, "Mug", Vector3.new(0.5, 0.45, 0.45), ct * CFrame.new(0.9, 1.92, 0.2) * CFrame.Angles(0, 0, math.pi / 2), accent, Enum.Material.SmoothPlastic, Enum.PartType.Cylinder)
+		mk(interior, "Magazine", Vector3.new(1.2, 0.08, 0.9), ct * CFrame.new(-0.8, 1.74, 0) * CFrame.Angles(0, 0.3, 0), WHITE)
+		if iw >= 34 then
+			-- armchair on the room side of the coffee table, turned toward it
+			local arm = F(lx - sA * 5.4, midZ, sA > 0 and FACE_PX or FACE_NX)
+			local armCol = accent:Lerp(BLACK, 0.25)
+			mk(interior, "Armchair", Vector3.new(3.2, 1.4, 3), arm * CFrame.new(0, 0.7, 0), armCol, Enum.Material.Fabric)
+			mk(interior, "ArmchairCushion", Vector3.new(2.4, 0.5, 2.4), arm * CFrame.new(0, 1.65, -0.15), armCol:Lerp(WHITE, 0.15), Enum.Material.Fabric)
+			mk(interior, "ArmchairBack", Vector3.new(3.2, 2.4, 0.7), arm * CFrame.new(0, 2.6, 1.15), armCol, Enum.Material.Fabric)
+			for _, ax in ipairs({ -1.45, 1.45 }) do
+				mk(interior, "ArmchairArm", Vector3.new(0.5, 2.1, 3), arm * CFrame.new(ax, 1.05, 0), armCol, Enum.Material.Fabric)
+			end
+		end
+
+		-- floor lamp at the outer end of the sofa
+		local lampX = lx + sA * 5.3
+		if math.abs(lampX) < iw / 2 - 0.8 then
+			local lamp = F(lampX, zMax - sofaDist + 0.4)
+			mk(interior, "LampBase", Vector3.new(0.2, 1.4, 1.4), lamp * CFrame.new(0, 0.1, 0) * CFrame.Angles(0, 0, math.pi / 2), BLACK, Enum.Material.SmoothPlastic, Enum.PartType.Cylinder)
+			mk(interior, "LampPole", Vector3.new(0.2, 4.6, 0.2), lamp * CFrame.new(0, 2.4, 0), BLACK)
+			local shade = mk(interior, "LampShade", Vector3.new(1.3, 1.6, 1.6), lamp * CFrame.new(0, 5.1, 0) * CFrame.Angles(0, 0, math.pi / 2), WARM, Enum.Material.Neon, Enum.PartType.Cylinder)
+			local l = Instance.new("PointLight")
+			l.Range = 14
+			l.Brightness = 0.6
+			l.Color = WARM
+			l.Parent = shade
+			plant(lampX, zMax - 1.4)
+		end
+		ceilingLight(lx, midZ, true)
+	end
+
+	-- KITCHEN (door side, back): fridge in the corner, counter run with sink + stove, cabinets above
+	if hasKitchen then
+		local fx = sD * (iw / 2 - 1.6)
+		local fridge = F(fx, zMax - 1.4)
+		mk(interior, "Fridge", Vector3.new(3, 6.6, 2.6), fridge * CFrame.new(0, 3.3, 0), STEEL, Enum.Material.Metal)
+		mk(interior, "FridgeSeam", Vector3.new(2.9, 0.08, 0.05), fridge * CFrame.new(0, 4.4, -1.31), Color3.fromRGB(120, 125, 130))
+		mk(interior, "FridgeHandle", Vector3.new(0.18, 1.6, 0.25), fridge * CFrame.new(-sD * 1.1, 5.4, -1.42), BLACK)
+		mk(interior, "FridgeHandle", Vector3.new(0.18, 1.6, 0.25), fridge * CFrame.new(-sD * 1.1, 3.2, -1.42), BLACK)
+		local fridgeMagnet = mk(interior, "FridgeDrawing", Vector3.new(1, 1.2, 0.05), fridge * CFrame.new(sD * 0.4, 5, -1.32), WHITE)
+		fridgeMagnet.CanCollide = false
+
+		local xa, xb = sD * (iw / 2 - 3.3), sD * (iw / 2 - runLen)
+		local xc, len = (xa + xb) / 2, math.abs(xa - xb)
+		local run = F(xc, zMax - 1.25)
+		mk(interior, "Cabinets", Vector3.new(len, 2.8, 2.3), run * CFrame.new(0, 1.4, 0), WHITE)
+		mk(interior, "Countertop", Vector3.new(len + 0.2, 0.25, 2.5), run * CFrame.new(0, 2.92, -0.05), Color3.fromRGB(60, 62, 68), Enum.Material.Marble)
+		mk(interior, "CabinetToeKick", Vector3.new(len, 0.35, 0.1), run * CFrame.new(0, 0.18, -1.12), BLACK)
+		-- cabinet door lines
+		for i = 1, math.floor(len / 2.4) - 1 do
+			mk(interior, "CabinetLine", Vector3.new(0.06, 2.1, 0.05), run * CFrame.new(-len / 2 + i * 2.4, 1.55, -1.17), Color3.fromRGB(190, 188, 182))
+		end
+		-- sink + faucet under the back window
+		local sink = F(sinkX, zMax - 1.25)
+		mk(interior, "Sink", Vector3.new(2.4, 0.1, 1.5), sink * CFrame.new(0, 3.06, -0.1), STEEL, Enum.Material.Metal)
+		mk(interior, "Faucet", Vector3.new(0.2, 1.1, 0.2), sink * CFrame.new(0, 3.55, 0.8), STEEL, Enum.Material.Metal)
+		mk(interior, "FaucetSpout", Vector3.new(0.2, 0.2, 0.8), sink * CFrame.new(0, 4.05, 0.45), STEEL, Enum.Material.Metal)
+		-- stove near the inner end of the counter
+		local sx = sD * (iw / 2 - stoveDist)
+		local stove = F(sx, zMax - 1.25)
+		mk(interior, "Cooktop", Vector3.new(2.6, 0.06, 2.1), stove * CFrame.new(0, 3.08, -0.05), BLACK)
+		for _, b in ipairs({ { -0.6, -0.5 }, { 0.6, -0.5 }, { -0.6, 0.45 }, { 0.6, 0.45 } }) do
+			mk(interior, "Burner", Vector3.new(0.05, 0.8, 0.8), stove * CFrame.new(b[1], 3.12, b[2]) * CFrame.Angles(0, 0, math.pi / 2),
+				Color3.fromRGB(70, 70, 75), Enum.Material.SmoothPlastic, Enum.PartType.Cylinder)
+		end
+		mk(interior, "OvenDoor", Vector3.new(2.4, 1.7, 0.08), stove * CFrame.new(0, 1.45, -1.18), Color3.fromRGB(40, 40, 46), Enum.Material.Glass)
+		mk(interior, "OvenHandle", Vector3.new(2, 0.15, 0.2), stove * CFrame.new(0, 2.45, -1.28), STEEL, Enum.Material.Metal)
+		mk(interior, "Pot", Vector3.new(0.9, 1.1, 1.1), stove * CFrame.new(-0.6, 3.6, -0.5) * CFrame.Angles(0, 0, math.pi / 2), Color3.fromRGB(190, 60, 50), Enum.Material.SmoothPlastic, Enum.PartType.Cylinder)
+		if h >= 9 then
+			mk(interior, "RangeHood", Vector3.new(2.8, 0.9, 1.8), stove * CFrame.new(0, 6.9, 0.2), STEEL, Enum.Material.Metal)
+			-- upper cabinets between the sink window and the range hood
+			local da, db = SINK_DIST + 2.4, stoveDist - 1.5
+			if db - da > 1.5 then
+				mk(interior, "UpperCabinets", Vector3.new(db - da, 2.4, 1.3), F(sD * (iw / 2 - (da + db) / 2), zMax - 0.65) * CFrame.new(0, 6.6, 0), WHITE)
+			end
+		end
+		mk(interior, "KitchenTiles", Vector3.new(runLen + 0.6, 0.06, 6.2), F(sD * (iw / 2 - runLen / 2 - 0.1), zMax - 3.1) * CFrame.new(0, 0.03, 0),
+			Color3.fromRGB(210, 214, 218), Enum.Material.Slate)
+		ceilingLight(sinkX, zMax - 3.5, true)
+	end
+
+	-- DINING (door side, middle): round table, four chairs, flower vase
+	if hasDining then
+		local dx = sD * math.min(iw * 0.24, iw / 2 - 5)
+		local tbl = F(dx, diningZ)
+		mk(interior, "DiningTable", Vector3.new(0.3, 4.4, 4.4), tbl * CFrame.new(0, 2.7, 0) * CFrame.Angles(0, 0, math.pi / 2), WOOD, Enum.Material.WoodPlanks, Enum.PartType.Cylinder)
+		mk(interior, "TablePedestal", Vector3.new(0.6, 2.5, 0.6), tbl * CFrame.new(0, 1.35, 0), DARK_WOOD, Enum.Material.WoodPlanks)
+		mk(interior, "TableFoot", Vector3.new(0.2, 2, 2), tbl * CFrame.new(0, 0.1, 0) * CFrame.Angles(0, 0, math.pi / 2), DARK_WOOD, Enum.Material.WoodPlanks, Enum.PartType.Cylinder)
+		mk(interior, "Vase", Vector3.new(0.6, 1, 0.6), tbl * CFrame.new(0, 3.35, 0), WHITE, Enum.Material.Glass)
+		mk(interior, "Flowers", Vector3.new(1.1, 1.1, 1.1), tbl * CFrame.new(0, 4.1, 0), accent, Enum.Material.SmoothPlastic, Enum.PartType.Ball)
+		for i = 0, 3 do
+			local a = i * math.pi / 2
+			local chair = tbl * CFrame.Angles(0, a, 0) * CFrame.new(0, 0, 3.1)
+			mk(interior, "ChairSeat", Vector3.new(1.8, 0.3, 1.8), chair * CFrame.new(0, 1.7, 0), WOOD, Enum.Material.WoodPlanks)
+			mk(interior, "ChairBack", Vector3.new(1.8, 2, 0.25), chair * CFrame.new(0, 2.85, 0.8), WOOD, Enum.Material.WoodPlanks)
+			mk(interior, "ChairLegs", Vector3.new(1.3, 1.55, 1.3), chair * CFrame.new(0, 0.78, 0), DARK_WOOD, Enum.Material.WoodPlanks)
+		end
+		ceilingLight(dx, diningZ, false)
+	end
+
+	-- BED CORNER (living side, front): bed with headboard against the side wall, nightstand, art above
+	if hasBed then
+		local bx = sA * (iw / 2 - 4.4)
+		local bz = zMin + 4.2
+		local bed = F(bx, bz, sA * math.pi / 2) -- head (local +Z) against the side wall
+		mk(interior, "BedFrame", Vector3.new(5.6, 1.2, 8), bed * CFrame.new(0, 0.6, 0), WOOD, Enum.Material.WoodPlanks)
+		mk(interior, "Mattress", Vector3.new(5.2, 0.8, 7.6), bed * CFrame.new(0, 1.6, 0), WHITE, Enum.Material.Fabric)
+		mk(interior, "Blanket", Vector3.new(5.4, 0.35, 5), bed * CFrame.new(0, 2.05, -1.35), accent, Enum.Material.Fabric)
+		for _, px in ipairs({ -1.3, 1.3 }) do
+			mk(interior, "Pillow", Vector3.new(2.1, 0.55, 1.4), bed * CFrame.new(px, 2.25, 2.85), WHITE, Enum.Material.Fabric)
+		end
+		mk(interior, "Headboard", Vector3.new(6, 4.2, 0.5), bed * CFrame.new(0, 2.1, 4.15), DARK_WOOD, Enum.Material.WoodPlanks)
+		-- nightstand with a little glowing lamp, toward the back of the bed
+		local ns = F(sA * (iw / 2 - 1.1), bz + 4.1)
+		mk(interior, "Nightstand", Vector3.new(1.8, 2, 1.8), ns * CFrame.new(0, 1, 0), WOOD, Enum.Material.WoodPlanks)
+		mk(interior, "NightstandDrawer", Vector3.new(0.05, 0.6, 1.3), ns * CFrame.new(-sA * 0.92, 1.3, 0), DARK_WOOD)
+		mk(interior, "BedsideLamp", Vector3.new(0.9, 0.9, 0.9), ns * CFrame.new(0, 2.6, 0), WARM, Enum.Material.Neon, Enum.PartType.Ball)
+		if h >= 9 then
+			-- painting above the headboard: frame, sky, sun and a hill
+			local art = cfB * CFrame.new(sA * (iw / 2 - 0.05), y0 + 6.4, bz) * CFrame.Angles(0, sA * math.pi / 2, 0)
+			mk(interior, "PaintingFrame", Vector3.new(4.6, 3.2, 0.15), art, DARK_WOOD)
+			mk(interior, "PaintingSky", Vector3.new(4.1, 2.7, 0.06), art * CFrame.new(0, 0, -0.09), Color3.fromRGB(140, 195, 235))
+			mk(interior, "PaintingHill", Vector3.new(4.1, 1, 0.06), art * CFrame.new(0, -0.85, -0.11), Color3.fromRGB(90, 160, 80))
+			mk(interior, "PaintingSun", Vector3.new(0.05, 0.9, 0.9), art * CFrame.new(1.2, 0.6, -0.12) * CFrame.Angles(0, math.pi / 2, 0),
+				Color3.fromRGB(255, 210, 80), Enum.Material.Neon, Enum.PartType.Cylinder)
+		end
+		ceilingLight(bx, bz, false)
+		local roomEndZ = bz + 6
+		if iw >= 34 and h >= 9 then
+			local px, pz = sA * (iw / 2 - 11), zMin + 10.5
+			-- side partition runs back from the front wall, doorway beside the foot of the bed
+			local sideLen = pz - zMin
+			local sideZc = zMin + sideLen / 2
+			local doorLocal = -((zMin + 6.5) - sideZc) * sA
+			holedWall(interior, "BedroomWall", cfB * CFrame.new(px, 0, sideZc) * CFrame.Angles(0, sA * math.pi / 2, 0),
+				sideLen, h, 0.4, 0, { { x0 = doorLocal - 2.3, x1 = doorLocal + 2.3, y0 = 0, y1 = DOOR_H } }, paint)
+			holedWall(interior, "BedroomWall", cfB * CFrame.new(sA * (iw / 2 - 5.5), 0, pz), 11, h, 0.4, 0, {}, paint)
+			mk(interior, "BedroomDoorTrim", Vector3.new(0.6, 0.4, 5.2), cfB * CFrame.new(px, y0 + DOOR_H + 0.2, zMin + 6.5), WHITE)
+			roomEndZ = pz + 1
+		end
+
+		-- bookshelf against the living-side wall, between the bed(room) and the sofa
+		local shelfZ = (roomEndZ + zMax - sofaDist - 1.5) / 2
+		if (zMax - sofaDist - 1.5) - roomEndZ > 5.5 then
+			local sh = F(sA * (iw / 2 - 0.75), shelfZ, sA * math.pi / 2)
+			mk(interior, "ShelfBack", Vector3.new(5, 7, 0.25), sh * CFrame.new(0, 3.5, 0.6), DARK_WOOD, Enum.Material.WoodPlanks)
+			for _, sxo in ipairs({ -2.4, 2.4 }) do
+				mk(interior, "ShelfSide", Vector3.new(0.25, 7, 1.4), sh * CFrame.new(sxo, 3.5, 0), DARK_WOOD, Enum.Material.WoodPlanks)
+			end
+			for i, yy in ipairs({ 0.15, 2.4, 4.6, 6.85 }) do
+				mk(interior, "Shelf", Vector3.new(4.6, 0.25, 1.3), sh * CFrame.new(0, yy, 0), DARK_WOOD, Enum.Material.WoodPlanks)
+				if i <= 3 then
+					-- two rows of book spines per shelf, a different color each
+					mk(interior, "Books", Vector3.new(2, 1.6, 1), sh * CFrame.new(-1.1, yy + 0.95, 0.05), pick(ACCENTS))
+					mk(interior, "Books", Vector3.new(1.4, 1.3, 1), sh * CFrame.new(1.2, yy + 0.8, 0.05) * CFrame.Angles(0, 0, math.rad(-8)), pick(ACCENTS))
+				end
+			end
+		end
+	end
+
+	-- GAME AREA in the middle of big houses: an area rug and a pool table (shifted away from the door path)
+	if iw >= 40 and idp >= 30 then
+		local gx = -sD * 3
+		local gz = (zMin + 12 + zMax - sofaDist - 2) / 2
+		mk(interior, "AreaRug", Vector3.new(0.1, 13, 13), F(gx, gz) * CFrame.new(0, 0.05, 0) * CFrame.Angles(0, 0, math.pi / 2),
+			accent:Lerp(WHITE, 0.55), Enum.Material.Fabric, Enum.PartType.Cylinder)
+		local pt = F(gx, gz)
+		mk(interior, "PoolTable", Vector3.new(7, 2.3, 4), pt * CFrame.new(0, 1.15, 0), DARK_WOOD, Enum.Material.WoodPlanks)
+		mk(interior, "PoolTableFelt", Vector3.new(6.2, 0.12, 3.2), pt * CFrame.new(0, 2.36, 0), Color3.fromRGB(40, 130, 70), Enum.Material.Fabric)
+		mk(interior, "PoolBall", Vector3.new(0.45, 0.45, 0.45), pt * CFrame.new(1.6, 2.65, 0.3), WHITE, Enum.Material.SmoothPlastic, Enum.PartType.Ball)
+		mk(interior, "PoolBall", Vector3.new(0.45, 0.45, 0.45), pt * CFrame.new(-1.4, 2.65, -0.4), Color3.fromRGB(230, 60, 50), Enum.Material.SmoothPlastic, Enum.PartType.Ball)
+		mk(interior, "PoolBall", Vector3.new(0.45, 0.45, 0.45), pt * CFrame.new(-1.9, 2.65, 0.2), Color3.fromRGB(250, 200, 40), Enum.Material.SmoothPlastic, Enum.PartType.Ball)
+		mk(interior, "PoolCue", Vector3.new(4.8, 0.12, 0.12), pt * CFrame.new(0.4, 2.5, 1.3) * CFrame.Angles(0, 0.15, 0), Color3.fromRGB(210, 170, 110))
+		ceilingLight(gx, gz, false)
+	end
+
+	-- DOG CORNER: in an L-house's entry wing, otherwise the front corner on the door side
+	local dogX, dogZ, dogY, dogFace
+	if wingInfo then
+		dogX = wingInfo.x - sD * (wingInfo.wdt / 2 - 2.8)
+		dogZ = wingInfo.front + 3.2
+		dogY = wingInfo.floorY
+		dogFace = sD > 0 and FACE_PX or FACE_NX
+	else
+		dogX = sD * (iw / 2 - 2.6)
+		dogZ = zMin + 2.8
+		if math.abs(dogX - doorX) < 6 then dogZ = zMin + 8.5 end
+		dogY = y0
+		dogFace = sD > 0 and FACE_NX or FACE_PX
+	end
+	local function G(x, z, yaw) return cfB * CFrame.new(x, dogY, z) * CFrame.Angles(0, yaw or 0, 0) end
+	mk(interior, "DogBed", Vector3.new(0.7, 4, 4), G(dogX, dogZ) * CFrame.new(0, 0.35, 0) * CFrame.Angles(0, 0, math.pi / 2),
+		Color3.fromRGB(120, 85, 60), Enum.Material.Fabric, Enum.PartType.Cylinder)
+	mk(interior, "DogBedCushion", Vector3.new(0.5, 3.1, 3.1), G(dogX, dogZ) * CFrame.new(0, 0.55, 0) * CFrame.Angles(0, 0, math.pi / 2),
+		Color3.fromRGB(235, 220, 190), Enum.Material.Fabric, Enum.PartType.Cylinder)
+	local bowlX = dogX - (dogFace == FACE_PX and -1 or 1) * 3.2
+	mk(interior, "DogBowl", Vector3.new(0.5, 1.4, 1.4), G(bowlX, dogZ - 0.6) * CFrame.new(0, 0.25, 0) * CFrame.Angles(0, 0, math.pi / 2),
+		Color3.fromRGB(200, 60, 60), Enum.Material.SmoothPlastic, Enum.PartType.Cylinder)
+	mk(interior, "Kibble", Vector3.new(0.1, 1.1, 1.1), G(bowlX, dogZ - 0.6) * CFrame.new(0, 0.5, 0) * CFrame.Angles(0, 0, math.pi / 2),
+		Color3.fromRGB(150, 95, 50), Enum.Material.SmoothPlastic, Enum.PartType.Cylinder)
+	mk(interior, "ChewBone", Vector3.new(1.2, 0.3, 0.3), G(dogX + 0.8, dogZ - 2.5) * CFrame.new(0, 0.15, 0) * CFrame.Angles(0, 0.6, 0), WHITE)
+
+	-- Auto-Petter 3000 beside the dog bed
+	local apSpot = G(dogX, dogZ + 4.2, dogFace) * CFrame.new(0, 2, 0)
+	local ap = mk(interior, "AutoPetter", Vector3.new(3, 4, 2.6), apSpot, Color3.fromRGB(70, 75, 85), Enum.Material.Metal)
+	mk(interior, "AutoPetterStripe", Vector3.new(3.05, 0.35, 2.65), apSpot * CFrame.new(0, -1.2, 0), Color3.fromRGB(80, 220, 120), Enum.Material.Neon)
+	mk(interior, "AutoPetterArm", Vector3.new(0.35, 0.35, 2.4), apSpot * CFrame.new(0, 1.6, -2.3), STEEL, Enum.Material.Metal)
+	mk(interior, "AutoPetterHand", Vector3.new(1, 1, 1), apSpot * CFrame.new(0, 1.4, -3.5), Color3.fromRGB(255, 200, 160), Enum.Material.SmoothPlastic, Enum.PartType.Ball)
+	local apScreen = mk(interior, "AutoPetterScreen", Vector3.new(2.6, 1.4, 0.15), apSpot * CFrame.new(0, 0.6, -1.36), BLACK)
+	makeSign(apScreen, Enum.NormalId.Front, "AUTO-PETTER", BLACK, Color3.fromRGB(80, 220, 120))
+	ap:SetAttribute("AutoPetter", true)
+
+	-- welcome mat inside the front door
+	if wingInfo then
+		mk(interior, "Doormat", Vector3.new(3.8, 0.1, 2.2), cfB * CFrame.new(wingInfo.x, wingInfo.floorY + 0.05, wingInfo.front + 2), Color3.fromRGB(140, 100, 60), Enum.Material.Fabric)
+		ceilingLight(wingInfo.x, wingInfo.front + wingInfo.len / 2, true, wingInfo.h)
+	else
+		mk(interior, "Doormat", Vector3.new(3.8, 0.1, 2.2), F(doorX, zMin + 1.6) * CFrame.new(0, 0.05, 0), Color3.fromRGB(140, 100, 60), Enum.Material.Fabric)
+		ceilingLight(doorX, zMin + 4, true)
+	end
+	if iw >= 20 and not wingInfo and not hasDining then
+		plant(sD * (iw / 2 - 1.4), zMax - (hasKitchen and 4.4 or 1.4))
+	end
 
 	task.spawn(function()
-		while true do
+		while house.Parent do
 			local currOwnerId = house:GetAttribute("OwnerUserId")
 			if currOwnerId then
 				local ownerPlr = game.Players:GetPlayerByUserId(currOwnerId)
@@ -5428,8 +6001,57 @@ local function hollowHouse(house)
 	end)
 
 	-- where a hatched dog waits: on the dog bed, inside
-	house:SetAttribute("DogSpotInside", (cfB * CFrame.new(w * 0.28, -h / 2 + 1, -d * 0.22)).Position)
+	house:SetAttribute("DogSpotInside", (G(dogX, dogZ) * CFrame.new(0, 0.6, 0)).Position)
 end
+
+-- Houses are hollowed + furnished on demand, when a player first comes near (5000+ houses would
+-- otherwise mean ~150k interior parts nobody ever sees).
+local HOLLOW_GRID = 100
+local HOLLOW_RADIUS = 80
+local unhollowedByCell = {}
+local function queueHouseForHollowing(house)
+	local body = house:FindFirstChild("Body")
+	if not body or house:GetAttribute("Hollowed") then return end
+	local p = body.Position
+	local key = math.floor(p.X / HOLLOW_GRID) .. ":" .. math.floor(p.Z / HOLLOW_GRID)
+	local list = unhollowedByCell[key]
+	if not list then
+		list = {}
+		unhollowedByCell[key] = list
+	end
+	table.insert(list, house)
+end
+task.spawn(function()
+	while true do
+		for _, plr in ipairs(Players:GetPlayers()) do
+			local root = plr.Character and plr.Character:FindFirstChild("HumanoidRootPart")
+			if root then
+				local p = root.Position
+				local gx, gz = math.floor(p.X / HOLLOW_GRID), math.floor(p.Z / HOLLOW_GRID)
+				for dx = -1, 1 do
+					for dz = -1, 1 do
+						local list = unhollowedByCell[(gx + dx) .. ":" .. (gz + dz)]
+						if list then
+							for i = #list, 1, -1 do
+								local house = list[i]
+								local body = house.Parent and house:FindFirstChild("Body")
+								if not body or house:GetAttribute("Hollowed") then
+									table.remove(list, i)
+								elseif (body.Position - p).Magnitude < HOLLOW_RADIUS + math.max(body.Size.X, body.Size.Z) / 2 then
+									table.remove(list, i)
+									local ok, err = pcall(hollowHouse, house)
+									if not ok then warn("[DiscoveryBayShop] hollowing failed: " .. tostring(err)) end
+									task.wait()
+								end
+							end
+						end
+					end
+				end
+			end
+		end
+		task.wait(0.4)
+	end
+end)
 
 local function hookRent(board)
 	local click = board:FindFirstChildOfClass("ClickDetector")
@@ -6240,6 +6862,7 @@ local function tickFunnel(funnel)
 end
 
 local function runWeather(w)
+	weatherActive = true
 	weatherAnnounce("WEATHER: " .. w.name .. "! " .. w.desc)
 	if w.fog then Lighting.FogEnd = w.fog end
 	if w.oa then Lighting.OutdoorAmbient = w.oa end
@@ -6282,8 +6905,9 @@ local function runWeather(w)
 		task.wait(1)
 	end
 	if funnel then funnel:Destroy() end
+	weatherActive = false
 	Lighting.FogEnd = 100000
-	Lighting.OutdoorAmbient = Color3.fromRGB(128, 128, 128)
+	updateSkyForClock(Lighting.ClockTime)
 	workspace.Gravity = 196.2
 	for _, p in ipairs(Players:GetPlayers()) do
 		p:SetAttribute("WeatherBoost", 0)
@@ -6620,7 +7244,9 @@ task.spawn(function()
 	local hooked = 0
 	for _, d in ipairs(town:GetDescendants()) do
 		if d:IsA("BasePart") then
-			if d:GetAttribute("Product") then
+			if d.Name == "Register" then
+				d:Destroy()
+			elseif d:GetAttribute("Product") then
 				hookProduct(d)
 				hooked = hooked + 1
 			elseif d:GetAttribute("AutoDoor") then
@@ -6630,10 +7256,8 @@ task.spawn(function()
 			elseif d:GetAttribute("StudyButton") then
 				hookStudy(d)
 			elseif d:GetAttribute("RentSign") then
-				local house = d.Parent
-				if house then
-					local ok, err = pcall(hollowHouse, house)
-					if not ok then warn("[DiscoveryBayShop] Pre-hollowing failed: " .. tostring(err)) end
+				if d.Parent then
+					queueHouseForHollowing(d.Parent)
 				end
 				hookRent(d)
 			elseif d:GetAttribute("EggShop") then
@@ -6642,6 +7266,17 @@ task.spawn(function()
 				hookFishSell(d)
 			elseif d:GetAttribute("ScooterShop") then
 				hookScooterShop(d)
+			end
+		end
+	end
+	local terry = town:FindFirstChild("Thirsty Terry", true)
+	if terry and terry:IsA("Model") then
+		local tTorso = terry:FindFirstChild("Torso")
+		local kioskBack = terry.Parent and terry.Parent:FindFirstChild("KioskBack")
+		if tTorso and kioskBack then
+			local toWall = (kioskBack.Position - tTorso.Position).Unit
+			if tTorso.CFrame.LookVector:Dot(toWall) > 0.2 then
+				terry:PivotTo(terry:GetPivot() * CFrame.Angles(0, math.pi, 0))
 			end
 		end
 	end
@@ -6677,10 +7312,81 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 
-local VERSION = "v102"
+local VERSION = "v111"
 local SPEED_PASS_ID = 0 -- paste the real Game Pass ID here (same one as in DiscoveryBayShop)
 local RunService = game:GetService("RunService")
+local Lighting = game:GetService("Lighting")
 local plr = Players.LocalPlayer
+
+--==============================================================================================
+-- NIGHT SKY SHOOTING STARS & STARLIGHT SHIMMER
+--==============================================================================================
+task.spawn(function()
+	local starColors = {
+		Color3.fromRGB(165, 235, 255),
+		Color3.fromRGB(255, 235, 165),
+		Color3.fromRGB(210, 185, 255),
+		Color3.fromRGB(160, 255, 220),
+	}
+	local rng = Random.new()
+	while true do
+		task.wait(rng:NextNumber(2.2, 4.8))
+		local ct = Lighting.ClockTime
+		if ct >= 18.4 or ct <= 5.6 then
+			local cam = workspace.CurrentCamera
+			local center = (cam and cam.CFrame.Position) or Vector3.new(0, 50, 0)
+			local startAngle = rng:NextNumber(0, math.pi * 2)
+			local radius = rng:NextNumber(260, 580)
+			local height = rng:NextNumber(240, 420)
+			local startPos = center + Vector3.new(math.cos(startAngle) * radius, height, math.sin(startAngle) * radius)
+			local streakDir = Vector3.new(rng:NextNumber(-1, 1), rng:NextNumber(-0.32, -0.08), rng:NextNumber(-1, 1)).Unit
+			local endPos = startPos + streakDir * rng:NextNumber(280, 460)
+			local col = starColors[rng:NextInteger(1, #starColors)]
+
+			local star = Instance.new("Part")
+			star.Name = "ShootingStar"
+			star.Shape = Enum.PartType.Ball
+			star.Size = Vector3.new(2.2, 2.2, 2.2)
+			star.Color = col
+			star.Material = Enum.Material.Neon
+			star.Anchored = true
+			star.CanCollide = false
+			star.CastShadow = false
+			star.CFrame = CFrame.new(startPos)
+
+			local a0 = Instance.new("Attachment")
+			a0.Position = Vector3.new(0, 0.9, 0)
+			a0.Parent = star
+			local a1 = Instance.new("Attachment")
+			a1.Position = Vector3.new(0, -0.9, 0)
+			a1.Parent = star
+
+			local trail = Instance.new("Trail")
+			trail.Attachment0 = a0
+			trail.Attachment1 = a1
+			trail.Color = ColorSequence.new(col, Color3.fromRGB(90, 140, 255))
+			trail.Transparency = NumberSequence.new({
+				NumberSequenceKeypoint.new(0, 0),
+				NumberSequenceKeypoint.new(0.5, 0.35),
+				NumberSequenceKeypoint.new(1, 1),
+			})
+			trail.WidthScale = NumberSequence.new(1, 0)
+			trail.Lifetime = 0.55
+			trail.LightEmission = 1
+			trail.FaceCamera = true
+			trail.Parent = star
+
+			star.Parent = workspace
+			local dur = rng:NextNumber(0.85, 1.4)
+			local tw = TweenService:Create(star, TweenInfo.new(dur, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+				CFrame = CFrame.new(endPos),
+				Transparency = 1,
+			})
+			tw:Play()
+			game:GetService("Debris"):AddItem(star, dur + 0.6)
+		end
+	end
+end)
 local remotes = ReplicatedStorage:WaitForChild("DiscoveryBayRemotes", 60)
 if not remotes then return end
 local DoTrick = remotes:WaitForChild("DoTrick")
@@ -6909,11 +7615,11 @@ rmConfirm.MouseButton1Click:Connect(function()
 	rebirthMenu.Visible = false
 end)
 
--- Rebirth Button
+-- Rebirth Button (Left-Center Dock, paired with Shop)
 local rebirthBtn = Instance.new("TextButton")
 rebirthBtn.Name = "RebirthBtn"
-rebirthBtn.Size = UDim2.new(0, 160, 0, 50)
-rebirthBtn.Position = UDim2.new(0, 20, 0.5, -25) -- Left middle
+rebirthBtn.Size = UDim2.new(0, 156, 0, 50)
+rebirthBtn.Position = UDim2.new(0, 18, 0.52, 6)
 rebirthBtn.BackgroundColor3 = Color3.fromRGB(150, 50, 200)
 rebirthBtn.Text = "REBIRTH"
 rebirthBtn.Font = Enum.Font.LuckiestGuy
@@ -6922,8 +7628,12 @@ rebirthBtn.TextSize = 16
 rebirthBtn.Parent = gui
 
 local rCorner = Instance.new("UICorner")
-rCorner.CornerRadius = UDim.new(0, 8)
+rCorner.CornerRadius = UDim.new(0, 12)
 rCorner.Parent = rebirthBtn
+local rStroke = Instance.new("UIStroke")
+rStroke.Color = Color3.fromRGB(215, 140, 255)
+rStroke.Thickness = 2
+rStroke.Parent = rebirthBtn
 
 local function getRebirthCost()
 	local stats = plr:FindFirstChild("leaderstats")
@@ -6939,7 +7649,7 @@ rebirthBtn.MouseButton1Click:Connect(function()
 	if cash and cash.Value >= cost then
 		rebirthMenu.Visible = true
 	else
-		local origPos = UDim2.new(0, 20, 0.5, -25)
+		local origPos = UDim2.new(0, 18, 0.52, 6)
 		local tw = TweenService:Create(rebirthBtn, TweenInfo.new(0.05, Enum.EasingStyle.Sine, Enum.EasingDirection.Out, 3, true), {
 			Position = origPos + UDim2.new(0, 10, 0, 0)
 		})
@@ -7118,12 +7828,14 @@ end)
 local questActive = false
 local questTimer = 0
 local questFound = false
+local questCompleted = false
+local inTerryCutscene = false
 local questHighlight = nil
 
 local questFrame = Instance.new("Frame")
 questFrame.Name = "QuestTimerUI"
 questFrame.AnchorPoint = Vector2.new(0, 0.5)
-questFrame.Position = UDim2.new(0, 20, 0.5, 0)
+questFrame.Position = UDim2.new(0, 18, 0.34, 0)
 questFrame.Size = UDim2.new(0, 200, 0, 60)
 questFrame.BackgroundColor3 = Color3.fromRGB(30, 150, 60)
 questFrame.Visible = false
@@ -7517,16 +8229,17 @@ local postTalkConns = {}
 local npcFaceUIs = {}
 
 local NPC_CLASSIC_FACE_MAP = {
-	["Manager Bob"]   = { idle = "Stare",           interact = "Disbelief",       interactTalk = "Grr",            answer = "MrChuckles",     answerTalk = "Puck" },
-	["Eggbert"]       = { idle = "GoodIntentioned", interact = "Skeptic",         interactTalk = "JoyousSurprise", answer = "JoyousSurprise", answerTalk = "GoodIntentioned" },
-	["Captain Finn"]  = { idle = "CheckIt",         interact = "Winky",           interactTalk = "HappyWink",      answer = "Disbelief",      answerTalk = "Stare" },
-	["Rider Rick"]    = { idle = "SureImCool",      interact = "Chill",           interactTalk = "SureImCool",     answer = "ItsGoTime",      answerTalk = "CheckIt" },
-	["Callahan"]      = { idle = "Smile",           interact = "GoodIntentioned", interactTalk = "JoyousSurprise", answer = "HappyWink",      answerTalk = "Winky" },
-	["Thirsty Terry"] = { idle = "Sniffles",        interact = "Disbelief",       interactTalk = "Sniffles",       answer = "Puck",           answerTalk = "Smile" },
-	["Sal"]           = { idle = "Chill",           interact = "MrChuckles",      interactTalk = "Chill",          answer = "HappyWink",      answerTalk = "Winky" },
-	["Sensei"]        = { idle = "Grr",             interact = "ItsGoTime",       interactTalk = "Roar",           answer = "Roar",           answerTalk = "Grr" },
-	["Ms. Wheeler"]   = { idle = "Smile",           interact = "Winky",           interactTalk = "JoyousSurprise", answer = "JoyousSurprise", answerTalk = "Smile" },
-	["Pedestrian"]    = { idle = "Smile",           interact = "GoodIntentioned", interactTalk = "Puck",           answer = "Slickfang",      answerTalk = "Vampire", panic = "Roar" },
+	-- *Talk faces are open-mouth classic faces; the mouth-flap loop swaps between the stage face and its Talk face
+	["Manager Bob"]   = { idle = "Stare",           interact = "Disbelief",       interactTalk = "Roar",           answer = "MrChuckles",     answerTalk = "OpenO" },
+	["Eggbert"]       = { idle = "GoodIntentioned", interact = "Skeptic",         interactTalk = "JoyousSurprise", answer = "GoodIntentioned", answerTalk = "JoyfulSmile" },
+	["Captain Finn"]  = { idle = "CheckIt",         interact = "Winky",           interactTalk = "JoyfulSmile",    answer = "Disbelief",      answerTalk = "OpenO" },
+	["Rider Rick"]    = { idle = "SureImCool",      interact = "Chill",           interactTalk = "JoyfulSmile",    answer = "ItsGoTime",      answerTalk = "TongueOut" },
+	["Callahan"]      = { idle = "Smile",           interact = "GoodIntentioned", interactTalk = "JoyfulSmile",    answer = "HappyWink",      answerTalk = "JoyousSurprise" },
+	["Thirsty Terry"] = { idle = "Sniffles",        interact = "Disbelief",       interactTalk = "OpenO",          answer = "Puck",           answerTalk = "JoyfulSmile" },
+	["Sal"]           = { idle = "Chill",           interact = "MrChuckles",      interactTalk = "JoyfulSmile",    answer = "HappyWink",      answerTalk = "TongueOut" },
+	["Sensei"]        = { idle = "Grr",             interact = "ItsGoTime",       interactTalk = "Roar",           answer = "Grr",            answerTalk = "Roar" },
+	["Ms. Wheeler"]   = { idle = "Smile",           interact = "Winky",           interactTalk = "JoyousSurprise", answer = "Smile",          answerTalk = "JoyfulSmile" },
+	["Pedestrian"]    = { idle = "Smile",           interact = "GoodIntentioned", interactTalk = "OpenO",          answer = "Slickfang",      answerTalk = "Fang", panic = "Roar" },
 }
 
 local function getClassicFaceTex(faceKey)
@@ -7579,7 +8292,35 @@ local function setNPCFaceState(npc, stage)
 	ui.baseKey = map[stage] or map.idle or "Smile"
 	ui.talkKey = map[stage .. "Talk"] or ui.baseKey
 	applyNPCFaceKey(npc, ui.baseKey)
+	-- preload the open-mouth face so the first mouth flap doesn't blink blank while it downloads
+	local talkTex = getClassicFaceTex(ui.talkKey)
+	task.spawn(function()
+		pcall(function() game:GetService("ContentProvider"):PreloadAsync({ talkTex }) end)
+	end)
 end
+
+-- Mouth flapping: while the talking NPC's dialogue is typing, swap its classic face between
+-- the stage face (mouth closed) and the stage's open-mouth Talk face
+local npcTalkUntil = 0 -- for lines shown without the typewriter (e.g. Terry's soda cutscene)
+local flapNPC = nil
+local FLAP_INTERVAL = 0.13
+RunService.Heartbeat:Connect(function()
+	local npc = currentCutsceneNPC
+	local talking = npc ~= nil and (isNPCTalking or os.clock() < npcTalkUntil)
+	if flapNPC and (flapNPC ~= npc or not talking) then
+		-- talking stopped (or the cutscene ended): close the mouth
+		local ui = npcFaceUIs[flapNPC]
+		if ui and flapNPC.Parent then applyNPCFaceKey(flapNPC, ui.baseKey) end
+		flapNPC = nil
+	end
+	if talking then
+		local ui = npcFaceUIs[npc]
+		if not ui then return end
+		flapNPC = npc
+		local mouthOpen = math.floor(os.clock() / FLAP_INTERVAL) % 2 == 0
+		applyNPCFaceKey(npc, mouthOpen and ui.talkKey or ui.baseKey)
+	end
+end)
 
 local function updateNPCAccessories(pose, newHeadCF)
 	if pose.accessories then
@@ -8042,11 +8783,508 @@ local function showDialogue(npcName, text, choicesArray, callback)
 	end)
 end
 
+local function playTerrySodaCutscene(npcModel)
+	if not npcModel then return end
+	stopNPCAnimLoop()
+	local pose = savedNPCJoints[npcModel]
+	if not pose then return end
+
+	inTerryCutscene = true
+	questCompleted = true
+
+	-- Dismount scooter if riding so the player walks up on foot
+	if plr:GetAttribute("Mounted") then
+		plr:SetAttribute("Mounted", false)
+		ToggleScooter:FireServer()
+	end
+
+	local controls
+	pcall(function()
+		controls = require(plr:WaitForChild("PlayerScripts"):WaitForChild("PlayerModule")):GetControls()
+		controls:Disable()
+	end)
+
+	local baseTorso = pose.torsoCF or (pose.headCF * CFrame.new(0, -1.5, 0))
+	local cam = workspace.CurrentCamera
+	if cam then
+		cam.CameraType = Enum.CameraType.Scriptable
+		if cutsceneCamTween then cutsceneCamTween:Cancel() end
+		-- Full-body 3/4 wide shot so the player's entire body and legs are clearly visible walking up!
+		local wideCamPos = (baseTorso * CFrame.new(7.6, 1.6, -5.8)).Position
+		local wideLook = (baseTorso * CFrame.new(0, -0.35, -5.4)).Position
+		cam.CFrame = CFrame.lookAt(wideCamPos, wideLook)
+		cam.FieldOfView = 60
+	end
+
+	-- Create a 3D green Soda Can prop for the handoff
+	local sodaCan = Instance.new("Part")
+	sodaCan.Name = "CutsceneSodaCan"
+	sodaCan.Shape = Enum.PartType.Cylinder
+	sodaCan.Size = Vector3.new(1.45, 0.9, 0.9)
+	sodaCan.Color = Color3.fromRGB(50, 215, 65)
+	sodaCan.Material = Enum.Material.SmoothPlastic
+	sodaCan.Anchored = true
+	sodaCan.CanCollide = false
+	sodaCan.Parent = workspace
+
+	local char = plr.Character
+	local hrp = char and char:FindFirstChild("HumanoidRootPart")
+	local hum = char and char:FindFirstChildOfClass("Humanoid")
+	local animateScript = char and char:FindFirstChild("Animate")
+	local origAnimateDisabled = animateScript and animateScript.Disabled or false
+	if animateScript and animateScript:IsA("LocalScript") then
+		animateScript.Disabled = true
+	end
+
+	-- Immediately remove scooter IK controls & hide scooter on client so arms/legs are 100% free
+	if char then
+		local sc = char:FindFirstChild("Scooter")
+		if sc then
+			for _, p in ipairs(sc:GetDescendants()) do
+				if p:IsA("BasePart") then p.Transparency = 1 end
+			end
+		end
+	end
+	local origWalkSpeed = hum and hum.WalkSpeed or 16
+	local origJumpPower = hum and hum.JumpPower or 50
+	if hum then
+		for _, ikName in ipairs({ "LeftHandGrip", "RightHandGrip" }) do
+			local ik = hum:FindFirstChild(ikName)
+			if ik then ik:Destroy() end
+		end
+		local origHip = char and char:GetAttribute("ScooterOrigHip")
+		if origHip then hum.HipHeight = origHip end
+		hum.WalkSpeed = 0
+		hum.JumpPower = 0
+	end
+
+	-- Save upright standing base C0 for any joint on the character
+	local pBaseC0 = {}
+	local function getStandC0(m)
+		if not m then return CFrame.new() end
+		local walkAttr = m:GetAttribute("WalkOrigC0")
+		if walkAttr then
+			pBaseC0[m] = walkAttr
+			return walkAttr
+		end
+		if not pBaseC0[m] then
+			pBaseC0[m] = m.C0
+		end
+		return pBaseC0[m]
+	end
+	if char then
+		for _, d in ipairs(char:GetDescendants()) do
+			if d:IsA("Motor6D") or d.Name == "LeftArmGrip" or d.Name == "RightArmGrip" then
+				getStandC0(d)
+			end
+		end
+	end
+
+	-- Place HumanoidRootPart ONCE at the target handshake spot with Anchored = false!
+	-- Moving the character backward/forward via Root.C0 (instead of teleporting hrp.CFrame every frame)
+	-- keeps Roblox's Motor6D solver 100% active at 60fps just like our Scooter Trick Animator!
+	local floorY = baseTorso.Position.Y - 3.0
+	local origHip = (char and char:GetAttribute("ScooterOrigHip")) or (hum and hum.HipHeight) or 2.0
+	local pRootH = math.max(origHip + (hrp and hrp.Size.Y / 2 or 1.0), 3.0)
+	local endSpot = (baseTorso * CFrame.new(0, 0, -2.85)).Position
+	local playerEndCF = CFrame.new(endSpot.X, floorY + pRootH, endSpot.Z) * baseTorso.Rotation * CFrame.Angles(0, math.pi, 0)
+	local WALK_DIST = 8.0
+	local WALK_TIME = 2.2
+	-- HumanoidRootPart is anchored and glided toward Terry each frame (no physics shoves),
+	-- while a REAL Roblox walk AnimationTrack plays on the Animator (animations still play on anchored rigs)
+	local origAnchored = hrp and hrp.Anchored or false
+	if hrp then
+		hrp.Anchored = true
+		hrp.AssemblyLinearVelocity = Vector3.zero
+		hrp.AssemblyAngularVelocity = Vector3.zero
+		hrp.CFrame = playerEndCF * CFrame.new(0, 0, WALK_DIST)
+	end
+	-- Reset every joint to its upright on-foot pose so no scooter stance survives into the walk
+	if char then
+		for _, d in ipairs(char:GetDescendants()) do
+			if d:IsA("Motor6D") then
+				d.C0 = getStandC0(d)
+				d.Transform = CFrame.new()
+			end
+		end
+	end
+
+	-- Load the player's walk animation (their avatar's own walk if available, else the stock Roblox walk)
+	local walkTrack
+	local animatorObj = hum and hum:FindFirstChildOfClass("Animator")
+	if hum and not animatorObj then
+		animatorObj = Instance.new("Animator")
+		animatorObj.Parent = hum
+	end
+	if animatorObj then
+		local isR15 = hum.RigType == Enum.HumanoidRigType.R15
+		local walkId = isR15 and "rbxassetid://507777826" or "rbxassetid://180426354"
+		pcall(function()
+			local walkFolder = animateScript and animateScript:FindFirstChild("walk")
+			local wa = walkFolder and walkFolder:FindFirstChildWhichIsA("Animation")
+			local id = wa and wa.AnimationId or ""
+			-- skip the scooter "glide" (standing idle) id the server swaps in while riding
+			if id ~= "" and not string.find(id, "507766666") and not string.find(id, "180435571") then
+				walkId = id
+			end
+		end)
+		local anim = Instance.new("Animation")
+		anim.AnimationId = walkId
+		pcall(function()
+			walkTrack = animatorObj:LoadAnimation(anim)
+			walkTrack.Priority = Enum.AnimationPriority.Action
+			walkTrack.Looped = true
+		end)
+	end
+	local walkStopped = false
+
+	setNPCFaceState(npcModel, "interact")
+	activeTypewriter = nil
+	-- Keep dialogue box hidden during the walk-up so the bottom of the screen doesn't cover the walking legs!
+	dlgFrame.Visible = false
+	hotbar.Visible = false
+	dlgName.Text = "Thirsty Terry"
+	dlgText.Text = "Wait... is that my soda?! Hand it over, kid!"
+	for _, c in ipairs(choicesFrame:GetChildren()) do
+		if c:IsA("TextButton") then c:Destroy() end
+	end
+
+	local rewarded = false
+	local camZoomed = false
+	local dlgShown = false
+	local sodaPopPlayed = false
+	local dur = 5.4
+	local t0 = os.clock()
+	local cutRenderConn, cutStepConn
+
+	local function updateCutsceneFrame()
+		local elapsed = os.clock() - t0
+		if elapsed >= dur or not npcModel.Parent then
+			if cutRenderConn then cutRenderConn:Disconnect(); cutRenderConn = nil end
+			if cutStepConn then cutStepConn:Disconnect(); cutStepConn = nil end
+			inTerryCutscene = false
+			if sodaCan and sodaCan.Parent then
+				sodaCan:Destroy()
+			end
+			if char then
+				for _, d in ipairs(char:GetDescendants()) do
+					if d:IsA("Motor6D") then
+						local stand = d:GetAttribute("WalkOrigC0") or pBaseC0[d]
+						if stand then d.C0 = stand end
+						d.Transform = CFrame.new()
+					elseif d:IsA("AnimationConstraint") then
+						d.Transform = CFrame.new()
+					end
+				end
+			end
+			if animateScript and animateScript.Parent then
+				animateScript.Disabled = origAnimateDisabled
+			end
+			if walkTrack then
+				pcall(function() walkTrack:Stop(0); walkTrack:Destroy() end)
+				walkTrack = nil
+			end
+			if hrp and hrp.Parent then
+				hrp.CFrame = playerEndCF
+				hrp.Anchored = origAnchored
+			end
+			if hum and hum.Parent then
+				hum.WalkSpeed = origWalkSpeed
+				hum.JumpPower = origJumpPower
+			end
+			pcall(function()
+				if controls then controls:Enable() end
+			end)
+			if not rewarded then
+				rewarded = true
+				remotes:WaitForChild("CompleteQuest"):FireServer("TerrysSoda")
+			end
+			endCutscene()
+			return
+		end
+
+		if char then
+			local sc = char:FindFirstChild("Scooter")
+			if sc then
+				for _, p in ipairs(sc:GetDescendants()) do
+					if p:IsA("BasePart") then p.Transparency = 1 end
+				end
+			end
+		end
+		local walking = elapsed < WALK_TIME
+		if hum then
+			for _, ikName in ipairs({ "LeftHandGrip", "RightHandGrip" }) do
+				local ik = hum:FindFirstChild(ikName)
+				if ik then ik:Destroy() end
+			end
+			local animator = hum:FindFirstChildOfClass("Animator")
+			if animator then
+				-- Stop every other track (scooter glide/idle) but keep our walk track alive while walking
+				for _, tr in ipairs(animator:GetPlayingAnimationTracks()) do
+					if tr ~= walkTrack then
+						tr:Stop(0)
+					end
+				end
+			end
+		end
+
+		-- Stage 1 (0.0 - 2.2s): Player WALKS 8 studs up to Terry with a real Roblox walk animation & holds out soda
+		-- Stage 2 (2.2 - 3.5s): Player leans in & extends right arm to hand the soda into Terry's left hand
+		-- Stage 3 (3.5 - 5.4s): Player & Terry clasp right hands and pump them up and down!
+		local walkAlpha = math.clamp(elapsed / WALK_TIME, 0, 1)
+		local smoothWalk = 1 - math.pow(1 - walkAlpha, 1.6)
+		local walkBack = (1 - smoothWalk) * WALK_DIST
+		-- current walking speed (studs/s) so the leg cycle matches the ground speed (no moonwalking)
+		local walkVel = WALK_DIST * 1.6 * math.pow(math.max(1 - walkAlpha, 0), 0.6) / WALK_TIME
+
+		if walkTrack then
+			if walking then
+				if not walkTrack.IsPlaying then
+					walkTrack:Play(0.1)
+				end
+				walkTrack:AdjustSpeed(math.clamp(walkVel / 6.5, 0.45, 1.4))
+			elseif not walkStopped then
+				walkStopped = true
+				walkTrack:Stop(0.2)
+			end
+		end
+
+		if hrp and hrp.Parent then
+			hrp.CFrame = playerEndCF * CFrame.new(0, 0, walkBack)
+		end
+
+		if elapsed < 2.0 and cam and not camZoomed then
+			-- Full-body side camera that tracks the midpoint between the player and Terry
+			local midZ = -(2.85 + walkBack) * 0.5
+			local wideCamPos = (baseTorso * CFrame.new(8.6, 1.4, midZ)).Position
+			local wideLook = (baseTorso * CFrame.new(0, -0.6, midZ)).Position
+			cam.CFrame = CFrame.lookAt(wideCamPos, wideLook)
+		end
+
+		if elapsed >= 2.0 and not dlgShown then
+			dlgShown = true
+			dlgFrame.Visible = true
+			npcTalkUntil = os.clock() + 0.8
+		end
+
+		if elapsed >= 2.0 and not camZoomed and cam then
+			camZoomed = true
+			local closeCamPos = (baseTorso * CFrame.new(4.6, 1.0, -1.55)).Position
+			local closeLook = (baseTorso * CFrame.new(0, 0.25, -1.42)).Position
+			TweenService:Create(cam, TweenInfo.new(0.65, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
+				CFrame = CFrame.lookAt(closeCamPos, closeLook),
+				FieldOfView = 48,
+			}):Play()
+		end
+
+		if elapsed >= 2.85 and not sodaPopPlayed then
+			sodaPopPlayed = true
+			setNPCFaceState(npcModel, "answer")
+			pcall(playSound, "rbxassetid://9061556942", 0.5)
+			dlgText.Text = "You found it!! Thank you so much — deal's a deal, here's $200!"
+			npcTalkUntil = os.clock() + 1.4
+		end
+
+		if elapsed >= 3.6 and not rewarded then
+			rewarded = true
+			remotes:WaitForChild("CompleteQuest"):FireServer("TerrysSoda")
+		end
+
+		local pRShoulderPitch, pRShoulderYaw, pRElbowPitch = 0, 0, 0
+		local pLShoulderPitch, pLElbowPitch = 0, 0
+		local pRHipPitch, pRKneePitch, pLHipPitch, pLKneePitch = 0, 0, 0, 0
+		local pHeadPitch, pWaistPitch, pWaistYaw, bobY = 0, 0, 0, 0
+
+		local tHeadRot = CFrame.new()
+		local tRArmRot = CFrame.new()
+		local tLArmRot = CFrame.new()
+		local tRLegRot = CFrame.new()
+		local tLLegRot = CFrame.new()
+		local tTorsoCF = baseTorso
+
+		if elapsed < 2.2 then
+			-- ACT 1: Walk-up. Legs, hips, torso bob & left-arm swing come from the real walk AnimationTrack;
+			-- we only raise the right arm (layered on top via C0) so the player carries the soda out in front.
+			if not walkTrack then
+				-- Fallback procedural stride if the walk animation failed to load
+				local phase = elapsed * 12.8
+				local s = math.sin(phase)
+				local c = math.cos(phase)
+				local fadeStop = math.clamp((2.2 - elapsed) / 0.25, 0, 1)
+				bobY = math.abs(c) * 0.28 * fadeStop
+				pWaistYaw = s * math.rad(12 * fadeStop)
+				pRHipPitch = s * math.rad(52 * fadeStop)
+				pLHipPitch = -s * math.rad(52 * fadeStop)
+				pRKneePitch = -math.clamp(0.45 + 0.55 * c, 0, 1.25) * math.rad(68 * fadeStop)
+				pLKneePitch = -math.clamp(0.45 - 0.55 * c, 0, 1.25) * math.rad(68 * fadeStop)
+				pLShoulderPitch = -s * math.rad(46 * fadeStop)
+			end
+			pRShoulderPitch = math.rad(66)
+			pRElbowPitch = math.rad(34)
+
+			local tBounce = math.abs(math.sin(elapsed * 10)) * 0.14
+			tTorsoCF = baseTorso * CFrame.new(0, tBounce, 0) * CFrame.Angles(math.rad(-6), 0, 0)
+			tHeadRot = CFrame.Angles(math.rad(8), 0, 0)
+			tLArmRot = CFrame.Angles(math.rad(45), 0, math.rad(-12))
+			tRArmRot = CFrame.Angles(math.rad(35), 0, math.rad(12))
+		elseif elapsed < 3.5 then
+			-- ACT 2: Custom Soda Handover Animation (player leans in & extends right arm to hand soda to Terry's left hand)
+			local u = (elapsed - 2.2) / 1.3
+			local reach = math.sin(u * math.pi)
+			pWaistPitch = math.rad(-12 * reach)
+			pHeadPitch = math.rad(-8 * reach)
+			pRShoulderPitch = math.rad(66 + 34 * reach)
+			-- straight ahead: the player's right hand is directly in front of Terry's left hand
+			pRShoulderYaw = 0
+			pRElbowPitch = math.rad(34 - 26 * reach)
+			pLShoulderPitch = math.rad(12 * reach)
+
+			local terryTake = math.clamp(u * 1.4, 0, 1)
+			tTorsoCF = baseTorso * CFrame.Angles(math.rad(-6 * (1 - u)), 0, 0)
+			tHeadRot = CFrame.Angles(math.rad(-12 * math.sin(u * math.pi * 2)), 0, 0)
+			-- Terry's left arm reaches out to take the soda, then pulls it back to hold at his side
+			tLArmRot = CFrame.Angles(math.rad(88 * (1 - 0.38 * math.clamp((u - 0.45) * 1.8, 0, 1)) * terryTake), 0, math.rad(16 * (1 - u)))
+			tRArmRot = CFrame.Angles(math.rad(25 * u), 0, math.rad(8))
+		else
+			-- ACT 3: Custom Handshake Animation (both extend right arms and pump up and down together!)
+			local u = (elapsed - 3.5) / (dur - 3.5)
+			local claspEnv = math.sin(math.clamp(u * 3.5, 0, 1) * math.pi * 0.5) * math.clamp((1 - u) * 3.5, 0, 1)
+			local pump = math.sin((elapsed - 3.55) * 18) * math.rad(24) * claspEnv
+
+			pWaistPitch = math.rad(-6 * claspEnv)
+			pHeadPitch = math.sin((elapsed - 3.5) * 14) * math.rad(10 * claspEnv)
+			-- Facing each other, the two RIGHT hands sit on opposite sides, so both arms angle in
+			-- toward the centre line to meet (otherwise the player's right hand hits Terry's left)
+			pRShoulderPitch = math.rad(70 * claspEnv) + pump
+			pRShoulderYaw = math.rad(42 * claspEnv)
+			pRElbowPitch = math.rad(20 * claspEnv) + pump * 0.45
+			pLShoulderPitch = math.rad(12 * claspEnv)
+
+			tTorsoCF = baseTorso * CFrame.Angles(math.rad(-6 * claspEnv), 0, 0)
+			tHeadRot = CFrame.Angles(math.sin((elapsed - 3.5) * 14) * math.rad(-12 * claspEnv), 0, 0)
+			-- Terry holds the soda can in his left hand while shaking with his right hand!
+			tLArmRot = CFrame.Angles(math.rad(55), math.rad(-15), math.rad(-12))
+			-- yaw applied after the pitch so the raised arm swings inward toward the player's right hand
+			tRArmRot = CFrame.Angles(0, math.rad(46 * claspEnv), 0) * CFrame.Angles(math.rad(72 * claspEnv) + pump, 0, 0)
+		end
+
+		if char then
+			-- Joints may be Motor6D (classic) OR AnimationConstraint (Avatar Joint Upgrade rigs).
+			-- AnimationConstraint.C0 is READ-ONLY (writing it throws), so we pose every joint through
+			-- .Transform, which both joint types support and which renders on top of C0.
+			local function isJoint(j)
+				return j ~= nil and (j:IsA("Motor6D") or j:IsA("AnimationConstraint"))
+			end
+			local function findJoint(part, name)
+				local j = part and part:FindFirstChild(name)
+				if isJoint(j) then return j end
+				return nil
+			end
+			local function setT(j, cf)
+				if j then
+					pcall(function() j.Transform = cf end)
+				end
+			end
+
+			local walkTrackActive = walkTrack ~= nil and elapsed < WALK_TIME + 0.25
+
+			local lowerTorso = char:FindFirstChild("LowerTorso")
+			local upperTorso = char:FindFirstChild("UpperTorso")
+			local torso = char:FindFirstChild("Torso")
+			local head = char:FindFirstChild("Head")
+
+			local rootM = findJoint(lowerTorso, "Root") or findJoint(hrp, "RootJoint")
+			local waistM = findJoint(upperTorso, "Waist")
+			local neckM = findJoint(head, "Neck") or findJoint(torso, "Neck")
+
+			local rShoulder = findJoint(char:FindFirstChild("RightUpperArm"), "RightShoulder")
+			local rElbow = findJoint(char:FindFirstChild("RightLowerArm"), "RightElbow")
+			local rWrist = findJoint(char:FindFirstChild("RightHand"), "RightWrist")
+			local lShoulder = findJoint(char:FindFirstChild("LeftUpperArm"), "LeftShoulder")
+			local lElbow = findJoint(char:FindFirstChild("LeftLowerArm"), "LeftElbow")
+			local rHip = findJoint(char:FindFirstChild("RightUpperLeg"), "RightHip")
+			local rKnee = findJoint(char:FindFirstChild("RightLowerLeg"), "RightKnee")
+			local lHip = findJoint(char:FindFirstChild("LeftUpperLeg"), "LeftHip")
+			local lKnee = findJoint(char:FindFirstChild("LeftLowerLeg"), "LeftKnee")
+
+			if walkTrackActive then
+				-- Real walk animation drives legs/torso/left arm; we only hold the soda out with the right arm
+				setT(rShoulder, CFrame.Angles(pRShoulderPitch, pRShoulderYaw, 0))
+				setT(rElbow, CFrame.Angles(pRElbowPitch, 0, 0))
+			else
+				-- Clear any leftover animation on every joint, then apply our handover / handshake pose
+				for _, d in ipairs(char:GetDescendants()) do
+					if isJoint(d) then
+						d.Transform = CFrame.new()
+					end
+				end
+				setT(rootM, CFrame.new(0, bobY, 0))
+				setT(waistM, CFrame.Angles(pWaistPitch, pWaistYaw, 0))
+				if upperTorso then setT(neckM, CFrame.Angles(pHeadPitch, 0, 0)) end
+				-- yaw must be applied AFTER the pitch (on the raised arm), or it just spins the hanging arm in place
+				setT(rShoulder, CFrame.Angles(0, pRShoulderYaw, 0) * CFrame.Angles(pRShoulderPitch, 0, 0))
+				setT(rElbow, CFrame.Angles(pRElbowPitch, 0, 0))
+				setT(rWrist, CFrame.Angles(pRElbowPitch * -0.3, 0, 0))
+				setT(lShoulder, CFrame.Angles(pLShoulderPitch, 0, 0))
+				setT(lElbow, CFrame.Angles(pLElbowPitch, 0, 0))
+				setT(rHip, CFrame.Angles(pRHipPitch, 0, 0))
+				setT(rKnee, CFrame.Angles(pRKneePitch, 0, 0))
+				setT(lHip, CFrame.Angles(pLHipPitch, 0, 0))
+				setT(lKnee, CFrame.Angles(pLKneePitch, 0, 0))
+			end
+
+			-- R6 rig support (Motor6D "Right Shoulder" etc. and the scooter Weld "RightArmGrip")
+			if torso then
+				local rs6 = findJoint(torso, "Right Shoulder")
+				local ls6 = findJoint(torso, "Left Shoulder")
+				local rh6 = findJoint(torso, "Right Hip")
+				local lh6 = findJoint(torso, "Left Hip")
+				local rag = torso:FindFirstChild("RightArmGrip")
+				local lag = torso:FindFirstChild("LeftArmGrip")
+				setT(rs6, CFrame.Angles(0, pRShoulderYaw, pRShoulderPitch))
+				if not walkTrackActive then
+					setT(ls6, CFrame.Angles(0, 0, -pLShoulderPitch))
+					setT(rh6, CFrame.Angles(0, 0, pRHipPitch))
+					setT(lh6, CFrame.Angles(0, 0, -pLHipPitch))
+				end
+				if rag and rag:IsA("Weld") then rag.C0 = CFrame.new(1.4, 0.25, -0.75) * CFrame.Angles(pRShoulderPitch, pRShoulderYaw, 0) end
+				if lag and lag:IsA("Weld") then lag.C0 = CFrame.new(-1.4, 0.25, -0.35) * CFrame.Angles(pLShoulderPitch, 0, 0) end
+			end
+		end
+
+		applyLimbsFromTorso(pose, tTorsoCF, tHeadRot, tRArmRot, tLArmRot, tRLegRot, tLLegRot)
+
+		-- Position the 3D Soda Can: in player's right hand until 2.6s, then smoothly handed into Terry's left hand!
+		if sodaCan and sodaCan.Parent then
+			local rHand = char and (char:FindFirstChild("RightHand") or char:FindFirstChild("Right Arm"))
+			local pHandCF = rHand and (rHand.CFrame * CFrame.new(0, -0.35, -0.35)) or (playerEndCF * CFrame.new(1.2, 0.2, walkBack - 1.6))
+			local tHandCF = pose.lArm and (pose.lArm.CFrame * CFrame.new(0, -1.0, -0.3)) or (baseTorso * CFrame.new(-1.5, 0, -1.2))
+			local transferAlpha = math.clamp((elapsed - 2.6) / 0.38, 0, 1)
+			local canCF = pHandCF:Lerp(tHandCF, transferAlpha) * CFrame.Angles(0, 0, math.rad(90))
+			sodaCan.CFrame = canCF
+		end
+	end
+
+	-- Connect to BOTH RenderStepped AND Stepped (PreSimulation, which runs AFTER Animator & IKControl!)
+	cutRenderConn = RunService.RenderStepped:Connect(updateCutsceneFrame)
+	cutStepConn = RunService.Stepped:Connect(updateCutsceneFrame)
+end
+
 local function hookNPC(prompt)
 	local npcName = prompt.ObjectText
 	task.spawn(function()
 		local npcModel = prompt.Parent and prompt.Parent.Parent
 		if not npcModel then return end
+		if npcModel.Name == "Thirsty Terry" then
+			local tTorso = npcModel:FindFirstChild("Torso")
+			local kioskBack = npcModel.Parent and npcModel.Parent:FindFirstChild("KioskBack")
+			if tTorso and kioskBack then
+				local toWall = (kioskBack.Position - tTorso.Position).Unit
+				if tTorso.CFrame.LookVector:Dot(toWall) > 0.2 then
+					npcModel:PivotTo(npcModel:GetPivot() * CFrame.Angles(0, math.pi, 0))
+				end
+			end
+		end
 		setNPCFaceState(npcModel, "idle")
 		local folder = remotes:WaitForChild("ClassicFaces", 10)
 		local map = NPC_CLASSIC_FACE_MAP[npcModel.Name] or NPC_CLASSIC_FACE_MAP["Pedestrian"]
@@ -8103,7 +9341,10 @@ local function hookNPC(prompt)
 				end
 			end)
 		elseif npcName == "Thirsty Terry" then
-			if not questActive and not questFound then
+			if questCompleted or plr:GetAttribute("TerryQuestCompleted") then
+				setNPCFaceState(npcModel, "answer")
+				showDialogue("Thirsty Terry", "Thanks again for finding my soda, kid! Best drink I've had all week!", {}, nil)
+			elseif not questActive and not questFound then
 				showDialogue("Thirsty Terry", "Hey kid... I lost my soda at the school... I'm so thirsty! I'll give you $200 if you find it in 2 minutes!", {
 					{ id = "yes", text = "I'll find it!" },
 					{ id = "no", text = "Too busy." }
@@ -8116,12 +9357,11 @@ local function hookNPC(prompt)
 			elseif questActive and not questFound then
 				showDialogue("Thirsty Terry", "Hurry up! The soda is at the school!", {}, nil)
 			elseif questFound then
-				setNPCFaceState(npcModel, "answer")
-				showDialogue("Thirsty Terry", "You found it! Thank you so much! Here's $200!", {}, nil)
-				game:GetService("ReplicatedStorage"):WaitForChild("DiscoveryBayRemotes"):WaitForChild("CompleteQuest"):FireServer("TerrysSoda")
 				questActive = false
 				questFound = false
+				questCompleted = true
 				questFrame.Visible = false
+				playTerrySodaCutscene(npcModel)
 			end
 		elseif npcName == "Sal" then
 			showDialogue("Sal", "Welcome to ShellBlox! Fuel for cars, Bloxy Cola for scooters - every can makes that scooter a little quicker. Stacks five times!", {
@@ -8426,53 +9666,42 @@ local function runIntro()
 end
 task.spawn(runIntro)
 
+-- Bottom-Left Status: Cash & Pity Tracker
 local money = Instance.new("TextLabel")
 money.Name = "Money"
 money.AnchorPoint = Vector2.new(0, 1)
-money.Position = UDim2.new(0, 16, 1, -16)
-money.Size = UDim2.new(0, 190, 0, 46)
+money.Position = UDim2.new(0, 18, 1, -18)
+money.Size = UDim2.new(0, 195, 0, 48)
 money.BackgroundColor3 = Color3.fromRGB(20, 26, 34)
-money.BackgroundTransparency = 0.25
+money.BackgroundTransparency = 0.2
 money.TextColor3 = Color3.fromRGB(120, 230, 130)
 money.Font = Enum.Font.LuckiestGuy
 money.TextSize = 26
 money.Text = "$ ..."
 money.Parent = gui
 local mCorner = Instance.new("UICorner")
-mCorner.CornerRadius = UDim.new(0, 10)
+mCorner.CornerRadius = UDim.new(0, 12)
 mCorner.Parent = money
-
--- dismount / ride toggle, stacked above the money readout
-local mountBtn = Instance.new("TextButton")
-mountBtn.Name = "MountToggle"
-mountBtn.AnchorPoint = Vector2.new(0, 1)
-mountBtn.Position = UDim2.new(0, 16, 1, -70)
-mountBtn.Size = UDim2.new(0, 190, 0, 42)
-mountBtn.BackgroundColor3 = Color3.fromRGB(70, 160, 220)
-mountBtn.TextColor3 = Color3.new(1, 1, 1)
-mountBtn.Font = Enum.Font.LuckiestGuy
-mountBtn.TextSize = 18
-mountBtn.Text = "Get Off  (G)"
-mountBtn.Parent = gui
-local mtCorner = Instance.new("UICorner")
-mtCorner.CornerRadius = UDim.new(0, 10)
-mtCorner.Parent = mountBtn
+local mStroke = Instance.new("UIStroke")
+mStroke.Color = Color3.fromRGB(80, 180, 100)
+mStroke.Thickness = 2
+mStroke.Parent = money
 
 local ClaimPity = remotes:WaitForChild("ClaimPity")
 
 local pityLabel = Instance.new("TextButton")
 pityLabel.Name = "PityLabel"
 pityLabel.AnchorPoint = Vector2.new(0, 1)
-pityLabel.Position = UDim2.new(0, 16, 1, -120)
-pityLabel.Size = UDim2.new(0, 190, 0, 36)
-pityLabel.BackgroundColor3 = Color3.fromRGB(130, 40, 160)
+pityLabel.Position = UDim2.new(0, 18, 1, -74)
+pityLabel.Size = UDim2.new(0, 195, 0, 36)
+pityLabel.BackgroundColor3 = Color3.fromRGB(115, 35, 145)
 pityLabel.TextColor3 = Color3.new(1, 1, 1)
 pityLabel.Font = Enum.Font.LuckiestGuy
-pityLabel.TextSize = 15
+pityLabel.TextSize = 14
 pityLabel.Text = "Pity: 90 rolls until Linus"
 pityLabel.Parent = gui
 local plCorner = Instance.new("UICorner")
-plCorner.CornerRadius = UDim.new(0, 8)
+plCorner.CornerRadius = UDim.new(0, 10)
 plCorner.Parent = pityLabel
 
 local currentPityRollsLeft = 90
@@ -8483,7 +9712,7 @@ UpdatePity.OnClientEvent:Connect(function(rollsLeft)
 		pityLabel.BackgroundColor3 = Color3.fromRGB(250, 180, 20)
 	else
 		pityLabel.Text = "Pity: " .. tostring(rollsLeft) .. " rolls until Linus"
-		pityLabel.BackgroundColor3 = Color3.fromRGB(130, 40, 160)
+		pityLabel.BackgroundColor3 = Color3.fromRGB(115, 35, 145)
 	end
 end)
 
@@ -8493,36 +9722,59 @@ pityLabel.Activated:Connect(function()
 	end
 end)
 
--- map toggle, stacked above the pity label
+-- Left-Center Dock: Shop Button (paired above Rebirth)
+local shopBtn = Instance.new("TextButton")
+shopBtn.Name = "ShopToggle"
+shopBtn.AnchorPoint = Vector2.new(0, 1)
+shopBtn.Position = UDim2.new(0, 18, 0.52, -4)
+shopBtn.Size = UDim2.new(0, 156, 0, 50)
+shopBtn.BackgroundColor3 = Color3.fromRGB(230, 145, 35)
+shopBtn.TextColor3 = Color3.new(1, 1, 1)
+shopBtn.Font = Enum.Font.LuckiestGuy
+shopBtn.TextSize = 20
+shopBtn.Text = "SHOP"
+shopBtn.Parent = gui
+local shCorner = Instance.new("UICorner")
+shCorner.CornerRadius = UDim.new(0, 12)
+shCorner.Parent = shopBtn
+local shStroke = Instance.new("UIStroke")
+shStroke.Color = Color3.fromRGB(255, 215, 110)
+shStroke.Thickness = 2
+shStroke.Parent = shopBtn
+
+-- Top-Right Navigation & Debug Bar: Map (M) & Inf Money
 local mapBtn = Instance.new("TextButton")
 mapBtn.Name = "MapToggle"
-mapBtn.AnchorPoint = Vector2.new(0, 1)
-mapBtn.Position = UDim2.new(0, 16, 1, -164)
-mapBtn.Size = UDim2.new(0, 190, 0, 42)
-mapBtn.BackgroundColor3 = Color3.fromRGB(72, 96, 64)
+mapBtn.AnchorPoint = Vector2.new(1, 0)
+mapBtn.Position = UDim2.new(1, -18, 0, 16)
+mapBtn.Size = UDim2.new(0, 136, 0, 42)
+mapBtn.BackgroundColor3 = Color3.fromRGB(62, 115, 72)
 mapBtn.TextColor3 = Color3.new(1, 1, 1)
 mapBtn.Font = Enum.Font.LuckiestGuy
 mapBtn.TextSize = 18
 mapBtn.Text = "Map  (M)"
 mapBtn.Parent = gui
 local mbCorner = Instance.new("UICorner")
-mbCorner.CornerRadius = UDim.new(0, 10)
+mbCorner.CornerRadius = UDim.new(0, 12)
 mbCorner.Parent = mapBtn
+local mbStroke = Instance.new("UIStroke")
+mbStroke.Color = Color3.fromRGB(130, 200, 140)
+mbStroke.Thickness = 2
+mbStroke.Parent = mapBtn
 
--- inf money debug button
 local moneyBtn = Instance.new("TextButton")
 moneyBtn.Name = "DebugMoney"
-moneyBtn.AnchorPoint = Vector2.new(0, 1)
-moneyBtn.Position = UDim2.new(0, 16, 1, -214)
-moneyBtn.Size = UDim2.new(0, 190, 0, 36)
-moneyBtn.BackgroundColor3 = Color3.fromRGB(20, 120, 40)
+moneyBtn.AnchorPoint = Vector2.new(1, 0)
+moneyBtn.Position = UDim2.new(1, -164, 0, 16)
+moneyBtn.Size = UDim2.new(0, 148, 0, 42)
+moneyBtn.BackgroundColor3 = Color3.fromRGB(30, 135, 65)
 moneyBtn.TextColor3 = Color3.new(1, 1, 1)
 moneyBtn.Font = Enum.Font.LuckiestGuy
 moneyBtn.TextSize = 15
-moneyBtn.Text = "Debug: Inf Money"
+moneyBtn.Text = "+ Inf Money"
 moneyBtn.Parent = gui
 local mb2Corner = Instance.new("UICorner")
-mb2Corner.CornerRadius = UDim.new(0, 8)
+mb2Corner.CornerRadius = UDim.new(0, 12)
 mb2Corner.Parent = moneyBtn
 
 moneyBtn.Activated:Connect(function()
@@ -8531,21 +9783,44 @@ moneyBtn.Activated:Connect(function()
 	end
 end)
 
--- Robux shop toggle, stacked above the money debug button
-local shopBtn = Instance.new("TextButton")
-shopBtn.Name = "ShopToggle"
-shopBtn.AnchorPoint = Vector2.new(0, 1)
-shopBtn.Position = UDim2.new(0, 16, 1, -258)
-shopBtn.Size = UDim2.new(0, 190, 0, 42)
-shopBtn.BackgroundColor3 = Color3.fromRGB(190, 120, 40)
-shopBtn.TextColor3 = Color3.new(1, 1, 1)
-shopBtn.Font = Enum.Font.LuckiestGuy
-shopBtn.TextSize = 18
-shopBtn.Text = "Shop"
-shopBtn.Parent = gui
-local shCorner = Instance.new("UICorner")
-shCorner.CornerRadius = UDim.new(0, 10)
-shCorner.Parent = shopBtn
+-- Bottom-Right Scooter Dock: Ride/Get Off (G) + TRICKS Popup Toggle (like Shop!)
+local mountBtn = Instance.new("TextButton")
+mountBtn.Name = "MountToggle"
+mountBtn.AnchorPoint = Vector2.new(1, 1)
+mountBtn.Position = UDim2.new(1, -172, 1, -18)
+mountBtn.Size = UDim2.new(0, 146, 0, 48)
+mountBtn.BackgroundColor3 = Color3.fromRGB(70, 160, 220)
+mountBtn.TextColor3 = Color3.new(1, 1, 1)
+mountBtn.Font = Enum.Font.LuckiestGuy
+mountBtn.TextSize = 16
+mountBtn.Text = "Get Off  (G)"
+mountBtn.Parent = gui
+local mtCorner = Instance.new("UICorner")
+mtCorner.CornerRadius = UDim.new(0, 12)
+mtCorner.Parent = mountBtn
+local mtStroke = Instance.new("UIStroke")
+mtStroke.Color = Color3.fromRGB(150, 220, 255)
+mtStroke.Thickness = 2
+mtStroke.Parent = mountBtn
+
+local tricksToggleBtn = Instance.new("TextButton")
+tricksToggleBtn.Name = "TricksToggle"
+tricksToggleBtn.AnchorPoint = Vector2.new(1, 1)
+tricksToggleBtn.Position = UDim2.new(1, -18, 1, -18)
+tricksToggleBtn.Size = UDim2.new(0, 144, 0, 48)
+tricksToggleBtn.BackgroundColor3 = Color3.fromRGB(250, 195, 30)
+tricksToggleBtn.TextColor3 = Color3.fromRGB(40, 30, 10)
+tricksToggleBtn.Font = Enum.Font.LuckiestGuy
+tricksToggleBtn.TextSize = 19
+tricksToggleBtn.Text = "TRICKS"
+tricksToggleBtn.Parent = gui
+local ttCorner = Instance.new("UICorner")
+ttCorner.CornerRadius = UDim.new(0, 12)
+ttCorner.Parent = tricksToggleBtn
+local ttStroke = Instance.new("UIStroke")
+ttStroke.Color = Color3.fromRGB(255, 240, 140)
+ttStroke.Thickness = 2
+ttStroke.Parent = tricksToggleBtn
 
 -- the shop page: one glorious gamepass
 local shopPage = Instance.new("Frame")
@@ -8666,27 +9941,6 @@ end
 plr:GetAttributeChangedSignal("SpeedPass"):Connect(refreshPassCard)
 refreshPassCard()
 
-shopBtn.Activated:Connect(function()
-	if gui.Enabled then
-		shopPage.Visible = not shopPage.Visible
-	end
-end)
-shopClose.Activated:Connect(function()
-	shopPage.Visible = false
-end)
-
--- Global UI sound effects
-for _, child in ipairs(gui:GetDescendants()) do
-	if child:IsA("TextButton") then
-		child.MouseEnter:Connect(function()
-			pcall(playSound, "rbxassetid://12221967", 0.25) -- soft hover
-		end)
-		child.Activated:Connect(function()
-			pcall(playSound, "rbxassetid://9065609404", 1.0) -- crisp click
-		end)
-	end
-end
-
 buyBtn.Activated:Connect(function()
 	if plr:GetAttribute("SpeedPass") then return end
 	if SPEED_PASS_ID > 0 then
@@ -8701,7 +9955,7 @@ end)
 local verTag = Instance.new("TextLabel")
 verTag.Name = "Version"
 verTag.AnchorPoint = Vector2.new(0, 1)
-verTag.Position = UDim2.new(0, 16, 1, -208)
+verTag.Position = UDim2.new(0, 20, 1, -114)
 verTag.Size = UDim2.new(0, 190, 0, 16)
 verTag.BackgroundTransparency = 1
 verTag.TextColor3 = Color3.fromRGB(200, 205, 210)
@@ -8717,69 +9971,390 @@ local function refreshMountBtn()
 		mountBtn.Text = "Get Off  (G)"
 		mountBtn.BackgroundColor3 = Color3.fromRGB(70, 160, 220)
 	else
-		mountBtn.Text = "Ride Scooter  (G)"
+		mountBtn.Text = "Ride  (G)"
 		mountBtn.BackgroundColor3 = Color3.fromRGB(80, 190, 120)
 	end
 end
 plr:GetAttributeChangedSignal("Mounted"):Connect(refreshMountBtn)
 refreshMountBtn()
 
--- trick menu: one button per trick + key shortcuts; T = random.
--- (letters, not number keys - Roblox's tool hotbar swallows 1-9 once you own items)
+-- TRICKS POPUP MODAL (like ShopPage, so 8 trick buttons aren't sitting out on screen!)
 local TRICKS = {
-	{ key = Enum.KeyCode.Z, label = "Z", name = "Tailwhip",  pay = 4 },
-	{ key = Enum.KeyCode.X, label = "X", name = "Kickflip",  pay = 3 },
-	{ key = Enum.KeyCode.C, label = "C", name = "360 Spin",  pay = 6 },
-	{ key = Enum.KeyCode.V, label = "V", name = "Backflip",  pay = 10 },
-	{ key = Enum.KeyCode.B, label = "B", name = "Frontflip", pay = 10 },
-	{ key = Enum.KeyCode.N, label = "N", name = "No-Hander", pay = 5 },
+	{ key = Enum.KeyCode.Z, label = "Z", name = "Tailwhip",  pay = 4,  color = Color3.fromRGB(45, 115, 175) },
+	{ key = Enum.KeyCode.X, label = "X", name = "Kickflip",  pay = 3,  color = Color3.fromRGB(50, 140, 115) },
+	{ key = Enum.KeyCode.C, label = "C", name = "360 Spin",  pay = 6,  color = Color3.fromRGB(125, 75, 175) },
+	{ key = Enum.KeyCode.V, label = "V", name = "Backflip",  pay = 10, color = Color3.fromRGB(185, 65, 75) },
+	{ key = Enum.KeyCode.B, label = "B", name = "Frontflip", pay = 10, color = Color3.fromRGB(195, 105, 45) },
+	{ key = Enum.KeyCode.N, label = "N", name = "No-Hander", pay = 5,  color = Color3.fromRGB(65, 95, 165) },
 }
 
-local menu = Instance.new("ScrollingFrame")
+local trickPage = Instance.new("Frame")
+trickPage.Name = "TrickPage"
+trickPage.AnchorPoint = Vector2.new(0.5, 0.5)
+trickPage.Position = UDim2.new(0.5, 0, 0.5, 0)
+trickPage.Size = UDim2.new(0, 460, 0, 350)
+trickPage.BackgroundColor3 = Color3.fromRGB(24, 30, 40)
+trickPage.Visible = false
+trickPage.Parent = gui
+local tpCorner = Instance.new("UICorner")
+tpCorner.CornerRadius = UDim.new(0, 14)
+tpCorner.Parent = trickPage
+local tpStroke = Instance.new("UIStroke")
+tpStroke.Color = Color3.fromRGB(250, 195, 30)
+tpStroke.Thickness = 2
+tpStroke.Parent = trickPage
+
+local trickTitle = Instance.new("TextLabel")
+trickTitle.Position = UDim2.new(0, 0, 0, 10)
+trickTitle.Size = UDim2.new(1, 0, 0, 32)
+trickTitle.BackgroundTransparency = 1
+trickTitle.Font = Enum.Font.LuckiestGuy
+trickTitle.TextSize = 26
+trickTitle.TextColor3 = Color3.fromRGB(250, 205, 40)
+trickTitle.Text = "SCOOTER TRICKS"
+trickTitle.Parent = trickPage
+
+local trickSub = Instance.new("TextLabel")
+trickSub.Position = UDim2.new(0, 0, 0, 40)
+trickSub.Size = UDim2.new(1, 0, 0, 18)
+trickSub.BackgroundTransparency = 1
+trickSub.Font = Enum.Font.GothamBold
+trickSub.TextSize = 13
+trickSub.TextColor3 = Color3.fromRGB(185, 195, 210)
+trickSub.Text = "Click any card or press its hotkey anytime while riding!"
+trickSub.Parent = trickPage
+
+local trickClose = Instance.new("TextButton")
+trickClose.AnchorPoint = Vector2.new(1, 0)
+trickClose.Position = UDim2.new(1, -10, 0, 10)
+trickClose.Size = UDim2.new(0, 34, 0, 34)
+trickClose.BackgroundColor3 = Color3.fromRGB(160, 60, 55)
+trickClose.TextColor3 = Color3.new(1, 1, 1)
+trickClose.Font = Enum.Font.LuckiestGuy
+trickClose.TextSize = 20
+trickClose.Text = "X"
+trickClose.Parent = trickPage
+local tcCorner = Instance.new("UICorner")
+tcCorner.CornerRadius = UDim.new(0, 8)
+tcCorner.Parent = trickClose
+
+local menu = Instance.new("Frame")
 menu.Name = "TrickMenu"
-menu.AnchorPoint = Vector2.new(1, 1)
-menu.Position = UDim2.new(1, -16, 1, -16)
-menu.Size = UDim2.new(0, 180, 0, 4 * 40 + 64)
+menu.AnchorPoint = Vector2.new(0.5, 0)
+menu.Position = UDim2.new(0.5, 0, 0, 68)
+menu.Size = UDim2.new(1, -28, 0, 204)
 menu.BackgroundTransparency = 1
 menu.BorderSizePixel = 0
-menu.ScrollBarThickness = 8
-menu.CanvasSize = UDim2.new(0, 0, 0, 7 * 40 + 64)
-menu.Parent = gui
-local layout = Instance.new("UIListLayout")
-layout.Padding = UDim.new(0, 4)
+menu.Parent = trickPage
+
+local layout = Instance.new("UIGridLayout")
+layout.CellSize = UDim2.new(0, 210, 0, 60)
+layout.CellPadding = UDim2.new(0, 12, 0, 10)
+layout.FillDirection = Enum.FillDirection.Horizontal
+layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 layout.VerticalAlignment = Enum.VerticalAlignment.Top
+layout.SortOrder = Enum.SortOrder.LayoutOrder
 layout.Parent = menu
 
 local trickButtons = {}
-for _, t in ipairs(TRICKS) do
+for idx, t in ipairs(TRICKS) do
 	local btn = Instance.new("TextButton")
 	btn.Name = t.name
-	btn.Size = UDim2.new(1, 0, 0, 36)
-	btn.BackgroundColor3 = Color3.fromRGB(30, 38, 48)
-	btn.BackgroundTransparency = 0.2
-	btn.TextColor3 = Color3.fromRGB(235, 235, 235)
-	btn.Font = Enum.Font.LuckiestGuy
-	btn.TextSize = 16
-	btn.Text = t.label .. "  -  " .. t.name .. "  -  $" .. t.pay
+	btn.LayoutOrder = idx
+	btn.BackgroundColor3 = Color3.fromRGB(36, 46, 62)
+	btn.Text = ""
 	btn.Parent = menu
 	local c = Instance.new("UICorner")
-	c.CornerRadius = UDim.new(0, 8)
+	c.CornerRadius = UDim.new(0, 12)
 	c.Parent = btn
+	local st = Instance.new("UIStroke")
+	st.Color = t.color
+	st.Thickness = 2
+	st.Parent = btn
+
+	local keyBadge = Instance.new("TextLabel")
+	keyBadge.AnchorPoint = Vector2.new(0, 0.5)
+	keyBadge.Position = UDim2.new(0, 10, 0.5, 0)
+	keyBadge.Size = UDim2.new(0, 40, 0, 40)
+	keyBadge.BackgroundColor3 = t.color
+	keyBadge.TextColor3 = Color3.new(1, 1, 1)
+	keyBadge.Font = Enum.Font.LuckiestGuy
+	keyBadge.TextSize = 20
+	keyBadge.Text = t.label
+	keyBadge.Parent = btn
+	local kbCorner = Instance.new("UICorner")
+	kbCorner.CornerRadius = UDim.new(0, 9)
+	kbCorner.Parent = keyBadge
+
+	local nameLbl = Instance.new("TextLabel")
+	nameLbl.Position = UDim2.new(0, 58, 0, 8)
+	nameLbl.Size = UDim2.new(1, -66, 0, 24)
+	nameLbl.BackgroundTransparency = 1
+	nameLbl.Font = Enum.Font.LuckiestGuy
+	nameLbl.TextSize = 17
+	nameLbl.TextColor3 = Color3.new(1, 1, 1)
+	nameLbl.TextXAlignment = Enum.TextXAlignment.Left
+	nameLbl.Text = t.name
+	nameLbl.Parent = btn
+
+	local payLbl = Instance.new("TextLabel")
+	payLbl.Position = UDim2.new(0, 58, 0, 32)
+	payLbl.Size = UDim2.new(1, -66, 0, 18)
+	payLbl.BackgroundTransparency = 1
+	payLbl.Font = Enum.Font.GothamBold
+	payLbl.TextSize = 13
+	payLbl.TextColor3 = Color3.fromRGB(120, 235, 135)
+	payLbl.TextXAlignment = Enum.TextXAlignment.Left
+	payLbl.Text = "+$" .. t.pay .. " per land"
+	payLbl.Parent = btn
+
 	trickButtons[t.name] = btn
 end
 
 local trickBtn = Instance.new("TextButton")
 trickBtn.Name = "RandomTrick"
-trickBtn.Size = UDim2.new(1, 0, 0, 52)
+trickBtn.AnchorPoint = Vector2.new(0.5, 1)
+trickBtn.Position = UDim2.new(0.5, 0, 1, -14)
+trickBtn.Size = UDim2.new(1, -28, 0, 52)
 trickBtn.BackgroundColor3 = Color3.fromRGB(250, 205, 30)
 trickBtn.TextColor3 = Color3.fromRGB(40, 30, 10)
 trickBtn.Font = Enum.Font.LuckiestGuy
 trickBtn.TextSize = 22
-trickBtn.Text = "TRICK!  (T)"
-trickBtn.Parent = menu
+trickBtn.Text = "RANDOM TRICK!  (Press T)"
+trickBtn.Parent = trickPage
 local tCorner = Instance.new("UICorner")
 tCorner.CornerRadius = UDim.new(0, 12)
 tCorner.Parent = trickBtn
+
+shopBtn.Activated:Connect(function()
+	if gui.Enabled then
+		shopPage.Visible = not shopPage.Visible
+		if shopPage.Visible then trickPage.Visible = false end
+	end
+end)
+shopClose.Activated:Connect(function()
+	shopPage.Visible = false
+end)
+
+tricksToggleBtn.Activated:Connect(function()
+	if gui.Enabled then
+		trickPage.Visible = not trickPage.Visible
+		if trickPage.Visible then shopPage.Visible = false end
+	end
+end)
+trickClose.Activated:Connect(function()
+	trickPage.Visible = false
+end)
+
+-- Chunky 3D HUD buttons: drop-shadow base, gradient face, top gloss, sweeping shine, emoji icon,
+-- key badge and hover/press animation. The button itself turns invisible and its Text and
+-- BackgroundColor3 are mirrored onto the decorated layers, so existing code that updates them keeps working.
+local function darken(c, f)
+	return Color3.new(c.R * f, c.G * f, c.B * f)
+end
+
+local function styleHudButton(btn, icon)
+	local DEPTH = 4
+	local maxText = btn.TextSize
+	for _, d in ipairs(btn:GetChildren()) do
+		if d:IsA("UICorner") or d:IsA("UIStroke") then d:Destroy() end
+	end
+	btn.AutoButtonColor = false
+	btn.BackgroundTransparency = 1
+	btn.TextTransparency = 1
+	btn.ClipsDescendants = false
+
+	local scale = Instance.new("UIScale")
+	scale.Parent = btn
+
+	local shadow = Instance.new("Frame")
+	shadow.Name = "Shadow"
+	shadow.Position = UDim2.new(0, 0, 0, DEPTH)
+	shadow.Size = UDim2.new(1, 0, 1, -DEPTH)
+	shadow.BorderSizePixel = 0
+	shadow.Parent = btn
+	local shCorner = Instance.new("UICorner")
+	shCorner.CornerRadius = UDim.new(0, 12)
+	shCorner.Parent = shadow
+
+	local face = Instance.new("Frame")
+	face.Name = "Face"
+	face.Size = UDim2.new(1, 0, 1, -DEPTH)
+	face.BorderSizePixel = 0
+	face.ClipsDescendants = true
+	face.ZIndex = 2
+	face.Parent = btn
+	local fCorner = Instance.new("UICorner")
+	fCorner.CornerRadius = UDim.new(0, 12)
+	fCorner.Parent = face
+	local fGrad = Instance.new("UIGradient")
+	fGrad.Rotation = 90
+	fGrad.Color = ColorSequence.new(Color3.new(1, 1, 1), Color3.fromRGB(190, 190, 190))
+	fGrad.Parent = face
+	local fStroke = Instance.new("UIStroke")
+	fStroke.Thickness = 2.5
+	fStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	fStroke.Parent = face
+
+	local gloss = Instance.new("Frame")
+	gloss.Name = "Gloss"
+	gloss.Position = UDim2.new(0, 4, 0, 3)
+	gloss.Size = UDim2.new(1, -8, 0.42, 0)
+	gloss.BackgroundColor3 = Color3.new(1, 1, 1)
+	gloss.BackgroundTransparency = 0.72
+	gloss.BorderSizePixel = 0
+	gloss.ZIndex = 3
+	gloss.Parent = face
+	local gCorner = Instance.new("UICorner")
+	gCorner.CornerRadius = UDim.new(0, 9)
+	gCorner.Parent = gloss
+
+	-- diagonal shine streak that sweeps across every few seconds
+	local shine = Instance.new("Frame")
+	shine.Name = "Shine"
+	shine.Size = UDim2.new(1, 0, 1, 0)
+	shine.BackgroundColor3 = Color3.new(1, 1, 1)
+	shine.BorderSizePixel = 0
+	shine.ZIndex = 4
+	shine.Parent = face
+	local shineGrad = Instance.new("UIGradient")
+	shineGrad.Rotation = 20
+	shineGrad.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 1),
+		NumberSequenceKeypoint.new(0.42, 1),
+		NumberSequenceKeypoint.new(0.5, 0.55),
+		NumberSequenceKeypoint.new(0.58, 1),
+		NumberSequenceKeypoint.new(1, 1),
+	})
+	shineGrad.Offset = Vector2.new(-1, 0)
+	shineGrad.Parent = shine
+
+	local iconLbl = Instance.new("TextLabel")
+	iconLbl.Name = "Icon"
+	iconLbl.BackgroundTransparency = 1
+	iconLbl.AnchorPoint = Vector2.new(0, 0.5)
+	iconLbl.Position = UDim2.new(0, 8, 0.5, 0)
+	iconLbl.Size = UDim2.new(0, 28, 0, 28)
+	iconLbl.Font = Enum.Font.GothamBold
+	iconLbl.TextScaled = true
+	iconLbl.Text = icon or ""
+	iconLbl.ZIndex = 5
+	iconLbl.Parent = face
+
+	local label = Instance.new("TextLabel")
+	label.Name = "Label"
+	label.BackgroundTransparency = 1
+	label.Position = UDim2.new(0, icon and 40 or 10, 0, 2)
+	label.Size = UDim2.new(1, icon and -48 or -20, 1, -4)
+	label.Font = btn.Font
+	label.TextColor3 = Color3.new(1, 1, 1)
+	label.TextScaled = true
+	label.ZIndex = 5
+	label.Parent = face
+	local lSize = Instance.new("UITextSizeConstraint")
+	lSize.MaxTextSize = maxText
+	lSize.Parent = label
+	local lStroke = Instance.new("UIStroke")
+	lStroke.Thickness = 2
+	lStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual
+	lStroke.Parent = label
+
+	-- keyboard shortcut like "(G)" in the text becomes a little key badge in the corner
+	local badge = Instance.new("TextLabel")
+	badge.Name = "KeyBadge"
+	badge.AnchorPoint = Vector2.new(1, 0)
+	badge.Position = UDim2.new(1, 6, 0, -7)
+	badge.Size = UDim2.new(0, 22, 0, 22)
+	badge.BackgroundColor3 = Color3.fromRGB(245, 245, 245)
+	badge.Font = Enum.Font.GothamBlack
+	badge.TextSize = 13
+	badge.TextColor3 = Color3.fromRGB(35, 35, 45)
+	badge.ZIndex = 6
+	badge.Visible = false
+	badge.Parent = btn
+	local bCorner = Instance.new("UICorner")
+	bCorner.CornerRadius = UDim.new(0, 6)
+	bCorner.Parent = badge
+	local bStroke = Instance.new("UIStroke")
+	bStroke.Thickness = 2
+	bStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border -- outline the chip, not the letter
+	bStroke.Parent = badge
+
+	local function syncText()
+		local key = string.match(btn.Text, "%((%a)%)")
+		local clean = string.gsub(btn.Text, "%s*%(%a%)", "")
+		label.Text = clean
+		badge.Text = key or ""
+		badge.Visible = key ~= nil
+	end
+	local function syncColor()
+		local c = btn.BackgroundColor3
+		face.BackgroundColor3 = c
+		shadow.BackgroundColor3 = darken(c, 0.5)
+		fStroke.Color = darken(c, 0.38)
+		lStroke.Color = darken(c, 0.3)
+		bStroke.Color = darken(c, 0.4)
+	end
+	syncText()
+	syncColor()
+	btn:GetPropertyChangedSignal("Text"):Connect(syncText)
+	btn:GetPropertyChangedSignal("BackgroundColor3"):Connect(syncColor)
+
+	local quick = TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+	local hovering = false
+	local function setPressed(down)
+		TweenService:Create(face, quick, { Position = UDim2.new(0, 0, 0, down and DEPTH - 1 or 0) }):Play()
+	end
+	btn.MouseEnter:Connect(function()
+		hovering = true
+		TweenService:Create(scale, quick, { Scale = 1.06 }):Play()
+		TweenService:Create(gloss, quick, { BackgroundTransparency = 0.55 }):Play()
+		TweenService:Create(iconLbl, quick, { Rotation = -10 }):Play()
+	end)
+	btn.MouseLeave:Connect(function()
+		hovering = false
+		setPressed(false)
+		TweenService:Create(scale, quick, { Scale = 1 }):Play()
+		TweenService:Create(gloss, quick, { BackgroundTransparency = 0.72 }):Play()
+		TweenService:Create(iconLbl, quick, { Rotation = 0 }):Play()
+	end)
+	btn.MouseButton1Down:Connect(function() setPressed(true) end)
+	btn.MouseButton1Up:Connect(function() setPressed(false) end)
+	btn.Activated:Connect(function()
+		setPressed(false)
+		scale.Scale = 0.94
+		TweenService:Create(scale, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = hovering and 1.06 or 1 }):Play()
+	end)
+
+	task.spawn(function()
+		task.wait(math.random() * 3)
+		while btn.Parent do
+			shineGrad.Offset = Vector2.new(-1, 0)
+			TweenService:Create(shineGrad, TweenInfo.new(0.9, Enum.EasingStyle.Sine), { Offset = Vector2.new(1, 0) }):Play()
+			task.wait(4 + math.random() * 2)
+		end
+	end)
+end
+
+styleHudButton(shopBtn, "🛒")
+styleHudButton(rebirthBtn, "♻️")
+styleHudButton(mapBtn, "🗺️")
+styleHudButton(moneyBtn, "💰")
+styleHudButton(mountBtn, "🛴")
+styleHudButton(tricksToggleBtn, "🔥")
+styleHudButton(pityLabel, "🥚")
+
+-- Global UI sound effects
+for _, child in ipairs(gui:GetDescendants()) do
+	if child:IsA("TextButton") then
+		child.MouseEnter:Connect(function()
+			pcall(playSound, "rbxassetid://12221967", 0.25) -- soft hover
+		end)
+		child.Activated:Connect(function()
+			pcall(playSound, "rbxassetid://9065609404", 1.0) -- crisp click
+		end)
+	end
+end
 
 -- live money readout ----------------------------------------------------------------------------
 local function watchCash()
@@ -8911,16 +10486,16 @@ local function buildMap()
 	if roadsFolder then
 		for _, rm in ipairs(roadsFolder:GetChildren()) do
 			local cls = rm:GetAttribute("RoadClass")
-			if cls ~= "s" and cls ~= "k" and made < 2600 then
+			if cls ~= "s" and cls ~= "k" and made < 8000 then
 				for _, seg in ipairs(rm:GetChildren()) do
 					if seg.Name == "Seg" and seg:IsA("BasePart") then
 						local len = seg.Size.Z
-						if cls ~= "r" or len > 60 then
+						if true then
 							local lv = seg.CFrame.LookVector
 							local line = Instance.new("Frame")
 							line.AnchorPoint = Vector2.new(0.5, 0.5)
 							line.Position = worldToMap(seg.Position.X, seg.Position.Z)
-							line.Size = UDim2.new(0, math.max(2, len * pxPerStud), 0,
+							line.Size = UDim2.new(0, math.max(3, len * pxPerStud + 2), 0,
 								(cls == "r") and 2 or 3)
 							line.Rotation = math.deg(math.atan2(lv.Z, lv.X))
 							line.BackgroundColor3 = Color3.fromRGB(52, 52, 54)
@@ -8928,7 +10503,7 @@ local function buildMap()
 							line.ZIndex = 2
 							line.Parent = mapFrame
 							made = made + 1
-							if made >= 2600 then break end
+							if made >= 8000 then break end
 						end
 					end
 				end
@@ -9518,6 +11093,7 @@ do
 	end
 
 	RunService.RenderStepped:Connect(function(dt)
+		if inTerryCutscene then return end
 		local char = plr.Character
 		if not char then return end
 		local isMounted = plr:GetAttribute("Mounted") and (char:FindFirstChild("Scooter") ~= nil)

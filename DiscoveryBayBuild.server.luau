@@ -1,4 +1,4 @@
--- DISCOVERY BAY, CALIFORNIA — OSM-accurate procedural Roblox build (v102)
+-- DISCOVERY BAY, CALIFORNIA — OSM-accurate procedural Roblox build (v111)
 --==============================================================================================
 -- Builds the real Discovery Bay from OpenStreetMap geometry (© OpenStreetMap contributors):
 --   * real terrain raster: every lagoon/bay polygon, Old River, golf fairways/greens/
@@ -42,15 +42,15 @@ local S = CONFIG.worldScale
 local rng = Random.new(CONFIG.seed)
 
 local RunService = game:GetService("RunService")
-if RunService:IsRunning() and workspace:FindFirstChild("DiscoveryBay") then
-	-- Town already exists (built + saved in edit mode): nothing to do during Play.
+local existingSavedTown = RunService:IsRunning() and workspace:FindFirstChild("DiscoveryBay")
+if existingSavedTown and existingSavedTown:GetAttribute("GroundTiled") then
+	-- Town already exists (built + saved in edit mode with tiled ground): nothing to do during Play.
 	return
 end
--- Otherwise: build now. In edit mode this is the normal command-bar path; in Play
--- mode it auto-builds so "just press Play" works — that copy vanishes on Stop, so to
--- make it permanent run the command-bar line in edit mode once and save.
+-- Otherwise: build now (or patch Ground/Water if existingSavedTown is an older save).
+local patchGroundOnly = (existingSavedTown ~= nil)
 
-if not workspace:FindFirstChild("SafeSpawn") then
+if not patchGroundOnly and not workspace:FindFirstChild("SafeSpawn") then
 	local safeSpawn = Instance.new("SpawnLocation")
 	safeSpawn.Name = "SafeSpawn"
 	safeSpawn.Size = Vector3.new(500, 10, 500)
@@ -59,9 +59,11 @@ if not workspace:FindFirstChild("SafeSpawn") then
 	safeSpawn.Transparency = 1
 	safeSpawn.Parent = workspace
 end
-for _, plr in ipairs(game:GetService("Players"):GetPlayers()) do
-	if plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
-		plr.Character.HumanoidRootPart.Anchored = true
+if not patchGroundOnly then
+	for _, plr in ipairs(game:GetService("Players"):GetPlayers()) do
+		if plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+			plr.Character.HumanoidRootPart.Anchored = true
+		end
 	end
 end
 
@@ -205,7 +207,7 @@ local function segClosest(px, pz, ax, az, bx, bz)
 end
 
 do
-	local MAXGAP = 45
+	local MAXGAP = 85
 	local connectors = {}
 	for ri, rd in ipairs(roads) do
 		for _, endIdx in ipairs({ 1, #rd.pts }) do
@@ -230,10 +232,10 @@ do
 					end
 				end
 			end
-			if bestD > 4 and bestD < MAXGAP then
+			if bestD > 2 and bestD < MAXGAP then
 				local vx, vz = bestX - p[1], bestZ - p[2]
 				local vl = math.max(math.sqrt(vx * vx + vz * vz), 1e-6)
-				if (vx * ox + vz * oz) / vl > 0.57 then -- continues roughly straight ahead
+				if (vx * ox + vz * oz) / vl > 0.35 then -- continues ahead into the nearby road
 					connectors[#connectors + 1] = { name = "", cls = rd.cls, width = rd.width,
 						pts = { { p[1], p[2] }, { bestX, bestZ } } }
 				end
@@ -551,26 +553,40 @@ end
 --==============================================================================================
 -- 5. SCAFFOLD (idempotent)
 --==============================================================================================
-local old = workspace:FindFirstChild("DiscoveryBay")
-if old then old:Destroy() end
-local oldKit = ReplicatedStorage:FindFirstChild("DiscoveryBayKit")
-if oldKit then oldKit:Destroy() end
-
-local root = Instance.new("Model")
-root.Name = "DiscoveryBay"
-root.Parent = workspace
-
+local root
 local FOLDERS = {}
-for _, fname in ipairs({ "Ground", "Water", "Roads", "Buildings", "Golf", "Docks", "Landmarks", "Props" }) do
-	local f = Instance.new("Folder")
-	f.Name = fname
-	f.Parent = root
-	FOLDERS[fname] = f
-end
+local KIT
+if patchGroundOnly then
+	root = existingSavedTown
+	for _, fname in ipairs({ "Ground", "Water" }) do
+		local oldF = root:FindFirstChild(fname)
+		if oldF then oldF:Destroy() end
+		local f = Instance.new("Folder")
+		f.Name = fname
+		f.Parent = root
+		FOLDERS[fname] = f
+	end
+else
+	local old = workspace:FindFirstChild("DiscoveryBay")
+	if old then old:Destroy() end
+	local oldKit = ReplicatedStorage:FindFirstChild("DiscoveryBayKit")
+	if oldKit then oldKit:Destroy() end
 
-local KIT = Instance.new("Folder")
-KIT.Name = "DiscoveryBayKit"
-KIT.Parent = ReplicatedStorage
+	root = Instance.new("Model")
+	root.Name = "DiscoveryBay"
+	root.Parent = workspace
+
+	for _, fname in ipairs({ "Ground", "Water", "Roads", "Buildings", "Golf", "Docks", "Landmarks", "Props" }) do
+		local f = Instance.new("Folder")
+		f.Name = fname
+		f.Parent = root
+		FOLDERS[fname] = f
+	end
+
+	KIT = Instance.new("Folder")
+	KIT.Name = "DiscoveryBayKit"
+	KIT.Parent = ReplicatedStorage
+end
 
 pcall(function() workspace.StreamingEnabled = true end)
 
@@ -802,6 +818,7 @@ end
 --==============================================================================================
 local function buildGround()
 	local zOff = H_FT - RASTER_NORTH -- align raster rows with the exact-feet frame
+	local MAX_TILE = 2000 -- Roblox Part.Size max is 2048 studs; tile strips >2000 so nothing is ever clamped!
 	for _, g in ipairs(rasterGroups) do
 		local z0 = g.startRow * CELL + zOff   -- feet from NORTH edge
 		local z1 = (g.startRow + g.span) * CELL + zOff
@@ -812,15 +829,26 @@ local function buildGround()
 			local style = GROUND_STYLE[run.class]
 			if style then
 				-- world Z: row 0 = north = Z 0, so strip spans Z [z0,z1]*S directly
-				local size = Vector3.new((x1 - x0) * S, style.thick * S, (z1 - z0) * S)
-				local center = Vector3.new((x0 + x1) / 2 * S,
-					style.top * S - style.thick * S / 2, (z0 + z1) / 2 * S)
+				local totalW = (x1 - x0) * S
+				local totalD = (z1 - z0) * S
+				local nx = math.max(1, math.ceil(totalW / MAX_TILE))
+				local nz = math.max(1, math.ceil(totalD / MAX_TILE))
+				local tileW = totalW / nx
+				local tileD = totalD / nz
 				local parent = run.class == "w" and FOLDERS.Water or FOLDERS.Ground
-				local p = newPart(parent, "G_" .. run.class, size, CFrame.new(center),
-					style.color, style.material, style.transparency)
-				p.CastShadow = false
-				if run.class == "w" then
-					p:SetAttribute("Water", true) -- fishable (Fishing Rod checks this)
+				local cy = style.top * S - style.thick * S / 2
+				for ix = 0, nx - 1 do
+					for iz = 0, nz - 1 do
+						local cx = x0 * S + (ix + 0.5) * tileW
+						local cz = z0 * S + (iz + 0.5) * tileD
+						local size = Vector3.new(tileW + 0.5, style.thick * S, tileD + 0.5)
+						local p = newPart(parent, "G_" .. run.class, size, CFrame.new(cx, cy, cz),
+							style.color, style.material, style.transparency)
+						p.CastShadow = false
+						if run.class == "w" then
+							p:SetAttribute("Water", true) -- fishable (Fishing Rod checks this)
+						end
+					end
 				end
 			end
 		end
@@ -1193,16 +1221,50 @@ local function buildResidential(m, cf, b)
 
 	local frontZ = -d / 2
 	local doorX = w * 0.12
+	-- decoration picks come from a per-house generator so the shared seeded stream (and so the
+	-- rest of the town's layout) stays the same
+	local hr = Random.new(math.floor(cf.Position.X * 13 + cf.Position.Z * 7))
+	local FLOWERS = { Color3.fromRGB(235, 80, 110), Color3.fromRGB(250, 205, 60), Color3.fromRGB(170, 110, 230),
+		Color3.fromRGB(250, 140, 60), Color3.fromRGB(245, 245, 245) }
+	local hasGarage = w > 34 and style ~= "lshape"
+	local flowerBoxXs = {}
+	-- a dressed-up window: glass, sill, header trim, centre mullion and (optionally) a flower box
+	local function frontWindow(name, x, y, wz, ww, wh, flowerBox)
+		newPart(m, name, Vector3.new(ww, wh, 0.25) * S, cf * CFrame.new(x * S, (0.5 + y) * S, (wz - 0.1) * S), glass, Enum.Material.Glass)
+		newPart(m, "Sill", Vector3.new(ww + 0.8, 0.35, 0.8) * S,
+			cf * CFrame.new(x * S, (0.5 + y - wh / 2 - 0.15) * S, (wz - 0.35) * S), trim, Enum.Material.Concrete)
+		newPart(m, "WindowHeader", Vector3.new(ww + 0.8, 0.45, 0.5) * S,
+			cf * CFrame.new(x * S, (0.5 + y + wh / 2 + 0.22) * S, (wz - 0.25) * S), trim, Enum.Material.Concrete)
+		newPart(m, "Mullion", Vector3.new(0.25, wh, 0.12) * S,
+			cf * CFrame.new(x * S, (0.5 + y) * S, (wz - 0.29) * S), Color3.fromRGB(245, 245, 240))
+		if flowerBox then
+			table.insert(flowerBoxXs, x)
+			newPart(m, "FlowerBox", Vector3.new(ww + 0.4, 0.9, 1.1) * S,
+				cf * CFrame.new(x * S, (0.5 + y - wh / 2 - 0.85) * S, (wz - 1.0) * S), Color3.fromRGB(120, 80, 50), Enum.Material.WoodPlanks)
+			newPart(m, "Flowers", Vector3.new(ww, 0.55, 0.8) * S,
+				cf * CFrame.new(x * S, (0.5 + y - wh / 2 - 0.2) * S, (wz - 1.0) * S), FLOWERS[hr:NextInteger(1, #FLOWERS)])
+		end
+	end
 
 	if style == "modern" then
 		newPart(m, "Body", Vector3.new(w, h, d) * S, cf * CFrame.new(0, (0.5 + h / 2) * S, 0),
 			wall, Enum.Material.Concrete)
 		newPart(m, "Parapet", Vector3.new(w + 1, 1.2, d + 1) * S,
 			cf * CFrame.new(0, (0.5 + h + 0.6) * S, 0), trim, Enum.Material.Concrete)
-		newPart(m, "Accent", Vector3.new(w * 0.3, h, 0.5) * S,
-			cf * CFrame.new(w * 0.3 * S, (0.5 + h / 2) * S, (frontZ - 0.15) * S), roof, Enum.Material.WoodPlanks)
-		newPart(m, "GlassBand", Vector3.new(w * 0.42, h * 0.55, 0.3) * S,
-			cf * CFrame.new(-w * 0.2 * S, (0.5 + h * 0.55) * S, (frontZ - 0.1) * S), glass, Enum.Material.Glass, 0.2)
+		-- wood accent panel fills the wall right of the door; glass band fills the left
+		-- (between the garage and the door when there is a garage)
+		local accL, accR = doorX + 3.4, w / 2 - 0.5
+		if accR - accL > 2 then
+			newPart(m, "Accent", Vector3.new(accR - accL, h, 0.5) * S,
+				cf * CFrame.new((accL + accR) / 2 * S, (0.5 + h / 2) * S, (frontZ - 0.15) * S), roof, Enum.Material.WoodPlanks)
+		end
+		local gL, gR = (hasGarage and -w * 0.3 + 5.2 or -w / 2 + 2), doorX - 3.4
+		if gR - gL > 3 then
+			newPart(m, "GlassBand", Vector3.new(gR - gL, h * 0.55, 0.3) * S,
+				cf * CFrame.new((gL + gR) / 2 * S, (0.5 + h * 0.55) * S, (frontZ - 0.1) * S), glass, Enum.Material.Glass, 0.2)
+			newPart(m, "GlassBandFrame", Vector3.new(gR - gL + 0.8, 0.4, 0.5) * S,
+				cf * CFrame.new((gL + gR) / 2 * S, (0.5 + h * 0.55 + h * 0.275 + 0.2) * S, (frontZ - 0.25) * S), trim, Enum.Material.Concrete)
+		end
 		newPart(m, "Canopy", Vector3.new(8, 0.4, 4) * S,
 			cf * CFrame.new(doorX * S, (0.5 + 7.4) * S, (frontZ - 2) * S), trim, Enum.Material.Concrete)
 	elseif style == "lshape" then
@@ -1220,20 +1282,23 @@ local function buildResidential(m, cf, b)
 			* CFrame.Angles(0, math.rad(90), 0),
 			(d * 0.55 + 1.5) * S, (wingW + 1.5) * S, math.clamp(wingW * 0.3, 3, 7) * S, roof)
 		doorX = wingX
-		-- windows: one on the wing front, one on the recessed main front
-		newPart(m, "Window", Vector3.new(5, 3.4, 0.25) * S,
-			cf * CFrame.new((wingX + wingW * 0.3) * S, (0.5 + 5) * S, (frontZ - 0.1) * S), glass, Enum.Material.Glass)
-		newPart(m, "WindowMain", Vector3.new(6, 3.4, 0.25) * S,
-			cf * CFrame.new(w * 0.22 * S, (0.5 + 5) * S, (mainFront - 0.1) * S), glass, Enum.Material.Glass)
+		-- windows: one on the wing front (beside the door, if it fits), one on the recessed main front
+		local wingWinX = math.max(wingW * 0.3, 5.8)
+		if wingWinX + 2.8 < wingW / 2 - 0.4 then
+			frontWindow("Window", wingX + wingWinX, 5, frontZ, 5, 3.4, true)
+		end
+		frontWindow("WindowMain", w * 0.22, 5, mainFront, 6, 3.4, true)
 	else -- gable ranch
 		newPart(m, "Body", Vector3.new(w, h, d) * S, cf * CFrame.new(0, (0.5 + h / 2) * S, 0), wall, wallMat)
-		gableRoof(m, cf * CFrame.new(0, (0.5 + h) * S, 0), (w + 1.5) * S, (d + 1.5) * S,
-			math.clamp(d * 0.28, 4, 9) * S, roof)
+		local roofH = math.clamp(d * 0.28, 4, 9)
+		gableRoof(m, cf * CFrame.new(0, (0.5 + h) * S, 0), (w + 1.5) * S, (d + 1.5) * S, roofH * S, roof)
+		newPart(m, "RidgeCap", Vector3.new(w + 1.9, 0.5, 0.9) * S, cf * CFrame.new(0, (0.5 + h + roofH) * S, 0),
+			roof:Lerp(Color3.new(0, 0, 0), 0.35))
 		if rng:NextNumber() < 0.28 then
 			-- front porch
-			newPart(m, "PorchRoof", Vector3.new(w * 0.4, 0.4, 4.5) * S,
+			newPart(m, "PorchRoof", Vector3.new(10, 0.4, 4.5) * S,
 				cf * CFrame.new(doorX * S, (0.5 + 7.6) * S, (frontZ - 2.2) * S), roof)
-			for _, px in ipairs({ doorX - w * 0.14, doorX + w * 0.14 }) do
+			for _, px in ipairs({ doorX - 4.2, doorX + 4.2 }) do
 				newColumn(m, "PorchPost", 7.4 * S, 0.7 * S,
 					cf * CFrame.new(px * S, (0.5 + 3.7) * S, (frontZ - 3.8) * S), Color3.fromRGB(235, 232, 225))
 			end
@@ -1269,15 +1334,17 @@ local function buildResidential(m, cf, b)
 		cf * CFrame.new(doorX * S, 0.55 * S, (frontZ - 1.6) * S),
 		Color3.fromRGB(190, 185, 175), Enum.Material.Concrete)
 
-	if style ~= "lshape" then
-		for _, off in ipairs({ -0.28, 0.32 }) do
-			local wx = w * off
-			newPart(m, "Window", Vector3.new(5, 3.4, 0.25) * S,
-				cf * CFrame.new(wx * S, (0.5 + 5) * S, (frontZ - 0.1) * S), glass, Enum.Material.Glass)
-			newPart(m, "Sill", Vector3.new(5.8, 0.35, 0.8) * S,
-				cf * CFrame.new(wx * S, (0.5 + 3.15) * S, (frontZ - 0.35) * S),
-				trim, Enum.Material.Concrete)
-			if style == "gable" and rng:NextNumber() < 0.4 then
+	-- porch light beside the door
+	newPart(m, "PorchLight", Vector3.new(0.6, 1, 0.5) * S,
+		cf * CFrame.new((doorX + 3.4) * S, (0.5 + 5.4) * S, (frontZ - 0.35) * S), Color3.fromRGB(255, 220, 150), Enum.Material.Neon)
+
+	if style == "gable" then
+		-- (the glass band is a modern house's window.) With a garage on the left, the left window
+		-- sits between the garage and the door instead of being covered by the garage door.
+		local leftX = hasGarage and ((-w * 0.3 + 4.5) + (doorX - 3.05)) / 2 or -w * 0.28
+		for _, wx in ipairs({ leftX, w * 0.32 }) do
+			frontWindow("Window", wx, 5, frontZ, 5, 3.4, true)
+			if rng:NextNumber() < 0.4 then
 				for _, sxo in ipairs({ -3.1, 3.1 }) do
 					newPart(m, "Shutter", Vector3.new(1, 3.4, 0.2) * S,
 						cf * CFrame.new((wx + sxo) * S, (0.5 + 5) * S, (frontZ - 0.08) * S), trim)
@@ -1286,23 +1353,57 @@ local function buildResidential(m, cf, b)
 		end
 	end
 	if stories == 2 then
-		newPart(m, "Window2", Vector3.new(5, 3.2, 0.25) * S,
-			cf * CFrame.new(0, 13.5 * S, (frontZ - 0.1) * S), glass, Enum.Material.Glass)
+		-- on an L-house the front line at x = 0 is open yard, so use the recessed main front
+		if style == "lshape" then
+			frontWindow("Window2", w * 0.22, 13, d / 2 - d * 0.6, 5, 3.2, false)
+		else
+			frontWindow("Window2", 0, 13, frontZ, 5, 3.2, false)
+		end
 	end
-	if w > 34 and style ~= "lshape" then
+	if hasGarage then
 		newPart(m, "Garage", Vector3.new(9, 6.4, 0.3) * S,
 			cf * CFrame.new(-w * 0.3 * S, (0.5 + 3.2) * S, (frontZ - 0.12) * S),
 			Color3.fromRGB(220, 215, 205))
+		newPart(m, "GarageTrim", Vector3.new(9.8, 0.5, 0.45) * S,
+			cf * CFrame.new(-w * 0.3 * S, (0.5 + 6.6) * S, (frontZ - 0.2) * S), trim, Enum.Material.Concrete)
 		newPart(m, "Driveway", Vector3.new(10, 0.25, 12) * S,
 			cf * CFrame.new(-w * 0.3 * S, 0.15 * S, (frontZ - 6.5) * S),
 			Color3.fromRGB(165, 160, 152), Enum.Material.Concrete)
 	end
-	-- RENT sign out front: click it in-game to own this house
+
+	-- front yard: stone walkway to the door, shrubs either side, a mailbox at the street end
+	newPart(m, "Walkway", Vector3.new(3.8, 0.22, 9) * S,
+		cf * CFrame.new(doorX * S, 0.12 * S, (frontZ - 7.4) * S), Color3.fromRGB(196, 180, 160), Enum.Material.Slate)
+	for _, sx in ipairs({ -4.4, 4.4 }) do
+		local shrubX = doorX + sx
+		local clear = math.abs(shrubX) < w / 2 - 1
+		for _, fx in ipairs(flowerBoxXs) do
+			if math.abs(shrubX - fx) < 4.2 then clear = false end
+		end
+		if clear then
+			newBall(m, "Shrub", 2.6 * S, cf * CFrame.new(shrubX * S, 1.4 * S, (frontZ - 1.8) * S),
+				Color3.fromRGB(hr:NextInteger(50, 80), hr:NextInteger(120, 150), hr:NextInteger(50, 70)), Enum.Material.Grass)
+		end
+	end
+	local MAILBOX = { Color3.fromRGB(40, 60, 110), Color3.fromRGB(170, 40, 40), Color3.fromRGB(35, 35, 40), Color3.fromRGB(60, 110, 70) }
+	newPart(m, "MailboxPost", Vector3.new(0.35, 3.4, 0.35) * S,
+		cf * CFrame.new((doorX - 3.2) * S, 1.7 * S, (frontZ - 11.4) * S), Color3.fromRGB(245, 245, 240), Enum.Material.Wood)
+	newPart(m, "Mailbox", Vector3.new(1.1, 1, 1.8) * S,
+		cf * CFrame.new((doorX - 3.2) * S, 3.8 * S, (frontZ - 11.4) * S), MAILBOX[hr:NextInteger(1, #MAILBOX)], Enum.Material.Metal)
+	newPart(m, "MailboxFlag", Vector3.new(0.12, 0.8, 0.35) * S,
+		cf * CFrame.new((doorX - 3.2 + 0.62) * S, 4.3 * S, (frontZ - 11.0) * S), Color3.fromRGB(230, 50, 40))
+
+	-- RENT sign out front: a hanging real-estate sign (white post, arm, chains). Click it to rent.
 	local signCf = cf * CFrame.new((doorX + 7) * S, 0, (frontZ - 5) * S)
-	newPart(m, "RentPost", Vector3.new(0.35, 4.2, 0.35) * S, signCf * CFrame.new(0, 2.1 * S, 0),
-		Color3.fromRGB(110, 90, 70), Enum.Material.Wood)
+	local SIGN_WHITE = Color3.fromRGB(245, 245, 240)
+	newPart(m, "RentPost", Vector3.new(0.45, 6, 0.45) * S, signCf * CFrame.new(0, 3 * S, 0), SIGN_WHITE, Enum.Material.Wood)
+	newBall(m, "RentPostCap", 0.75 * S, signCf * CFrame.new(0, 6.2 * S, 0), SIGN_WHITE)
+	newPart(m, "RentArm", Vector3.new(5.6, 0.35, 0.35) * S, signCf * CFrame.new(2.6 * S, 5.5 * S, 0), SIGN_WHITE, Enum.Material.Wood)
+	for _, cx in ipairs({ 0.9, 4.3 }) do
+		newPart(m, "RentChain", Vector3.new(0.12, 0.6, 0.12) * S, signCf * CFrame.new(cx * S, 5.0 * S, 0), Color3.fromRGB(60, 60, 65))
+	end
 	local rentBoard = newPart(m, "RentSign", Vector3.new(4.6, 2.4, 0.25) * S,
-		signCf * CFrame.new(0, 4.6 * S, 0), Color3.fromRGB(200, 60, 50))
+		signCf * CFrame.new(2.6 * S, 3.5 * S, 0), Color3.fromRGB(200, 60, 50))
 	rentBoard:SetAttribute("RentSign", true)
 	makeSign(rentBoard, Enum.NormalId.Front, "RENT", Color3.fromRGB(200, 60, 50), Color3.new(1, 1, 1))
 	local rentClick = Instance.new("ClickDetector")
@@ -1624,14 +1725,12 @@ local function buildPlaza()
 	kioskLight.Parent = lightPanel
 	newPart(shell, "Counter", Vector3.new(8, 3.2, 2.5) * S, K * CFrame.new(-7 * S, 2.05 * S, -5 * S),
 		Color3.fromRGB(120, 90, 70), Enum.Material.Wood)
-	newPart(shell, "Register", Vector3.new(1.4, 1.4, 1) * S, K * CFrame.new(-7 * S, 4.4 * S, -5 * S),
-		Color3.fromRGB(50, 50, 55))
 	buildNPC(shell, "Sal", K * CFrame.new(-7 * S, 0.4 * S, -2 * S),
 		{ face = "rbxassetid://7699174", hairAccessory = "63690008", hatAccessory = "1033284090", shirtTemplate = "rbxassetid://607785314", pantsTemplate = "rbxassetid://129458426" },
 		"Welcome to ShellBlox! Fuel for cars, Bloxy Cola for scooters - every can makes that scooter a little quicker. Stacks five times!",
 		{ { "Anything else?",
 			"Snacks, lots of snacks. And don't let Callahan tell you ice cream is fuel. It is delicious though." } })
-	buildNPC(shell, "Thirsty Terry", K * CFrame.new(0, 0.4 * S, 14 * S),
+	buildNPC(shell, "Thirsty Terry", K * CFrame.new(0, 0.4 * S, 14 * S) * CFrame.Angles(0, math.pi, 0),
 		{ face = "rbxassetid://13014074", hairAccessory = "20573078", hatAccessory = "212450372", shirtTemplate = "rbxassetid://398633812", pantsTemplate = "rbxassetid://144076370" })
 	for _, sy in ipairs({ 2.2, 4.8 }) do
 		newPart(shell, "Shelf", Vector3.new(1.8, 0.3, 12) * S, K * CFrame.new(10.4 * S, sy * S, 0),
@@ -2310,8 +2409,6 @@ local function buildBloxway()
 		local cx = -21 + i * 8
 		newPart(m, "Checkout", Vector3.new(6, 3, 2.2) * S,
 			cf * CFrame.new(cx * S, 1.9 * S, (-d / 2 + 14) * S), Color3.fromRGB(90, 110, 130))
-		newPart(m, "Register", Vector3.new(1.2, 1.3, 1) * S,
-			cf * CFrame.new(cx * S, 4.1 * S, (-d / 2 + 14) * S), Color3.fromRGB(50, 50, 55))
 	end
 	local bob = buildNPC(m, "Manager Bob", cf * CFrame.new(26 * S, 0.4 * S, (-d / 2 + 18) * S),
 		{ face = "rbxassetid://7074749", hairAccessory = "63690008", shirtTemplate = "rbxassetid://144076358", pantsTemplate = "rbxassetid://144076370" })
@@ -2465,6 +2562,13 @@ print(("[DiscoveryBay] building real Discovery Bay: %.0f x %.0f studs (scale %.2
 	:format(W_FT * S, H_FT * S, S, CONFIG.seed))
 local t0 = os.clock()
 
+if patchGroundOnly then
+	buildGround()
+	root:SetAttribute("GroundTiled", true)
+	print("[DiscoveryBay] Patched existing town Ground & Water with 2000-stud tiles (0 gaps).")
+	return
+end
+
 buildKit()
 if CONFIG.build.ground then buildGround() print("[DiscoveryBay] ground done") end
 if CONFIG.build.roads then
@@ -2498,6 +2602,7 @@ end
 
 root:SetAttribute("WorldW", W_FT * S) -- world extents in studs, used by the client map
 root:SetAttribute("WorldH", H_FT * S)
+root:SetAttribute("GroundTiled", true)
 root:SetAttribute("BuildComplete", true) -- signals the DiscoveryBayShop runtime script
 
 print(("[DiscoveryBay] DONE in %.1fs — %d parts. Homes %d, docks %d (every waterfront lot)."):format(
