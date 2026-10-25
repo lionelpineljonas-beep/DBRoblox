@@ -11,7 +11,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 
-local VERSION = "v85"
+local VERSION = "v102"
 local SPEED_PASS_ID = 0 -- paste the real Game Pass ID here (same one as in DiscoveryBayShop)
 local RunService = game:GetService("RunService")
 local plr = Players.LocalPlayer
@@ -139,6 +139,7 @@ pcall(function() game:GetService("StarterGui"):SetCoreGuiEnabled(Enum.CoreGuiTyp
 local gui = Instance.new("ScreenGui")
 gui.Name = "DiscoveryBayHUD"
 gui.ResetOnSpawn = false
+gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 gui.Enabled = false -- hidden until the intro's PLAY button is pressed
 gui.Parent = plr:WaitForChild("PlayerGui")
 
@@ -546,7 +547,8 @@ local dlgFrame = Instance.new("Frame")
 dlgFrame.Name = "DialogueUI"
 dlgFrame.AnchorPoint = Vector2.new(0.5, 1)
 dlgFrame.Position = UDim2.new(0.5, 0, 1, -80)
-dlgFrame.Size = UDim2.new(0, 600, 0, 140)
+dlgFrame.Position = UDim2.new(0.5, 0, 1, -60)
+dlgFrame.Size = UDim2.new(0, 660, 0, 190)
 dlgFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
 dlgFrame.BackgroundTransparency = 0.2
 dlgFrame.Visible = false
@@ -568,7 +570,9 @@ dlgName.Parent = dlgFrame
 
 local dlgText = Instance.new("TextLabel")
 dlgText.Position = UDim2.new(0, 20, 0, 40)
-dlgText.Size = UDim2.new(1, -40, 0, 50)
+dlgText.Position = UDim2.new(0, 20, 0, 42)
+dlgText.Size = UDim2.new(1, -40, 0, 84)
+dlgText.TextScaled = false
 dlgText.BackgroundTransparency = 1
 dlgText.Font = Enum.Font.GothamBold
 dlgText.TextSize = 20
@@ -579,7 +583,7 @@ dlgText.TextYAlignment = Enum.TextYAlignment.Top
 dlgText.Parent = dlgFrame
 
 local choicesFrame = Instance.new("Frame")
-choicesFrame.Position = UDim2.new(0, 20, 0, 95)
+choicesFrame.Position = UDim2.new(0, 20, 0, 136)
 choicesFrame.Size = UDim2.new(1, -40, 0, 40)
 choicesFrame.BackgroundTransparency = 1
 choicesFrame.Parent = dlgFrame
@@ -591,9 +595,717 @@ chList.Padding = UDim.new(0, 10)
 chList.Parent = choicesFrame
 
 local activeTypewriter = nil
+local currentCutsceneNPC = nil
+local cutsceneCamTween = nil
+local savedNPCJoints = {}
+
+local topBar = Instance.new("Frame")
+topBar.Name = "CutsceneTopBar"
+topBar.Size = UDim2.new(1, 0, 0, 0)
+topBar.Position = UDim2.new(0, 0, 0, 0)
+topBar.BackgroundColor3 = Color3.new(0, 0, 0)
+topBar.BorderSizePixel = 0
+topBar.ZIndex = 9
+topBar.Parent = gui
+
+local bottomBar = Instance.new("Frame")
+bottomBar.Name = "CutsceneBottomBar"
+bottomBar.AnchorPoint = Vector2.new(0, 1)
+bottomBar.Size = UDim2.new(1, 0, 0, 0)
+bottomBar.Position = UDim2.new(0, 0, 1, 0)
+bottomBar.BackgroundColor3 = Color3.new(0, 0, 0)
+bottomBar.BorderSizePixel = 0
+bottomBar.ZIndex = 9
+bottomBar.Parent = gui
+dlgFrame.ZIndex = 10
+dlgName.ZIndex = 12
+dlgText.ZIndex = 12
+choicesFrame.ZIndex = 12
+
+--==============================================================================================
+-- GTA V "WASTED" DEATH SCREEN + ROASTS + CAR FLING PHYSICS
+--==============================================================================================
+local DEATH_ROASTS = {
+	"Is this your best?",
+	"Bro looked both ways and still got folded.",
+	"The car had the right of way lil bro.",
+	"Even the NPCs saw that coming.",
+	"You had a whole sidewalk and still chose the bumper.",
+	"Skill issue detected. Respawning...",
+	"Insurance is NOT covering that one.",
+	"Bro became a Discovery Bay speedbump.",
+	"My grandma dodges traffic better than that.",
+	"That driver didn't even touch the brakes.",
+}
+
+local wastedGui = Instance.new("ScreenGui")
+wastedGui.Name = "GTAWastedGui"
+wastedGui.DisplayOrder = 999
+wastedGui.IgnoreGuiInset = true
+wastedGui.ResetOnSpawn = false
+wastedGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+wastedGui.Parent = plr:WaitForChild("PlayerGui")
+
+local wastedBanner = Instance.new("Frame")
+wastedBanner.Name = "GTAWastedBanner"
+wastedBanner.AnchorPoint = Vector2.new(0.5, 0.5)
+wastedBanner.Position = UDim2.new(0.5, 0, 0.46, 0)
+wastedBanner.Size = UDim2.new(1, 0, 0, 175)
+wastedBanner.BackgroundColor3 = Color3.new(0, 0, 0)
+wastedBanner.BackgroundTransparency = 1
+wastedBanner.BorderSizePixel = 0
+wastedBanner.Visible = false
+wastedBanner.ZIndex = 50
+wastedBanner.Parent = wastedGui
+
+local wastedTitle = Instance.new("TextLabel")
+wastedTitle.Name = "WastedTitle"
+wastedTitle.AnchorPoint = Vector2.new(0.5, 0.5)
+wastedTitle.Position = UDim2.new(0.5, 0, 0.38, 0)
+wastedTitle.Size = UDim2.new(1, 0, 0, 90)
+wastedTitle.BackgroundTransparency = 1
+wastedTitle.Font = Enum.Font.LuckiestGuy
+wastedTitle.Text = "WASTED"
+wastedTitle.TextColor3 = Color3.fromRGB(225, 38, 38)
+wastedTitle.TextSize = 78
+wastedTitle.TextTransparency = 1
+wastedTitle.ZIndex = 51
+wastedTitle.Parent = wastedBanner
+
+local wastedStroke = Instance.new("UIStroke")
+wastedStroke.Color = Color3.new(0, 0, 0)
+wastedStroke.Thickness = 4
+wastedStroke.Transparency = 1
+wastedStroke.Parent = wastedTitle
+
+local wastedRoast = Instance.new("TextLabel")
+wastedRoast.Name = "WastedRoast"
+wastedRoast.AnchorPoint = Vector2.new(0.5, 0.5)
+wastedRoast.Position = UDim2.new(0.5, 0, 0.78, 0)
+wastedRoast.Size = UDim2.new(0.9, 0, 0, 36)
+wastedRoast.BackgroundTransparency = 1
+wastedRoast.Font = Enum.Font.GothamBold
+wastedRoast.Text = "Is this your best?"
+wastedRoast.TextColor3 = Color3.fromRGB(240, 240, 240)
+wastedRoast.TextSize = 24
+wastedRoast.TextTransparency = 1
+wastedRoast.ZIndex = 51
+wastedRoast.Parent = wastedBanner
+
+local wastedRoastStroke = Instance.new("UIStroke")
+wastedRoastStroke.Color = Color3.new(0, 0, 0)
+wastedRoastStroke.Thickness = 2
+wastedRoastStroke.Transparency = 1
+wastedRoastStroke.Parent = wastedRoast
+
+local wastedCC = Instance.new("ColorCorrectionEffect")
+wastedCC.Name = "WastedColorCorrection"
+wastedCC.Enabled = false
+wastedCC.Parent = game:GetService("Lighting")
+
+local lastRoastIdx = 0
+local function playGTAWasted()
+	local oldDeath = plr:FindFirstChild("PlayerGui") and plr.PlayerGui:FindFirstChild("DeathScreen")
+	if oldDeath then oldDeath:Destroy() end
+	local idx = math.random(1, #DEATH_ROASTS)
+	if idx == lastRoastIdx then idx = (idx % #DEATH_ROASTS) + 1 end
+	lastRoastIdx = idx
+	wastedRoast.Text = DEATH_ROASTS[idx]
+
+	-- GTA V initial slow-mo flash + heavy bass hit SFX
+	local sfx1 = Instance.new("Sound")
+	sfx1.SoundId = "rbxasset://sounds/impact_explosion_03.mp3"
+	sfx1.PlaybackSpeed = 0.52
+	sfx1.Volume = 2.4
+	sfx1.Parent = game:GetService("SoundService")
+	sfx1:Play()
+	game:GetService("Debris"):AddItem(sfx1, 4)
+
+	local sfxSting = Instance.new("Sound")
+	sfxSting.SoundId = "rbxassetid://9117314405"
+	sfxSting.PlaybackSpeed = 0.45
+	sfxSting.Volume = 1.8
+	sfxSting.Parent = game:GetService("SoundService")
+	sfxSting:Play()
+	game:GetService("Debris"):AddItem(sfxSting, 4)
+
+	wastedCC.Enabled = true
+	wastedCC.Brightness = 0.35
+	wastedCC.Contrast = 0.2
+	wastedCC.Saturation = -0.3
+	wastedCC.TintColor = Color3.fromRGB(255, 190, 190)
+	TweenService:Create(wastedCC, TweenInfo.new(0.45, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		Brightness = -0.08,
+		Contrast = 0.45,
+		Saturation = -0.92,
+		TintColor = Color3.fromRGB(225, 195, 195),
+	}):Play()
+
+	local cam = workspace.CurrentCamera
+	if cam then
+		TweenService:Create(cam, TweenInfo.new(2.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			FieldOfView = 50,
+		}):Play()
+	end
+
+	wastedBanner.Visible = true
+	wastedBanner.BackgroundTransparency = 1
+	wastedTitle.TextTransparency = 1
+	wastedStroke.Transparency = 1
+	wastedRoast.TextTransparency = 1
+	wastedRoastStroke.Transparency = 1
+	wastedTitle.TextSize = 115
+
+	task.delay(0.35, function()
+		if not wastedBanner.Visible then return end
+		-- Second GTA V "WASTED" stamp thud SFX when the banner slams in
+		local sfxStamp = Instance.new("Sound")
+		sfxStamp.SoundId = "rbxasset://sounds/impact_explosion_03.mp3"
+		sfxStamp.PlaybackSpeed = 0.36
+		sfxStamp.Volume = 2.6
+		sfxStamp.Parent = game:GetService("SoundService")
+		sfxStamp:Play()
+		game:GetService("Debris"):AddItem(sfxStamp, 4)
+
+		TweenService:Create(wastedBanner, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			BackgroundTransparency = 0.25,
+		}):Play()
+		TweenService:Create(wastedTitle, TweenInfo.new(0.22, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+			TextTransparency = 0,
+			TextSize = 78,
+		}):Play()
+		TweenService:Create(wastedStroke, TweenInfo.new(0.22), { Transparency = 0 }):Play()
+		TweenService:Create(wastedRoast, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			TextTransparency = 0,
+		}):Play()
+		TweenService:Create(wastedRoastStroke, TweenInfo.new(0.35), { Transparency = 0 }):Play()
+	end)
+end
+
+local wastedShownForChar = nil
+local function hookCharacterDeath(ch)
+	wastedShownForChar = nil
+	wastedBanner.Visible = false
+	wastedCC.Enabled = false
+	local cam = workspace.CurrentCamera
+	if cam and not currentCutsceneNPC then
+		cam.FieldOfView = 70
+	end
+	local hum = ch:WaitForChild("Humanoid", 10)
+	if hum then
+		hum.Died:Connect(function()
+			if wastedShownForChar ~= ch then
+				wastedShownForChar = ch
+				playGTAWasted()
+			end
+		end)
+	end
+end
+if plr.Character then
+	task.spawn(hookCharacterDeath, plr.Character)
+end
+plr.CharacterAdded:Connect(hookCharacterDeath)
+
+task.spawn(function()
+	local carFlingRemote = remotes:WaitForChild("CarFling", 15)
+	if carFlingRemote then
+		carFlingRemote.OnClientEvent:Connect(function(flingVel, angVel)
+			local ch = plr.Character
+			local hrp = ch and ch:FindFirstChild("HumanoidRootPart")
+			local hum = ch and ch:FindFirstChildOfClass("Humanoid")
+			if hrp and hum then
+				hum.PlatformStand = true
+				hum:ChangeState(Enum.HumanoidStateType.Physics)
+				hrp.AssemblyLinearVelocity = flingVel
+				hrp.AssemblyAngularVelocity = angVel
+				if wastedShownForChar ~= ch then
+					wastedShownForChar = ch
+					playGTAWasted()
+				end
+			end
+		end)
+	end
+end)
+
+local function restoreNPCPose(npcModel)
+	local pose = npcModel and savedNPCJoints[npcModel]
+	if pose then
+		if pose.torso and pose.torso.Parent and pose.torsoCF then pose.torso.CFrame = pose.torsoCF end
+		if pose.head and pose.head.Parent then pose.head.CFrame = pose.headCF end
+		if pose.rArm and pose.rArm.Parent then pose.rArm.CFrame = pose.rArmCF end
+		if pose.lArm and pose.lArm.Parent then pose.lArm.CFrame = pose.lArmCF end
+		if pose.rLeg and pose.rLeg.Parent and pose.rLegCF then pose.rLeg.CFrame = pose.rLegCF end
+		if pose.lLeg and pose.lLeg.Parent and pose.lLegCF then pose.lLeg.CFrame = pose.lLegCF end
+		if pose.accessories then
+			for _, acc in ipairs(pose.accessories) do
+				if acc.part and acc.part.Parent then acc.part.CFrame = acc.baseCF end
+			end
+		end
+	end
+end
+
+local isNPCTalking = false
+local talkWeight = 0
+local npcAnimConn = nil
+local postTalkConns = {}
+local npcFaceUIs = {}
+
+local NPC_CLASSIC_FACE_MAP = {
+	["Manager Bob"]   = { idle = "Stare",           interact = "Disbelief",       interactTalk = "Grr",            answer = "MrChuckles",     answerTalk = "Puck" },
+	["Eggbert"]       = { idle = "GoodIntentioned", interact = "Skeptic",         interactTalk = "JoyousSurprise", answer = "JoyousSurprise", answerTalk = "GoodIntentioned" },
+	["Captain Finn"]  = { idle = "CheckIt",         interact = "Winky",           interactTalk = "HappyWink",      answer = "Disbelief",      answerTalk = "Stare" },
+	["Rider Rick"]    = { idle = "SureImCool",      interact = "Chill",           interactTalk = "SureImCool",     answer = "ItsGoTime",      answerTalk = "CheckIt" },
+	["Callahan"]      = { idle = "Smile",           interact = "GoodIntentioned", interactTalk = "JoyousSurprise", answer = "HappyWink",      answerTalk = "Winky" },
+	["Thirsty Terry"] = { idle = "Sniffles",        interact = "Disbelief",       interactTalk = "Sniffles",       answer = "Puck",           answerTalk = "Smile" },
+	["Sal"]           = { idle = "Chill",           interact = "MrChuckles",      interactTalk = "Chill",          answer = "HappyWink",      answerTalk = "Winky" },
+	["Sensei"]        = { idle = "Grr",             interact = "ItsGoTime",       interactTalk = "Roar",           answer = "Roar",           answerTalk = "Grr" },
+	["Ms. Wheeler"]   = { idle = "Smile",           interact = "Winky",           interactTalk = "JoyousSurprise", answer = "JoyousSurprise", answerTalk = "Smile" },
+	["Pedestrian"]    = { idle = "Smile",           interact = "GoodIntentioned", interactTalk = "Puck",           answer = "Slickfang",      answerTalk = "Vampire", panic = "Roar" },
+}
+
+local function getClassicFaceTex(faceKey)
+	local folder = remotes:FindFirstChild("ClassicFaces")
+	local sv = folder and folder:FindFirstChild(faceKey)
+	if sv and sv.Value ~= "" then
+		return sv.Value
+	end
+	if faceKey == "Chill" then
+		return "rbxassetid://7074749"
+	end
+	return "rbxasset://textures/face.png"
+end
+
+local function ensureNPCFaceUI(npc)
+	if npcFaceUIs[npc] then
+		return npcFaceUIs[npc]
+	end
+	local head = npc and npc:FindFirstChild("Head")
+	if not head then return nil end
+	local origDecal = head:FindFirstChild("ClassicFace") or head:FindFirstChild("face")
+	local ui = {
+		decal = origDecal,
+		stage = "idle",
+		baseKey = "Smile",
+		talkKey = "JoyousSurprise",
+		lastAppliedTex = "",
+	}
+	npcFaceUIs[npc] = ui
+	return ui
+end
+
+local function applyNPCFaceKey(npc, faceKey)
+	local ui = ensureNPCFaceUI(npc)
+	if not ui or not ui.decal then return end
+	local tex = getClassicFaceTex(faceKey)
+	if ui.lastAppliedTex ~= tex then
+		ui.lastAppliedTex = tex
+		ui.decal.Transparency = 0
+		ui.decal.Texture = tex
+	end
+end
+
+local function setNPCFaceState(npc, stage)
+	if not npc then return end
+	local ui = ensureNPCFaceUI(npc)
+	if not ui then return end
+	local map = NPC_CLASSIC_FACE_MAP[npc.Name] or NPC_CLASSIC_FACE_MAP["Pedestrian"]
+	ui.stage = stage
+	ui.baseKey = map[stage] or map.idle or "Smile"
+	ui.talkKey = map[stage .. "Talk"] or ui.baseKey
+	applyNPCFaceKey(npc, ui.baseKey)
+end
+
+local function updateNPCAccessories(pose, newHeadCF)
+	if pose.accessories then
+		for _, acc in ipairs(pose.accessories) do
+			if acc.part and acc.part.Parent then
+				acc.part.CFrame = newHeadCF * acc.relToHead
+			end
+		end
+	end
+end
+
+local function applyLimbsFromTorso(pose, animTorsoCF, headRot, rArmRot, lArmRot, rLegRot, lLegRot)
+	if pose.torso and pose.torso.Parent and not pose.sit then
+		pose.torso.CFrame = animTorsoCF
+	end
+	local neckPivot = animTorsoCF * CFrame.new(0, 1, 0)
+	local newHeadCF = neckPivot * (headRot or CFrame.new()) * CFrame.new(0, 0.5, 0)
+	if pose.head and pose.head.Parent then
+		pose.head.CFrame = newHeadCF
+	end
+	updateNPCAccessories(pose, newHeadCF)
+	if not pose.sit then
+		if pose.rArm and pose.rArm.Parent then
+			pose.rArm.CFrame = (animTorsoCF * CFrame.new(1.5, 0.5, 0)) * (rArmRot or CFrame.new()) * CFrame.new(0, -0.5, 0)
+		end
+		if pose.lArm and pose.lArm.Parent then
+			pose.lArm.CFrame = (animTorsoCF * CFrame.new(-1.5, 0.5, 0)) * (lArmRot or CFrame.new()) * CFrame.new(0, -0.5, 0)
+		end
+		if pose.rLeg and pose.rLeg.Parent then
+			pose.rLeg.CFrame = (animTorsoCF * CFrame.new(0.5, -1, 0)) * (rLegRot or CFrame.new()) * CFrame.new(0, -1, 0)
+		end
+		if pose.lLeg and pose.lLeg.Parent then
+			pose.lLeg.CFrame = (animTorsoCF * CFrame.new(-0.5, -1, 0)) * (lLegRot or CFrame.new()) * CFrame.new(0, -1, 0)
+		end
+	end
+end
+
+local function stopNPCAnimLoop()
+	isNPCTalking = false
+	talkWeight = 0
+	if npcAnimConn then
+		npcAnimConn:Disconnect()
+		npcAnimConn = nil
+	end
+end
+
+local function playPostTalkAnimation(npc)
+	local pose = npc and savedNPCJoints[npc]
+	if not npc or not pose or npc:GetAttribute("PianoDropping") then return end
+	if postTalkConns[npc] then
+		postTalkConns[npc]:Disconnect()
+		postTalkConns[npc] = nil
+	end
+	local baseTorso = pose.torsoCF or (pose.headCF * CFrame.new(0, -1.5, 0))
+	local name = npc.Name
+	local dur = 1.8
+	local t0 = os.clock()
+	postTalkConns[npc] = RunService.RenderStepped:Connect(function()
+		local elapsed = os.clock() - t0
+		if elapsed >= dur or not npc.Parent or npc:GetAttribute("PianoDropping") or currentCutsceneNPC == npc then
+			if postTalkConns[npc] then
+				postTalkConns[npc]:Disconnect()
+				postTalkConns[npc] = nil
+			end
+			if currentCutsceneNPC ~= npc and not npc:GetAttribute("PianoDropping") then
+				restoreNPCPose(npc)
+				setNPCFaceState(npc, "idle")
+			end
+			return
+		end
+		local u = elapsed / dur
+		local env = math.sin(u * math.pi)
+		local animTorso = baseTorso
+		local headRot, rArmRot, lArmRot, rLegRot, lLegRot = CFrame.new(), CFrame.new(), CFrame.new(), CFrame.new(), CFrame.new()
+
+		if name == "Manager Bob" then
+			-- Big tired overhead yawn stretch, then grumpy slouch
+			local stretch = math.sin(math.clamp(u * 1.4, 0, 1) * math.pi)
+			animTorso = baseTorso * CFrame.new(0, stretch * 0.12, 0) * CFrame.Angles(math.rad(14 * stretch - 6 * env), 0, 0)
+			headRot = CFrame.Angles(math.rad(25 * stretch), math.sin(elapsed * 6) * math.rad(10 * (1 - stretch)), 0)
+			rArmRot = CFrame.Angles(math.rad(165 * stretch), 0, math.rad(18 * stretch))
+			lArmRot = CFrame.Angles(math.rad(165 * stretch), 0, math.rad(-18 * stretch))
+		elseif name == "Eggbert" then
+			-- Excited 360 spin-jump in the air with both arms cheering!
+			local jumpH = math.max(0, math.sin(u * math.pi * 2)) * 1.6 * env
+			local spin = u * math.pi * 2
+			animTorso = baseTorso * CFrame.new(0, jumpH, 0) * CFrame.Angles(0, spin, 0)
+			headRot = CFrame.Angles(math.rad(12 * env), 0, 0)
+			rArmRot = CFrame.Angles(math.rad(150 * env), 0, math.rad(25 * env))
+			lArmRot = CFrame.Angles(math.rad(150 * env), 0, math.rad(-25 * env))
+			rLegRot = CFrame.Angles(math.rad(-25 * env), 0, math.rad(10 * env))
+			lLegRot = CFrame.Angles(math.rad(25 * env), 0, math.rad(-10 * env))
+		elseif name == "Captain Finn" then
+			-- Crisp naval salute, then shades eyes looking out at the horizon
+			animTorso = baseTorso * CFrame.Angles(math.rad(4 * env), math.sin(u * math.pi) * math.rad(12), 0)
+			headRot = CFrame.Angles(math.rad(6 * env), math.sin(elapsed * 3) * math.rad(18 * env), 0)
+			rArmRot = CFrame.Angles(math.rad(135 * env), math.rad(-25 * env), math.rad(-35 * env))
+			lArmRot = CFrame.Angles(math.rad(20 * env), 0, math.rad(-25 * env))
+		elseif name == "Rider Rick" then
+			-- Hype skater jump + double fist pump!
+			local hop = math.abs(math.sin(elapsed * 9)) * 0.9 * env
+			animTorso = baseTorso * CFrame.new(0, hop, 0) * CFrame.Angles(math.rad(-8 * env), math.sin(elapsed * 9) * math.rad(15 * env), 0)
+			headRot = CFrame.Angles(math.sin(elapsed * 12) * math.rad(15 * env), 0, 0)
+			rArmRot = CFrame.Angles(math.rad(145 * env) + math.sin(elapsed * 14) * math.rad(25 * env), 0, math.rad(15 * env))
+			lArmRot = CFrame.Angles(math.rad(110 * env) - math.sin(elapsed * 14) * math.rad(25 * env), 0, math.rad(-15 * env))
+			rLegRot = CFrame.Angles(math.rad(-30 * env), 0, 0)
+			lLegRot = CFrame.Angles(math.rad(20 * env), 0, 0)
+		elseif name == "Callahan" then
+			-- Chef's kiss + polite theatrical bow!
+			local kissPhase = math.clamp(1 - u * 2, 0, 1)
+			local bowPhase = math.sin(math.clamp((u - 0.3) / 0.7, 0, 1) * math.pi)
+			animTorso = baseTorso * CFrame.Angles(math.rad(-32 * bowPhase), 0, 0)
+			headRot = CFrame.Angles(math.rad(15 * kissPhase - 15 * bowPhase), 0, 0)
+			rArmRot = CFrame.Angles(math.rad(115 * kissPhase + 65 * bowPhase), math.rad(-30 * kissPhase), math.rad(40 * bowPhase))
+			lArmRot = CFrame.Angles(math.rad(45 * bowPhase), 0, math.rad(-30 * bowPhase))
+		elseif name == "Thirsty Terry" then
+			-- Exhausted slump forward while fanning his parched face frantically
+			animTorso = baseTorso * CFrame.new(0, -0.25 * env, 0) * CFrame.Angles(math.rad(-22 * env), 0, 0)
+			headRot = CFrame.Angles(math.rad(18 * env), math.sin(elapsed * 18) * math.rad(10 * env), 0)
+			rArmRot = CFrame.Angles(math.rad(110 * env), 0, math.sin(elapsed * 24) * math.rad(28 * env))
+			lArmRot = CFrame.Angles(math.rad(35 * env), 0, math.rad(-10 * env))
+			rLegRot = CFrame.Angles(math.rad(20 * env), 0, 0)
+			lLegRot = CFrame.Angles(math.rad(20 * env), 0, 0)
+		elseif name == "Sal" then
+			-- Friendly two-handed wave goodbye with a cheerful hop
+			local hop = math.abs(math.sin(elapsed * 7)) * 0.3 * env
+			animTorso = baseTorso * CFrame.new(0, hop, 0) * CFrame.Angles(0, 0, math.sin(elapsed * 7) * math.rad(5 * env))
+			headRot = CFrame.Angles(math.sin(elapsed * 10) * math.rad(10 * env), 0, math.sin(elapsed * 7) * math.rad(6 * env))
+			rArmRot = CFrame.Angles(math.rad(155 * env), 0, math.rad(20 * env) + math.sin(elapsed * 16) * math.rad(22 * env))
+			lArmRot = CFrame.Angles(math.rad(30 * env), 0, math.rad(-15 * env))
+		elseif name == "Sensei" then
+			-- Deep martial-arts bow, then crane stance!
+			local bow = math.sin(math.clamp(u * 1.8, 0, 1) * math.pi)
+			local crane = math.sin(math.clamp((u - 0.4) / 0.6, 0, 1) * math.pi)
+			animTorso = baseTorso * CFrame.new(0, crane * 0.25, 0) * CFrame.Angles(math.rad(-38 * bow), 0, 0)
+			headRot = CFrame.Angles(math.rad(-12 * bow + 8 * crane), 0, 0)
+			rArmRot = CFrame.Angles(math.rad(75 * bow + 125 * crane), math.rad(-35 * bow), math.rad(60 * crane))
+			lArmRot = CFrame.Angles(math.rad(75 * bow + 125 * crane), math.rad(35 * bow), math.rad(-60 * crane))
+			rLegRot = CFrame.Angles(math.rad(55 * crane), 0, 0)
+		elseif name == "Ms. Wheeler" then
+			-- Encouraging teacher applause + proud nods
+			animTorso = baseTorso * CFrame.Angles(math.sin(elapsed * 6) * math.rad(4 * env), 0, 0)
+			headRot = CFrame.Angles(math.abs(math.sin(elapsed * 9)) * math.rad(-14 * env), 0, 0)
+			local clap = math.abs(math.sin(elapsed * 15)) * 22
+			rArmRot = CFrame.Angles(math.rad(85 * env), math.rad((-28 + clap) * env), math.rad(-20 * env))
+			lArmRot = CFrame.Angles(math.rad(85 * env), math.rad((28 - clap) * env), math.rad(20 * env))
+		else
+			-- Pedestrian: confused head-scratch and nervously looking straight up at the sky for pianos!
+			animTorso = baseTorso * CFrame.Angles(math.rad(10 * env), math.sin(elapsed * 5) * math.rad(14 * env), 0)
+			headRot = CFrame.Angles(math.rad(38 * env), math.sin(elapsed * 6) * math.rad(20 * env), math.rad(8 * env))
+			rArmRot = CFrame.Angles(math.rad(145 * env), math.rad(-20 * env), math.rad(-25 * env) + math.sin(elapsed * 16) * math.rad(12 * env))
+			lArmRot = CFrame.Angles(math.rad(25 * env), 0, math.rad(-15 * env))
+		end
+
+		applyLimbsFromTorso(pose, animTorso, headRot, rArmRot, lArmRot, rLegRot, lLegRot)
+	end)
+end
+
+local function startNPCAnimLoop()
+	if npcAnimConn then return end
+	local t0 = os.clock()
+	npcAnimConn = RunService.RenderStepped:Connect(function(dt)
+		local npc = currentCutsceneNPC
+		local pose = npc and savedNPCJoints[npc]
+		if not npc or not pose or npc:GetAttribute("PianoDropping") then return end
+		local targetW = isNPCTalking and 1 or 0
+		talkWeight = talkWeight + (targetW - talkWeight) * math.min(1, dt * 10)
+		local t = os.clock() - t0
+		local w = talkWeight
+		local name = npc.Name
+		local baseTorso = pose.torsoCF or (pose.headCF * CFrame.new(0, -1.5, 0))
+		local animTorso = baseTorso
+		local headRot, rArmRot, lArmRot, rLegRot, lLegRot = CFrame.new(), CFrame.new(), CFrame.new(), CFrame.new(), CFrame.new()
+
+		if name == "Manager Bob" then
+			-- Grumpy manager: crossed left arm, tapping right foot, head-shaking & shrugging right hand
+			animTorso = baseTorso * CFrame.new(0, math.sin(t * 2) * 0.03, 0) * CFrame.Angles(math.rad(-3 * w), math.sin(t * 2.5) * math.rad(4 * w), math.rad(-2 * w))
+			headRot = CFrame.Angles(math.sin(t * 6) * math.rad(3 * w), math.sin(t * 5.5) * math.rad(11 * w), math.rad(-4 * w))
+			rArmRot = CFrame.Angles(math.rad(45 * w) + math.sin(t * 5) * math.rad(15 * w), 0, math.rad(18 * w))
+			lArmRot = CFrame.Angles(math.rad(78 * w), math.rad(35 * w), math.rad(28 * w))
+			rLegRot = CFrame.Angles(math.abs(math.sin(t * 10)) * math.rad(14 * w), 0, 0)
+		elseif name == "Eggbert" then
+			-- Conspiratorial & hyper: leans forward, rapid toe-bounces, both hands fluttering excitedly
+			local bounce = math.abs(math.sin(t * 9)) * 0.14 * w
+			animTorso = baseTorso * CFrame.new(0, bounce, 0) * CFrame.Angles(math.rad(-10 * w), math.sin(t * 4.5) * math.rad(8 * w), 0)
+			headRot = CFrame.Angles(math.rad(8 * w) + math.sin(t * 11) * math.rad(6 * w), math.sin(t * 5) * math.rad(9 * w), math.cos(t * 6) * math.rad(5 * w))
+			rArmRot = CFrame.Angles(math.rad(65 * w) + math.sin(t * 12) * math.rad(22 * w), 0, math.rad(15 * w))
+			lArmRot = CFrame.Angles(math.rad(65 * w) + math.cos(t * 12) * math.rad(22 * w), 0, math.rad(-15 * w))
+		elseif name == "Captain Finn" then
+			-- Sea-captain swagger: rocks side-to-side on sea legs, left hand on hip, right arm casting a rod
+			animTorso = baseTorso * CFrame.new(math.sin(t * 2.6) * 0.12 * w, 0, 0) * CFrame.Angles(math.rad(4 * w), math.sin(t * 2.6) * math.rad(6 * w), math.sin(t * 2.6) * math.rad(5 * w))
+			headRot = CFrame.Angles(math.sin(t * 7) * math.rad(5 * w), math.cos(t * 2.6) * math.rad(8 * w), 0)
+			rArmRot = CFrame.Angles(math.rad(55 * w) + math.sin(t * 4.5) * math.rad(30 * w), 0, math.rad(10 * w))
+			lArmRot = CFrame.Angles(math.rad(28 * w), 0, math.rad(-32 * w))
+			rLegRot = CFrame.Angles(0, 0, math.rad(6 * w))
+			lLegRot = CFrame.Angles(0, 0, math.rad(-6 * w))
+		elseif name == "Rider Rick" then
+			-- Skater hype: rhythmic knee-bounce, alternating double fist-pumps & energetic head bobs
+			local groove = math.abs(math.sin(t * 7.5)) * 0.12 * w
+			animTorso = baseTorso * CFrame.new(0, -groove, 0) * CFrame.Angles(math.rad(-6 * w), math.sin(t * 3.75) * math.rad(10 * w), 0)
+			headRot = CFrame.Angles(math.sin(t * 7.5) * math.rad(-9 * w), math.sin(t * 3.75) * math.rad(8 * w), 0)
+			rArmRot = CFrame.Angles(math.rad(75 * w) + math.sin(t * 7.5) * math.rad(28 * w), 0, math.rad(12 * w))
+			lArmRot = CFrame.Angles(math.rad(75 * w) - math.sin(t * 7.5) * math.rad(28 * w), 0, math.rad(-12 * w))
+			rLegRot = CFrame.Angles(math.sin(t * 7.5) * math.rad(10 * w), 0, 0)
+			lLegRot = CFrame.Angles(-math.sin(t * 7.5) * math.rad(10 * w), 0, 0)
+		elseif name == "Callahan" then
+			-- Cheerful ice-cream chef: warm sway, left hand holding imaginary cone, right hand flourishing
+			animTorso = baseTorso * CFrame.new(0, math.sin(t * 3) * 0.05, 0) * CFrame.Angles(0, math.sin(t * 2.2) * math.rad(7 * w), math.cos(t * 2.2) * math.rad(4 * w))
+			headRot = CFrame.Angles(math.sin(t * 8) * math.rad(5 * w), math.sin(t * 3.1) * math.rad(7 * w), math.sin(t * 2.2) * math.rad(5 * w))
+			rArmRot = CFrame.Angles(math.rad(50 * w) + math.sin(t * 5.5) * math.rad(20 * w), math.cos(t * 5.5) * math.rad(18 * w), math.rad(22 * w))
+			lArmRot = CFrame.Angles(math.rad(68 * w), math.rad(-18 * w), math.rad(-8 * w))
+		elseif name == "Thirsty Terry" then
+			-- Parched & desperate: shivering/trembling, clutching throat with left hand, reaching out with right
+			local shiver = math.sin(t * 22) * math.rad(2.5 * w)
+			animTorso = baseTorso * CFrame.new(0, -0.08 * w, 0) * CFrame.Angles(math.rad(-12 * w), shiver, shiver)
+			headRot = CFrame.Angles(math.rad(10 * w) + math.sin(t * 9) * math.rad(6 * w), shiver * 2, math.sin(t * 4) * math.rad(8 * w))
+			rArmRot = CFrame.Angles(math.rad(82 * w) + math.sin(t * 8) * math.rad(14 * w), 0, math.rad(6 * w))
+			lArmRot = CFrame.Angles(math.rad(105 * w), math.rad(28 * w), math.rad(18 * w))
+		elseif name == "Sal" then
+			-- Chill cashier: casual side lean, left arm pointing toward the store shelves, right hand chatting
+			animTorso = baseTorso * CFrame.Angles(0, math.rad(-8 * w) + math.sin(t * 2) * math.rad(4 * w), math.rad(3 * w))
+			headRot = CFrame.Angles(math.sin(t * 7.5) * math.rad(5 * w), math.rad(8 * w) + math.sin(t * 3) * math.rad(5 * w), 0)
+			rArmRot = CFrame.Angles(math.rad(38 * w) + math.sin(t * 6) * math.rad(14 * w), 0, math.rad(10 * w))
+			lArmRot = CFrame.Angles(math.rad(72 * w), 0, math.rad(-38 * w) + math.sin(t * 4) * math.rad(10 * w))
+		elseif name == "Sensei" then
+			-- Martial arts master: disciplined fighting-stance turns and sharp karate-chop hand gestures
+			animTorso = baseTorso * CFrame.Angles(math.rad(-4 * w), math.rad(16 * w) + math.sin(t * 3.5) * math.rad(6 * w), 0)
+			headRot = CFrame.Angles(math.abs(math.sin(t * 7)) * math.rad(-8 * w), math.rad(-14 * w), 0)
+			rArmRot = CFrame.Angles(math.rad(75 * w) + math.sin(t * 8) * math.rad(25 * w), math.rad(-15 * w), math.rad(12 * w))
+			lArmRot = CFrame.Angles(math.rad(55 * w) - math.sin(t * 8) * math.rad(18 * w), math.rad(20 * w), math.rad(-12 * w))
+		elseif name == "Ms. Wheeler" then
+			-- Enthusiastic teacher: right hand raised pointing at the board, left hand gesturing to the student
+			animTorso = baseTorso * CFrame.Angles(math.sin(t * 3) * math.rad(3 * w), math.sin(t * 2.2) * math.rad(6 * w), 0)
+			headRot = CFrame.Angles(math.sin(t * 8.5) * math.rad(6 * w), math.sin(t * 3.2) * math.rad(8 * w), math.cos(t * 4) * math.rad(3 * w))
+			rArmRot = CFrame.Angles(math.rad(115 * w) + math.sin(t * 6.5) * math.rad(14 * w), 0, math.rad(14 * w))
+			lArmRot = CFrame.Angles(math.rad(42 * w) + math.cos(t * 5.5) * math.rad(12 * w), 0, math.rad(-14 * w))
+		else
+			-- Pedestrians: 3 distinct street personalities based on their world position
+			local style = math.floor(math.abs(baseTorso.Position.X + baseTorso.Position.Z)) % 3
+			if style == 0 then
+				-- Sassy hip-sway with left hand on hip
+				animTorso = baseTorso * CFrame.Angles(0, math.sin(t * 3) * math.rad(6 * w), math.rad(4 * w))
+				headRot = CFrame.Angles(math.sin(t * 8) * math.rad(5 * w), math.sin(t * 3.5) * math.rad(8 * w), math.rad(-5 * w))
+				rArmRot = CFrame.Angles(math.rad(48 * w) + math.sin(t * 7) * math.rad(18 * w), 0, math.rad(16 * w))
+				lArmRot = CFrame.Angles(math.rad(25 * w), 0, math.rad(-28 * w))
+			elseif style == 1 then
+				-- Animated two-handed storyteller
+				animTorso = baseTorso * CFrame.new(0, math.abs(math.sin(t * 5)) * 0.06 * w, 0) * CFrame.Angles(math.rad(-4 * w), math.sin(t * 2.8) * math.rad(7 * w), 0)
+				headRot = CFrame.Angles(math.sin(t * 9) * math.rad(6 * w), math.cos(t * 4) * math.rad(9 * w), 0)
+				rArmRot = CFrame.Angles(math.rad(62 * w) + math.sin(t * 6.5) * math.rad(20 * w), 0, math.rad(18 * w))
+				lArmRot = CFrame.Angles(math.rad(58 * w) + math.cos(t * 6.5) * math.rad(20 * w), 0, math.rad(-18 * w))
+			else
+				-- Chill head-bobber with casual wave
+				animTorso = baseTorso * CFrame.new(0, math.sin(t * 2.4) * 0.035, 0) * CFrame.Angles(math.sin(t * 2.4) * math.rad(1.5), math.sin(t * 1.7) * math.rad(4 * w), 0)
+				headRot = CFrame.Angles(math.sin(t * 8.5) * math.rad(5 * w), math.sin(t * 3.4) * math.rad(6.5 * w), math.cos(t * 4.1) * math.rad(3 * w))
+				rArmRot = CFrame.Angles(math.rad(36 * w) + math.sin(t * 6.2) * math.rad(14 * w), math.sin(t * 4.5) * math.rad(8 * w), math.rad(10 * w))
+				lArmRot = CFrame.Angles(math.rad(16 * w) + math.cos(t * 5.4) * math.rad(9 * w), 0, math.rad(-6 * w))
+			end
+		end
+
+		applyLimbsFromTorso(pose, animTorso, headRot, rArmRot, lArmRot, rLegRot, lLegRot)
+	end)
+end
+
+local function endCutscene()
+	activeTypewriter = nil
+	stopNPCAnimLoop()
+	dlgFrame.Visible = false
+	hotbar.Visible = true
+	local finishedNPC = currentCutsceneNPC
+	currentCutsceneNPC = nil
+	if finishedNPC then
+		local h = finishedNPC:FindFirstChild("Head")
+		local tp = h and h:FindFirstChild("TalkPrompt")
+		if tp then tp.Enabled = true end
+		local hum = finishedNPC:FindFirstChildOfClass("Humanoid")
+		if hum then hum.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.Viewer end
+		restoreNPCPose(finishedNPC)
+		playPostTalkAnimation(finishedNPC)
+	end
+	TweenService:Create(topBar, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Size = UDim2.new(1, 0, 0, 0) }):Play()
+	TweenService:Create(bottomBar, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Size = UDim2.new(1, 0, 0, 0) }):Play()
+	local cam = workspace.CurrentCamera
+	if cam then
+		TweenService:Create(cam, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { FieldOfView = 70 }):Play()
+		cam.CameraType = Enum.CameraType.Custom
+	end
+end
+
+local function focusCameraOnNPC(npcModel, wideShot)
+	local cam = workspace.CurrentCamera
+	local head = npcModel and npcModel:FindFirstChild("Head")
+	if not cam or not head then return end
+	local tp = head:FindFirstChild("TalkPrompt")
+	if tp then tp.Enabled = false end
+	hotbar.Visible = false
+	local hum = npcModel:FindFirstChildOfClass("Humanoid")
+	if hum then hum.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None end
+	ensureNPCFaceUI(npcModel)
+	if postTalkConns[npcModel] then
+		postTalkConns[npcModel]:Disconnect()
+		postTalkConns[npcModel] = nil
+		restoreNPCPose(npcModel)
+	end
+	local torso = npcModel:FindFirstChild("Torso")
+	local rArm = npcModel:FindFirstChild("Right Arm")
+	local lArm = npcModel:FindFirstChild("Left Arm")
+	local rLeg = npcModel:FindFirstChild("Right Leg")
+	local lLeg = npcModel:FindFirstChild("Left Leg")
+	local bodyParts = {
+		[head] = true,
+		[torso or head] = true,
+		[rArm or head] = true,
+		[lArm or head] = true,
+		[rLeg or head] = true,
+		[lLeg or head] = true,
+	}
+	if not savedNPCJoints[npcModel] then
+		local accList = {}
+		for _, desc in ipairs(npcModel:GetDescendants()) do
+			if desc:IsA("BasePart") and not bodyParts[desc] then
+				table.insert(accList, {
+					part = desc,
+					baseCF = desc.CFrame,
+					relToHead = head.CFrame:ToObjectSpace(desc.CFrame),
+				})
+			end
+		end
+		savedNPCJoints[npcModel] = {
+			torso = torso,
+			torsoCF = torso and torso.CFrame,
+			head = head,
+			headCF = head.CFrame,
+			rArm = rArm,
+			rArmCF = rArm and rArm.CFrame,
+			lArm = lArm,
+			lArmCF = lArm and lArm.CFrame,
+			rLeg = rLeg,
+			rLegCF = rLeg and rLeg.CFrame,
+			lLeg = lLeg,
+			lLegCF = lLeg and lLeg.CFrame,
+			accessories = accList,
+		}
+	else
+		-- Refresh accessory list in case InsertService finished loading hats/hair after first check
+		local pose = savedNPCJoints[npcModel]
+		local known = {}
+		for _, a in ipairs(pose.accessories) do known[a.part] = true end
+		for _, desc in ipairs(npcModel:GetDescendants()) do
+			if desc:IsA("BasePart") and not bodyParts[desc] and not known[desc] then
+				table.insert(pose.accessories, {
+					part = desc,
+					baseCF = desc.CFrame,
+					relToHead = pose.headCF:ToObjectSpace(desc.CFrame),
+				})
+			end
+		end
+	end
+	currentCutsceneNPC = npcModel
+	if not wideShot then
+		startNPCAnimLoop()
+	else
+		stopNPCAnimLoop()
+		restoreNPCPose(npcModel)
+	end
+	cam.CameraType = Enum.CameraType.Scriptable
+	TweenService:Create(topBar, TweenInfo.new(0.45, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), { Size = UDim2.new(1, 0, 0, 48) }):Play()
+	TweenService:Create(bottomBar, TweenInfo.new(0.45, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), { Size = UDim2.new(1, 0, 0, 48) }):Play()
+	local baseHeadCF = savedNPCJoints[npcModel].headCF
+	local targetCF
+	local targetFOV = 50
+	if wideShot then
+		local lookTarget = (baseHeadCF * CFrame.new(0, 0, -14)).Position
+		local camPos = (baseHeadCF * CFrame.new(10, 4.5, -6)).Position
+		targetCF = CFrame.lookAt(camPos, lookTarget)
+		targetFOV = 65
+	else
+		local camPos = (baseHeadCF * CFrame.new(0.65, 0.15, -4.5)).Position
+		local lookTarget = baseHeadCF.Position + Vector3.new(0, -0.35, 0)
+		targetCF = CFrame.lookAt(camPos, lookTarget)
+	end
+	if cutsceneCamTween then cutsceneCamTween:Cancel() end
+	cutsceneCamTween = TweenService:Create(cam, TweenInfo.new(0.65, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
+		CFrame = targetCF,
+		FieldOfView = targetFOV,
+	})
+	cutsceneCamTween:Play()
+end
 
 local function showDialogue(npcName, text, choicesArray, callback)
 	dlgFrame.Visible = true
+	hotbar.Visible = false
 	dlgName.Text = npcName
 	dlgText.Text = ""
 	for _, c in ipairs(choicesFrame:GetChildren()) do
@@ -607,11 +1319,13 @@ local function showDialogue(npcName, text, choicesArray, callback)
 	blip.SoundId = "rbxassetid://12221967" -- reliable UI tick
 	blip.Volume = 1
 	blip.Parent = game:GetService("SoundService")
+	-- 3D overhead chat bubble omitted so it never overlaps the dialogue text or NPC face during cutscenes
 	
 	task.spawn(function()
 		for i = 1, #text do
 			if activeTypewriter ~= myType then return end
 			dlgText.Text = string.sub(text, 1, i)
+			isNPCTalking = true
 			local char = string.sub(text, i, i)
 			if i % 2 == 1 and char ~= " " and char ~= "." then
 				local s = blip:Clone()
@@ -622,6 +1336,7 @@ local function showDialogue(npcName, text, choicesArray, callback)
 			task.wait(0.02)
 		end
 		
+		isNPCTalking = false
 		for _, ch in ipairs(choicesArray) do
 			local btn = Instance.new("TextButton")
 			btn.Size = UDim2.new(0, 160, 0, 36)
@@ -629,6 +1344,7 @@ local function showDialogue(npcName, text, choicesArray, callback)
 			btn.TextColor3 = Color3.new(1, 1, 1)
 			btn.Font = Enum.Font.LuckiestGuy
 			btn.TextSize = 14
+			btn.ZIndex = 13
 			btn.Text = ch.text
 			local cCorner = Instance.new("UICorner")
 			cCorner.CornerRadius = UDim.new(0, 8)
@@ -637,7 +1353,10 @@ local function showDialogue(npcName, text, choicesArray, callback)
 			
 			btn.Activated:Connect(function()
 				dlgFrame.Visible = false
+	hotbar.Visible = true
+				if currentCutsceneNPC then setNPCFaceState(currentCutsceneNPC, "answer") end
 				if callback then callback(ch.id) end
+				if not dlgFrame.Visible then endCutscene() end
 			end)
 		end
 		
@@ -647,18 +1366,36 @@ local function showDialogue(npcName, text, choicesArray, callback)
 		closeBtn.TextColor3 = Color3.new(1, 1, 1)
 		closeBtn.Font = Enum.Font.LuckiestGuy
 		closeBtn.TextSize = 14
+		closeBtn.ZIndex = 13
 		closeBtn.Text = "Leave"
 		local cCorner = Instance.new("UICorner")
 		cCorner.CornerRadius = UDim.new(0, 8)
 		cCorner.Parent = closeBtn
 		closeBtn.Parent = choicesFrame
-		closeBtn.Activated:Connect(function() dlgFrame.Visible = false end)
+		closeBtn.Activated:Connect(function() endCutscene() end)
 	end)
 end
 
 local function hookNPC(prompt)
 	local npcName = prompt.ObjectText
+	task.spawn(function()
+		local npcModel = prompt.Parent and prompt.Parent.Parent
+		if not npcModel then return end
+		setNPCFaceState(npcModel, "idle")
+		local folder = remotes:WaitForChild("ClassicFaces", 10)
+		local map = NPC_CLASSIC_FACE_MAP[npcModel.Name] or NPC_CLASSIC_FACE_MAP["Pedestrian"]
+		local sv = folder and folder:WaitForChild(map.idle or "Smile", 10)
+		if sv then
+			if currentCutsceneNPC ~= npcModel then setNPCFaceState(npcModel, "idle") end
+			sv.Changed:Connect(function()
+				if currentCutsceneNPC ~= npcModel then setNPCFaceState(npcModel, "idle") end
+			end)
+		end
+	end)
 	prompt.Triggered:Connect(function()
+		local npcModel = prompt.Parent and prompt.Parent.Parent
+		focusCameraOnNPC(npcModel, false)
+		setNPCFaceState(npcModel, "interact")
 		if npcName == "Manager Bob" then
 			showDialogue("Manager Bob", "Welcome to the empty void of Bloxway. We sold the aisles. What do you want?", {
 				{ id = "Pizza Slice", text = "Buy Pizza ($20)" },
@@ -713,6 +1450,7 @@ local function hookNPC(prompt)
 			elseif questActive and not questFound then
 				showDialogue("Thirsty Terry", "Hurry up! The soda is at the school!", {}, nil)
 			elseif questFound then
+				setNPCFaceState(npcModel, "answer")
 				showDialogue("Thirsty Terry", "You found it! Thank you so much! Here's $200!", {}, nil)
 				game:GetService("ReplicatedStorage"):WaitForChild("DiscoveryBayRemotes"):WaitForChild("CompleteQuest"):FireServer("TerrysSoda")
 				questActive = false
@@ -735,12 +1473,32 @@ local function hookNPC(prompt)
 					showDialogue("Sensei", "Never leave the mat mid-fight. And never, EVER, challenge me on a Monday.", {}, nil)
 				end
 			end)
+		elseif npcName == "Ms. Wheeler" then
+			showDialogue("Ms. Wheeler", "Welcome to Room 103, History of Scooters. Hold the red button to study - smart riders are FAST riders.", {
+				{ id = "worth", text = "Is studying worth it?" }
+			}, function(choiceId)
+				if choiceId == "worth" then
+					showDialogue("Ms. Wheeler", "Plus ten speed for fifteen whole minutes. Homework has never paid better.", {}, nil)
+				end
+			end)
 		elseif npcName == "Pedestrian" then
 			showDialogue("Pedestrian", "I am a perfectly normal pedestrian enjoying this fine stud-covered city.", {
 				{ id = "smart", text = "Are you smart?" }
 			}, function(choiceId)
 				if choiceId == "smart" then
+					focusCameraOnNPC(prompt.Parent and prompt.Parent.Parent, true)
 					showDialogue("Pedestrian", "I am very smart, watch this!", {}, nil)
+					task.delay(1.1, function()
+						if npcModel and npcModel.Parent then setNPCFaceState(npcModel, "panic") end
+					end)
+					task.delay(4.2, function()
+						if npcModel and npcModel.Parent then setNPCFaceState(npcModel, "idle") end
+					end)
+					task.delay(2.5, function()
+						if currentCutsceneNPC == (prompt.Parent and prompt.Parent.Parent) then
+							endCutscene()
+						end
+					end)
 					game:GetService("ReplicatedStorage"):WaitForChild("DiscoveryBayRemotes"):WaitForChild("PianoDrop"):FireServer(prompt.Parent.Parent)
 				end
 			end)
@@ -1255,7 +2013,7 @@ end)
 for _, child in ipairs(gui:GetDescendants()) do
 	if child:IsA("TextButton") then
 		child.MouseEnter:Connect(function()
-			pcall(playSound, "rbxassetid://9114222049", 0.25) -- soft hover
+			pcall(playSound, "rbxassetid://12221967", 0.25) -- soft hover
 		end)
 		child.Activated:Connect(function()
 			pcall(playSound, "rbxassetid://9065609404", 1.0) -- crisp click
@@ -1663,7 +2421,23 @@ RunService.Heartbeat:Connect(function()
 end)
 
 -- trick input ------------------------------------------------------------------------------------
+local lastClientTrickTime = 0
 local function requestTrick(name)
+	local now = os.clock()
+	local char = plr.Character
+	local hum = char and char:FindFirstChildOfClass("Humanoid")
+	local hrp = char and char:FindFirstChild("HumanoidRootPart")
+	local isMounted = plr:GetAttribute("Mounted") or (char and char:FindFirstChild("Scooter") ~= nil)
+	if isMounted and hum and hrp and hum.Health > 0 and (now - lastClientTrickTime >= 0.60) then
+		lastClientTrickTime = now
+		if hum.FloorMaterial ~= Enum.Material.Air then
+			local v = hrp.AssemblyLinearVelocity
+			local jumpV = 50
+			if plr:GetAttribute("CarbLoad") then jumpV = 36 end
+			if plr:GetAttribute("BeanPower") then jumpV = 85 end
+			hrp.AssemblyLinearVelocity = Vector3.new(v.X, jumpV, v.Z)
+		end
+	end
 	DoTrick:FireServer(name)
 end
 trickBtn.Activated:Connect(function()
@@ -1891,7 +2665,7 @@ TrickResult.OnClientEvent:Connect(function(trickName, pay)
 		pop.TextColor3 = Color3.fromRGB(120, 200, 255)
 		local lowerMsg = string.lower(trickName)
 		if string.find(lowerMsg, "speed") or string.find(lowerMsg, "rush") or string.find(lowerMsg, "boost") then
-			pcall(playSound, "rbxassetid://9114222049", 0.5) -- speed boost swoosh
+			pcall(playSound, "rbxassetid://9061556942", 0.5) -- speed boost swoosh
 		elseif string.find(lowerMsg, "cash") or string.find(lowerMsg, "purchase") or string.find(lowerMsg, "bought") or string.find(lowerMsg, "spent") or string.find(lowerMsg, "rent") then
 			pcall(playSound, "rbxassetid://9059737151", 0.45) -- shop purchase cash register
 		end
@@ -1907,8 +2681,9 @@ TrickResult.OnClientEvent:Connect(function(trickName, pay)
 	end)
 
 	-- ==========================================
-	-- CLIENT-SIDE TRICK ANIMATION (Physics Authority)
+	-- CLIENT-SIDE TRICK ANIMATION (60fps RenderStepped)
 	-- ==========================================
+	if not (pay and pay > 0) then return end
 	local char = plr.Character
 	if not char then return end
 	local hrp = char:FindFirstChild("HumanoidRootPart")
@@ -1916,8 +2691,12 @@ TrickResult.OnClientEvent:Connect(function(trickName, pay)
 
 	-- Add a cool neon trail to the root part for visual flair!
 	local trail = Instance.new("Trail")
-	trail.Color = ColorSequence.new(Color3.fromRGB(0, 255, 255))
-	trail.Lifetime = 0.4
+	trail.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(0, 255, 255)),
+		ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 80, 220)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 230, 60)),
+	})
+	trail.Lifetime = 0.45
 	trail.Transparency = NumberSequence.new(0, 1)
 	local a0 = Instance.new("Attachment")
 	a0.Position = Vector3.new(0, 2, 0)
@@ -1928,99 +2707,413 @@ TrickResult.OnClientEvent:Connect(function(trickName, pay)
 	trail.Attachment0 = a0
 	trail.Attachment1 = a1
 	trail.Parent = hrp
-	task.delay(0.6, function()
+	task.delay(0.65, function()
 		trail:Destroy()
 		a0:Destroy()
 		a1:Destroy()
 	end)
 
-	-- Perform the flip/spin!
-	if trickName == "Backflip" or trickName == "Frontflip" then
-		local rootPart = char:FindFirstChild("LowerTorso") or char:FindFirstChild("Torso")
-		local rootJoint = rootPart and rootPart:FindFirstChild("Root") or (hrp and hrp:FindFirstChild("RootJoint"))
-		if rootJoint then
-			task.spawn(function()
-				local steps = 18
-				local origC0 = rootJoint.C0
-				local sign = trickName == "Backflip" and 1 or -1
-				for i = 1, steps do
-					local ang = (i / steps) * math.pi * 2 * sign
-					rootJoint.C0 = origC0 * CFrame.Angles(ang, 0, 0)
-					task.wait(0.025)
-				end
-				rootJoint.C0 = origC0
-			end)
-		end
-	elseif trickName == "360 Spin" then
-		task.spawn(function()
-			local dirSign = (math.random() > 0.5 and 1 or -1)
-			local steps = 14
-			for i = 1, steps do
-				hrp.CFrame = hrp.CFrame * CFrame.Angles(0, math.rad((360 * dirSign) / steps), 0)
-				task.wait(0.025)
-			end
-		end)
-	elseif trickName == "Tailwhip" or trickName == "Kickflip" then
-		local scooterDeck = scooter and scooter:FindFirstChild("Deck")
-		local deckMount = scooterDeck and scooterDeck:FindFirstChild("DeckMount")
-		if deckMount then
-			task.spawn(function()
-				local steps = 16
-				local isKick = (trickName == "Kickflip")
-				local axis = isKick and "z" or "y"
-				local origC0 = deckMount.C0
-				-- Same pivot offset used by the server
-				local dy = -3.0
-				local pivot = axis == "y" and CFrame.new(0, dy, -2.2) or CFrame.new(0, dy, 0.2)
-				
-				for i = 1, steps do
-					-- Spin the deck
-					local a = (i / steps) * math.pi * 2
-					local rot = axis == "y" and CFrame.Angles(0, a, 0) or CFrame.Angles(0, 0, a)
-					deckMount.C0 = origC0 * pivot * rot * pivot:Inverse()
-					
-					-- Spin the entire body 360 degrees as well! (360 Tailwhip / 360 Kickflip)
-					local bodyRot = (axis == "y") and CFrame.Angles(0, math.rad(360 / steps), 0) or CFrame.Angles(0, 0, math.rad(360 / steps))
-					hrp.CFrame = hrp.CFrame * bodyRot
-					
-					task.wait(isKick and 0.03 or 0.028)
-				end
-				deckMount.C0 = origC0
-			end)
-		end
-	elseif trickName == "No-Hander" then
-		task.spawn(function()
-			-- R15 arms
-			local rs = char:FindFirstChild("RightUpperArm")
-			local ls = char:FindFirstChild("LeftUpperArm")
-			local rMotor = rs and rs:FindFirstChild("RightShoulder")
-			local lMotor = ls and ls:FindFirstChild("LeftShoulder")
-			
-			if rMotor and lMotor then
-				local origR = rMotor.C0
-				local origL = lMotor.C0
-				-- Fling arms straight back and slightly out (math.rad(-130) pitch)
-				local poseR = origR * CFrame.Angles(math.rad(-130), 0, math.rad(20))
-				local poseL = origL * CFrame.Angles(math.rad(-130), 0, math.rad(-20))
-				
-				local steps = 8
-				for i = 1, steps do
-					rMotor.C0 = origR:Lerp(poseR, i/steps)
-					lMotor.C0 = origL:Lerp(poseL, i/steps)
-					task.wait(0.03)
-				end
-				task.wait(0.15) -- hold the pose mid-air
-				for i = 1, steps do
-					rMotor.C0 = poseR:Lerp(origR, i/steps)
-					lMotor.C0 = poseL:Lerp(origL, i/steps)
-					task.wait(0.03)
-				end
-				rMotor.C0 = origR
-				lMotor.C0 = origL
-			end
-		end)
+	if _G.StartScooterTrickAnim then
+		_G.StartScooterTrickAnim(char, trickName)
 	end
 end)
+
+-- 60fps Scooter Trick & Riding Movement Animator -------------------------------------------------
+do
+	local activeTrick = nil
+	local smoothSteer = 0
+	local smoothSpeed = 0
+	local smoothCrouch = 0
+	local wasMounted = false
+	local wasAirborne = false
+	local cachedBase = setmetatable({}, { __mode = "k" })
+
+	local function getBaseC0(motor)
+		if not motor then return nil end
+		local attr = motor:GetAttribute("RideBaseC0")
+		if attr then
+			cachedBase[motor] = attr
+			return attr
+		end
+		if not cachedBase[motor] then
+			cachedBase[motor] = motor.C0
+		end
+		return cachedBase[motor]
+	end
+
+	local function restoreWalkC0(char)
+		if not char then return end
+		for _, d in ipairs(char:GetDescendants()) do
+			if d:IsA("Motor6D") or d.Name == "LeftArmGrip" or d.Name == "RightArmGrip" then
+				local walkC0 = d:GetAttribute("WalkOrigC0") or cachedBase[d]
+				if walkC0 then
+					d.C0 = walkC0
+				end
+			end
+		end
+	end
+
+	local function getJoints(char)
+		local hrp = char:FindFirstChild("HumanoidRootPart")
+		local hum = char:FindFirstChildOfClass("Humanoid")
+		local scooter = char:FindFirstChild("Scooter")
+		local deckRoot = scooter and scooter:FindFirstChild("DeckRoot")
+		local barRoot = scooter and scooter:FindFirstChild("BarRoot")
+		local deckMount = deckRoot and deckRoot:FindFirstChild("DeckMount")
+		local barMount = barRoot and barRoot:FindFirstChild("BarMount")
+
+		local lowerTorso = char:FindFirstChild("LowerTorso")
+		local upperTorso = char:FindFirstChild("UpperTorso")
+		local torso = char:FindFirstChild("Torso")
+		local head = char:FindFirstChild("Head")
+
+		local root = (lowerTorso and lowerTorso:FindFirstChild("Root")) or (hrp and hrp:FindFirstChild("RootJoint"))
+		local waist = upperTorso and upperTorso:FindFirstChild("Waist")
+		local neck = (head and head:FindFirstChild("Neck")) or (torso and torso:FindFirstChild("Neck"))
+
+		local lUpperArm = char:FindFirstChild("LeftUpperArm")
+		local rUpperArm = char:FindFirstChild("RightUpperArm")
+		local lLowerArm = char:FindFirstChild("LeftLowerArm")
+		local rLowerArm = char:FindFirstChild("RightLowerArm")
+		local lShoulder = (lUpperArm and lUpperArm:FindFirstChild("LeftShoulder")) or (torso and torso:FindFirstChild("LeftArmGrip"))
+		local rShoulder = (rUpperArm and rUpperArm:FindFirstChild("RightShoulder")) or (torso and torso:FindFirstChild("RightArmGrip"))
+		local lElbow = lLowerArm and lLowerArm:FindFirstChild("LeftElbow")
+		local rElbow = rLowerArm and rLowerArm:FindFirstChild("RightElbow")
+
+		local lUpperLeg = char:FindFirstChild("LeftUpperLeg")
+		local rUpperLeg = char:FindFirstChild("RightUpperLeg")
+		local lLowerLeg = char:FindFirstChild("LeftLowerLeg")
+		local rLowerLeg = char:FindFirstChild("RightLowerLeg")
+		local lHip = (lUpperLeg and lUpperLeg:FindFirstChild("LeftHip")) or (torso and torso:FindFirstChild("Left Hip"))
+		local rHip = (rUpperLeg and rUpperLeg:FindFirstChild("RightHip")) or (torso and torso:FindFirstChild("Right Hip"))
+		local lKnee = lLowerLeg and lLowerLeg:FindFirstChild("LeftKnee")
+		local rKnee = rLowerLeg and rLowerLeg:FindFirstChild("RightKnee")
+
+		return {
+			hrp = hrp,
+			hum = hum,
+			scooter = scooter,
+			deckMount = deckMount,
+			barMount = barMount,
+			deckY = (scooter and scooter:GetAttribute("DeckY")) or -3.0,
+			root = root,
+			isR6Root = (lowerTorso == nil),
+			waist = waist,
+			neck = neck,
+			lShoulder = lShoulder,
+			rShoulder = rShoulder,
+			lElbow = lElbow,
+			rElbow = rElbow,
+			lHip = lHip,
+			rHip = rHip,
+			isR6Hip = (lUpperLeg == nil),
+			lKnee = lKnee,
+			rKnee = rKnee,
+		}
+	end
+
+	local function setIKEnabled(hum, enabled)
+		if not hum then return end
+		for _, name in ipairs({ "LeftHandGrip", "RightHandGrip" }) do
+			local ik = hum:FindFirstChild(name)
+			if ik and ik:IsA("IKControl") then
+				ik.Enabled = enabled
+			end
+		end
+	end
+
+	local function resetAllToBase(j)
+		for _, k in ipairs({
+			"deckMount", "barMount", "root", "waist", "neck",
+			"lShoulder", "rShoulder", "lElbow", "rElbow",
+			"lHip", "rHip", "lKnee", "rKnee",
+		}) do
+			local m = j[k]
+			if m and m.Parent then
+				local base = getBaseC0(m)
+				if base then m.C0 = base end
+			end
+		end
+		setIKEnabled(j.hum, true)
+	end
+
+	_G.StartScooterTrickAnim = function(char, trickName)
+		local dur = 0.56
+		if trickName == "Backflip" or trickName == "Frontflip" then
+			dur = 0.60
+		end
+		activeTrick = {
+			char = char,
+			name = trickName,
+			t0 = os.clock(),
+			dur = dur,
+			spinDir = (math.random() > 0.5) and 1 or -1,
+		}
+	end
+
+	RunService.RenderStepped:Connect(function(dt)
+		local char = plr.Character
+		if not char then return end
+		local isMounted = plr:GetAttribute("Mounted") and (char:FindFirstChild("Scooter") ~= nil)
+		if not isMounted then
+			if activeTrick then
+				local j = getJoints(char)
+				resetAllToBase(j)
+				activeTrick = nil
+			end
+			if wasMounted then
+				wasMounted = false
+				restoreWalkC0(char)
+			end
+			return
+		end
+		wasMounted = true
+
+		local j = getJoints(char)
+		if not j.hrp or not j.hum then return end
+
+		if activeTrick and activeTrick.char == char then
+			local elapsed = os.clock() - activeTrick.t0
+			local p = math.clamp(elapsed / activeTrick.dur, 0, 1)
+			local wave = math.sin(p * math.pi)
+			local ang = p * math.pi * 2
+			local name = activeTrick.name
+
+			-- Only release hand IK during No-Hander and Kickflip; for Tailwhip, 360 Spin, Backflip,
+			-- and Frontflip, keep hands holding the handlebars as the scooter flips/spins with you!
+			local releaseHands = (name == "No-Hander" or name == "Kickflip")
+			setIKEnabled(j.hum, not releaseHands)
+
+			-- Clear default R15/R6 Animate Transform on legs/torso (and arms only when IK is released)
+			local clearKeys = releaseHands and {
+				"root", "waist", "neck", "lShoulder", "rShoulder",
+				"lElbow", "rElbow", "lHip", "rHip", "lKnee", "rKnee",
+			} or {
+				"root", "waist", "neck", "lHip", "rHip", "lKnee", "rKnee",
+			}
+			for _, k in ipairs(clearKeys) do
+				local m = j[k]
+				if m and m:IsA("Motor6D") then
+					m.Transform = CFrame.new()
+				end
+			end
+
+			if name == "Tailwhip" then
+				local pivot = CFrame.new(0, j.deckY, -2.2)
+				local deckRot = CFrame.Angles(0, ang, 0)
+				if j.deckMount then
+					j.deckMount.C0 = getBaseC0(j.deckMount) * pivot * deckRot * pivot:Inverse()
+				end
+				if j.barMount then
+					j.barMount.C0 = getBaseC0(j.barMount) * CFrame.Angles(math.rad(-10 * wave), math.rad(22 * math.sin(ang)), math.rad(12 * math.sin(ang)))
+				end
+				if j.root then
+					j.root.C0 = getBaseC0(j.root) * CFrame.new(0, 0.85 * wave, 0) * CFrame.Angles(math.rad(-10 * wave), 0, 0)
+				end
+				if j.waist then
+					j.waist.C0 = getBaseC0(j.waist) * CFrame.Angles(math.rad(-20 * wave), 0, 0)
+				end
+				if j.lHip and not j.isR6Hip then
+					j.lHip.C0 = getBaseC0(j.lHip) * CFrame.Angles(math.rad(65 * wave), 0, math.rad(10 * wave))
+				end
+				if j.rHip and not j.isR6Hip then
+					j.rHip.C0 = getBaseC0(j.rHip) * CFrame.Angles(math.rad(65 * wave), 0, math.rad(-10 * wave))
+				end
+				if j.lKnee then j.lKnee.C0 = getBaseC0(j.lKnee) * CFrame.Angles(math.rad(-65 * wave), 0, 0) end
+				if j.rKnee then j.rKnee.C0 = getBaseC0(j.rKnee) * CFrame.Angles(math.rad(-65 * wave), 0, 0) end
+
+			elseif name == "Kickflip" then
+				local pivot = CFrame.new(0, j.deckY + 1.1, -0.4)
+				local rollRot = CFrame.Angles(0, 0, ang)
+				if j.deckMount then
+					j.deckMount.C0 = getBaseC0(j.deckMount) * pivot * rollRot * pivot:Inverse()
+				end
+				if j.barMount then
+					j.barMount.C0 = getBaseC0(j.barMount) * pivot * rollRot * pivot:Inverse()
+				end
+				if j.root then
+					j.root.C0 = getBaseC0(j.root) * CFrame.new(0, 0.95 * wave, 0) * CFrame.Angles(math.rad(10 * wave), 0, math.rad(16 * wave))
+				end
+				if j.waist then
+					j.waist.C0 = getBaseC0(j.waist) * CFrame.Angles(0, 0, math.rad(-20 * wave))
+				end
+				if j.lHip and not j.isR6Hip then
+					j.lHip.C0 = getBaseC0(j.lHip) * CFrame.Angles(math.rad(58 * wave), 0, math.rad(25 * wave))
+				end
+				if j.rHip and not j.isR6Hip then
+					j.rHip.C0 = getBaseC0(j.rHip) * CFrame.Angles(math.rad(-35 * wave), math.rad(-15 * wave), math.rad(-68 * wave))
+				end
+				if j.lKnee then j.lKnee.C0 = getBaseC0(j.lKnee) * CFrame.Angles(math.rad(-55 * wave), 0, 0) end
+				if j.rKnee then j.rKnee.C0 = getBaseC0(j.rKnee) * CFrame.Angles(math.rad(-20 * wave), 0, 0) end
+				if j.lShoulder then
+					j.lShoulder.C0 = getBaseC0(j.lShoulder) * CFrame.Angles(math.rad(55 * wave), 0, math.rad(-42 * wave))
+				end
+				if j.rShoulder then
+					j.rShoulder.C0 = getBaseC0(j.rShoulder) * CFrame.Angles(math.rad(55 * wave), 0, math.rad(42 * wave))
+				end
+
+			elseif name == "360 Spin" then
+				local dir = activeTrick.spinDir
+				local spinCF = CFrame.new(0, 0.75 * wave, 0) * CFrame.Angles(0, ang * dir, math.rad(14 * wave * dir))
+				if j.root then
+					j.root.C0 = getBaseC0(j.root) * spinCF
+				end
+				if j.deckMount then
+					j.deckMount.C0 = getBaseC0(j.deckMount) * spinCF
+				end
+				if j.barMount then
+					j.barMount.C0 = getBaseC0(j.barMount) * spinCF * CFrame.Angles(0, math.rad(45 * wave * dir), 0)
+				end
+				if j.waist then
+					j.waist.C0 = getBaseC0(j.waist) * CFrame.Angles(math.rad(-14 * wave), math.rad(25 * wave * dir), 0)
+				end
+				if j.neck then
+					j.neck.C0 = getBaseC0(j.neck) * CFrame.Angles(0, math.rad(30 * wave * dir), 0)
+				end
+				if j.lHip and not j.isR6Hip then j.lHip.C0 = getBaseC0(j.lHip) * CFrame.Angles(math.rad(48 * wave), 0, 0) end
+				if j.rHip and not j.isR6Hip then j.rHip.C0 = getBaseC0(j.rHip) * CFrame.Angles(math.rad(48 * wave), 0, 0) end
+				if j.lKnee then j.lKnee.C0 = getBaseC0(j.lKnee) * CFrame.Angles(math.rad(-52 * wave), 0, 0) end
+				if j.rKnee then j.rKnee.C0 = getBaseC0(j.rKnee) * CFrame.Angles(math.rad(-52 * wave), 0, 0) end
+
+			elseif name == "Backflip" or name == "Frontflip" then
+				local sign = (name == "Backflip") and 1 or -1
+				local flipCF = CFrame.new(0, 1.3 * wave, 0) * CFrame.Angles(ang * sign, 0, 0)
+				if j.root then
+					j.root.C0 = getBaseC0(j.root) * flipCF
+				end
+				if j.deckMount then
+					j.deckMount.C0 = getBaseC0(j.deckMount) * flipCF
+				end
+				if j.barMount then
+					j.barMount.C0 = getBaseC0(j.barMount) * flipCF
+				end
+				if j.waist then
+					j.waist.C0 = getBaseC0(j.waist) * CFrame.Angles(math.rad(26 * wave * sign), 0, 0)
+				end
+				if j.neck then
+					j.neck.C0 = getBaseC0(j.neck) * CFrame.Angles(math.rad(30 * wave * sign), 0, 0)
+				end
+				if j.lHip and not j.isR6Hip then j.lHip.C0 = getBaseC0(j.lHip) * CFrame.Angles(math.rad(62 * wave), 0, 0) end
+				if j.rHip and not j.isR6Hip then j.rHip.C0 = getBaseC0(j.rHip) * CFrame.Angles(math.rad(62 * wave), 0, 0) end
+				if j.lKnee then j.lKnee.C0 = getBaseC0(j.lKnee) * CFrame.Angles(math.rad(-72 * wave), 0, 0) end
+				if j.rKnee then j.rKnee.C0 = getBaseC0(j.rKnee) * CFrame.Angles(math.rad(-72 * wave), 0, 0) end
+
+			elseif name == "No-Hander" then
+				local scooterTilt = CFrame.new(0, 0.5 * wave, 0) * CFrame.Angles(math.rad(22 * wave), 0, 0)
+				if j.deckMount then j.deckMount.C0 = getBaseC0(j.deckMount) * scooterTilt end
+				if j.barMount then j.barMount.C0 = getBaseC0(j.barMount) * scooterTilt end
+				if j.root then
+					j.root.C0 = getBaseC0(j.root) * CFrame.new(0, 0.65 * wave, 0) * CFrame.Angles(math.rad(14 * wave), 0, 0)
+				end
+				if j.waist then
+					j.waist.C0 = getBaseC0(j.waist) * CFrame.Angles(math.rad(28 * wave), 0, 0)
+				end
+				if j.neck then
+					j.neck.C0 = getBaseC0(j.neck) * CFrame.Angles(math.rad(18 * wave), 0, 0)
+				end
+				if j.lShoulder then
+					j.lShoulder.C0 = getBaseC0(j.lShoulder) * CFrame.Angles(math.rad(120 * wave), 0, math.rad(-62 * wave))
+				end
+				if j.rShoulder then
+					j.rShoulder.C0 = getBaseC0(j.rShoulder) * CFrame.Angles(math.rad(120 * wave), 0, math.rad(62 * wave))
+				end
+				if j.lElbow then j.lElbow.C0 = getBaseC0(j.lElbow) * CFrame.Angles(math.rad(24 * wave), 0, 0) end
+				if j.rElbow then j.rElbow.C0 = getBaseC0(j.rElbow) * CFrame.Angles(math.rad(24 * wave), 0, 0) end
+				if j.lHip and not j.isR6Hip then j.lHip.C0 = getBaseC0(j.lHip) * CFrame.Angles(math.rad(24 * wave), 0, math.rad(-10 * wave)) end
+				if j.rHip and not j.isR6Hip then j.rHip.C0 = getBaseC0(j.rHip) * CFrame.Angles(math.rad(24 * wave), 0, math.rad(10 * wave)) end
+			end
+
+			if p >= 1 then
+				resetAllToBase(j)
+				smoothCrouch = 0.7
+				activeTrick = nil
+			end
+		else
+			-- Keep hand IK grips locked onto the handlebars at all times while riding!
+			-- NEVER zero Transform on lShoulder/rShoulder/lElbow/rElbow here because IKControl writes its solution to Transform!
+			setIKEnabled(j.hum, true)
+			for _, k in ipairs({ "root", "waist", "neck", "lHip", "rHip", "lKnee", "rKnee" }) do
+				local m = j[k]
+				if m and m:IsA("Motor6D") then
+					m.Transform = CFrame.new()
+				end
+			end
+			-- Ensure shoulder/elbow C0 stays at base so IKControl solves cleanly to the handlebars
+			for _, k in ipairs({ "lShoulder", "rShoulder", "lElbow", "rElbow" }) do
+				local m = j[k]
+				if m and m.Parent then
+					local base = getBaseC0(m)
+					if base then m.C0 = base end
+				end
+			end
+
+			local vel = j.hrp.AssemblyLinearVelocity
+			local flatSpeed = Vector3.new(vel.X, 0, vel.Z).Magnitude
+			local angVelY = j.hrp.AssemblyAngularVelocity.Y
+			local inAir = (j.hum.FloorMaterial == Enum.Material.Air)
+			if wasAirborne and not inAir then
+				smoothCrouch = math.max(smoothCrouch, 0.65)
+			end
+			wasAirborne = inAir
+
+			local targetSteer = math.clamp(angVelY * 0.18, -1, 1) * math.clamp(flatSpeed / 16, 0, 1)
+			local targetSpeedFactor = math.clamp(flatSpeed / 34, 0, 1)
+			local targetCrouch = inAir and 0.35 or 0
+			smoothSteer = smoothSteer + (targetSteer - smoothSteer) * math.min(1, dt * 10)
+			smoothSpeed = smoothSpeed + (targetSpeedFactor - smoothSpeed) * math.min(1, dt * 8)
+			smoothCrouch = smoothCrouch + (targetCrouch - smoothCrouch) * math.min(1, dt * 7)
+
+			local tNow = os.clock()
+			local leanRoll = math.rad(14 * smoothSteer)
+			local barYaw = math.rad(20 * smoothSteer)
+			local bob = math.sin(tNow * 11) * 0.04 * smoothSpeed
+			-- Both rider and scooter lean together so feet NEVER sink through the deck
+			local leanCF = CFrame.new(0, bob, 0) * CFrame.Angles(0, 0, leanRoll)
+
+			local pushCycle = (tNow * 1.8) % 1
+			local pushWave = (not inAir and smoothSpeed > 0.12 and pushCycle < 0.42)
+				and math.sin((pushCycle / 0.42) * math.pi) * smoothSpeed or 0
+
+			if j.root then
+				j.root.C0 = getBaseC0(j.root) * leanCF
+			end
+			if j.deckMount then
+				j.deckMount.C0 = getBaseC0(j.deckMount) * leanCF
+			end
+			if j.barMount then
+				j.barMount.C0 = getBaseC0(j.barMount) * leanCF * CFrame.Angles(0, barYaw, 0)
+			end
+			if j.waist then
+				local waistPitch = math.rad(-8 * smoothSpeed - 12 * smoothCrouch - 5 * pushWave)
+				j.waist.C0 = getBaseC0(j.waist) * CFrame.Angles(waistPitch, math.rad(10 * smoothSteer), 0)
+			end
+			if j.neck then
+				local neckPitch = math.rad(8 * smoothSpeed + 10 * smoothCrouch)
+				j.neck.C0 = getBaseC0(j.neck) * CFrame.Angles(neckPitch, math.rad(14 * smoothSteer), 0)
+			end
+			if j.lHip then
+				if not j.isR6Hip then
+					j.lHip.C0 = getBaseC0(j.lHip) * CFrame.Angles(math.rad(16 * smoothCrouch), 0, 0)
+				else
+					j.lHip.C0 = getBaseC0(j.lHip) * CFrame.Angles(0, 0, math.rad(16 * smoothCrouch))
+				end
+			end
+			if j.rHip then
+				if not j.isR6Hip then
+					j.rHip.C0 = getBaseC0(j.rHip) * CFrame.Angles(math.rad(16 * smoothCrouch - 28 * pushWave), 0, math.rad(-8 * pushWave))
+				else
+					j.rHip.C0 = getBaseC0(j.rHip) * CFrame.Angles(0, 0, math.rad(-16 * smoothCrouch + 24 * pushWave))
+				end
+			end
+			if j.lKnee then
+				j.lKnee.C0 = getBaseC0(j.lKnee) * CFrame.Angles(math.rad(-18 * smoothCrouch), 0, 0)
+			end
+			if j.rKnee then
+				j.rKnee.C0 = getBaseC0(j.rKnee) * CFrame.Angles(math.rad(-18 * smoothCrouch - 22 * pushWave), 0, 0)
+			end
+		end
+	end)
+end
 
 -- FISHING minigame: FISH ON! stop the swinging marker inside the green zone ----------------------
 local fishFrame = nil
@@ -2209,6 +3302,7 @@ deathColorCorrection.Parent = game:GetService("Lighting")
 local isDead = false
 
 local function onDied()
+	if true then return end -- superseded by playGTAWasted()
 	if isDead then return end
 	isDead = true
 	
@@ -2245,6 +3339,8 @@ local function onDied()
 end
 
 local function onSpawn(char)
+	if deathGui and deathGui.Parent then deathGui:Destroy() end
+	if true then return end
 	isDead = false
 	-- Reset effects smoothly
 	TweenService:Create(deathText, TweenInfo.new(0.5), {TextTransparency = 1, TextStrokeTransparency = 1}):Play()

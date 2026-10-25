@@ -1,4 +1,4 @@
--- DISCOVERY BAY, CALIFORNIA — OSM-accurate procedural Roblox build (v85)
+-- DISCOVERY BAY, CALIFORNIA — OSM-accurate procedural Roblox build (v102)
 --==============================================================================================
 -- Builds the real Discovery Bay from OpenStreetMap geometry (© OpenStreetMap contributors):
 --   * real terrain raster: every lagoon/bay polygon, Old River, golf fairways/greens/
@@ -445,10 +445,25 @@ local function buildNPC(parent, npcName, cf, design, promptText, choices)
 	mesh.Parent = head
 	
 	local face = Instance.new("Decal")
-	face.Name = "face"
-	face.Texture = design.face or "rbxasset://textures/face.png"
+	face.Name = "ClassicFace"
+	face.Texture = (design.face == "rbxassetid://7074749") and design.face or "rbxasset://textures/face.png"
 	face.Face = Enum.NormalId.Front
 	face.Parent = head
+	if design.face and design.face ~= "rbxasset://textures/face.png" and design.face ~= "rbxassetid://7074749" then
+		task.spawn(function()
+			pcall(function()
+				local id = tonumber(string.match(design.face, "%d+"))
+				if id then
+					local m = game:GetService("InsertService"):LoadAsset(id)
+					local d = m:FindFirstChildOfClass("Decal") or m:FindFirstChildWhichIsA("Decal", true)
+					if d and d.Texture ~= "" then
+						face.Texture = d.Texture
+					end
+					m:Destroy()
+				end
+			end)
+		end)
+	end
 	
 	local hum = Instance.new("Humanoid")
 	hum.DisplayName = npcName
@@ -1381,7 +1396,7 @@ local function clearOfCars(x, z, bw, bd, yawDeg)
 	for _, c in ipairs({ { 0, 0 }, { hw, hd }, { hw, -hd }, { -hw, hd }, { -hw, -hd },
 		{ hw, 0 }, { -hw, 0 }, { 0, hd }, { 0, -hd } }) do
 		-- Increased radius from 14 to 22 to prevent cars phasing through shop awnings/edges
-		if nearCarPath(x + sx2 * c[1] + fx * c[2], z + sz2 * c[1] + fz * c[2], 22) then
+		if nearCarPath(x + sx2 * c[1] + fx * c[2], z + sz2 * c[1] + fz * c[2], 34) then
 			return false
 		end
 	end

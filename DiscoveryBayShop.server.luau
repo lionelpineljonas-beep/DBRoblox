@@ -112,7 +112,7 @@ end)
 local START_CASH = 100
 local WALK_SPEED = 16
 local SCOOTER_SPEED = 30
-local VERSION = "v85"
+local VERSION = "v102"
 
 -- ==============================================================================================
 -- LIGHTING & DAY/NIGHT CYCLE
@@ -157,7 +157,7 @@ task.spawn(function()
 	end
 end)
 
-local TRICK_COOLDOWN = 1.2
+local TRICK_COOLDOWN = 0.65
 local TRAFFIC_CARS = 130
 local CAR_SPEED = 38
 local FLING_RADIUS = 9
@@ -196,6 +196,56 @@ local FishReel = remote("FishReel") -- client -> server: minigame result (true =
 local CompleteQuest = remote("CompleteQuest")
 local PianoDrop = remote("PianoDrop")
 local DoRebirth = remote("DoRebirth")
+local CarFling = remote("CarFling")
+
+-- Resolve real Classic Roblox Face textures from Catalog IDs via InsertService
+local CLASSIC_FACE_CATALOG = {
+	Smile           = 144075659,
+	Chill           = 7074764,
+	CheckIt         = 7074786,
+	SillyFun        = 7699174,
+	Winky           = 7074864,
+	GoodIntentioned = 7317793,
+	MrChuckles      = 10907541,
+	Slickfang       = 7317765,
+	Disbelief       = 20337343,
+	ItsGoTime       = 7506141,
+	HappyWink       = 236399287,
+	SureImCool      = 10907549,
+	JoyousSurprise  = 28999228,
+	Grr             = 19398554,
+	Stare           = 8560971,
+	Roar            = 406001167,
+	Puck            = 20298988,
+	Sniffles        = 14516578,
+	Vampire         = 7074836,
+	Skeptic         = 31117192,
+}
+local classicFacesFolder = remotes:FindFirstChild("ClassicFaces")
+if not classicFacesFolder then
+	classicFacesFolder = Instance.new("Folder")
+	classicFacesFolder.Name = "ClassicFaces"
+	classicFacesFolder.Parent = remotes
+end
+for faceKey, catId in pairs(CLASSIC_FACE_CATALOG) do
+	local sv = classicFacesFolder:FindFirstChild(faceKey)
+	if not sv then
+		sv = Instance.new("StringValue")
+		sv.Name = faceKey
+		sv.Value = (faceKey == "Chill") and "rbxassetid://7074749" or "rbxasset://textures/face.png"
+		sv.Parent = classicFacesFolder
+	end
+	task.spawn(function()
+		pcall(function()
+			local m = game:GetService("InsertService"):LoadAsset(catId)
+			local d = m:FindFirstChildOfClass("Decal") or m:FindFirstChildWhichIsA("Decal", true)
+			if d and d.Texture and d.Texture ~= "" then
+				sv.Value = d.Texture
+			end
+			m:Destroy()
+		end)
+	end)
+end
 
 -- Cash leaderboard ------------------------------------------------------------------------------
 local function getCash(plr)
@@ -310,6 +360,11 @@ local function r15Pose(rest, a, yawD, rollD)
 end
 
 local function poseStance(char, rig)
+	for _, d in ipairs(char:GetDescendants()) do
+		if (d:IsA("Motor6D") or d.Name == "LeftArmGrip" or d.Name == "RightArmGrip") and not d:GetAttribute("WalkOrigC0") then
+			d:SetAttribute("WalkOrigC0", d.C0)
+		end
+	end
 	local upperTorso = char:FindFirstChild("UpperTorso")
 	local waist = upperTorso and upperTorso:FindFirstChild("Waist")
 	if waist and waist:IsA("JointInstance") then
@@ -369,6 +424,12 @@ local function poseStance(char, rig)
 			table.insert(rig.shoulders, { motor = shoulder, rest = shoulder.C0, pose = r15Pose })
 		end
 	end
+	-- Stamp RideBaseC0 on all character joints so client & server trick animators always know the exact resting pose
+	for _, d in ipairs(char:GetDescendants()) do
+		if d:IsA("Motor6D") or d.Name == "LeftArmGrip" or d.Name == "RightArmGrip" then
+			d:SetAttribute("RideBaseC0", d.C0)
+		end
+	end
 end
 
 -- parked scooters: dismounting leaves the scooter standing in the world where you
@@ -423,19 +484,18 @@ function mountScooterBody(plr, char)
 	end
 	if char.Parent == nil or humanoid.Health <= 0 then return end
 
-	local floorDist
+	local anatDist = (humanoid.RigType == Enum.HumanoidRigType.R15)
+		and math.max(humanoid.HipHeight + hrp.Size.Y / 2, 3.0)
+		or 3.0
+	local floorDist = anatDist
 	local params = RaycastParams.new()
 	params.FilterType = Enum.RaycastFilterType.Exclude
 	params.FilterDescendantsInstances = { char }
 	local hit = workspace:Raycast(hrp.Position, Vector3.new(0, -30, 0), params)
 	if hit then
-		floorDist = hrp.Position.Y - hit.Position.Y
-	elseif humanoid.RigType == Enum.HumanoidRigType.R15 then
-		floorDist = humanoid.HipHeight + hrp.Size.Y / 2
-	else
-		floorDist = 3.0
+		floorDist = math.max(hrp.Position.Y - hit.Position.Y, anatDist)
 	end
-	floorDist = math.clamp(floorDist, 1.5, 8)
+	floorDist = math.clamp(floorDist, 2.8, 8)
 
 	local deckY = -floorDist - 0.125 -- deck top right under the feet
 	local wheelY = -floorDist - 0.05 -- wheels reach the ground after the hip raise
@@ -492,10 +552,27 @@ function mountScooterBody(plr, char)
 	local rearWheel = sPart("RearWheel", Vector3.new(0.4, 1.1, 1.1), CFrame.new(0, wheelY, 2.4), Color3.fromRGB(25, 25, 25),
 		Enum.PartType.Cylinder, deckRoot)
 	local colH = 3.8
+	local barRoot = Instance.new("Part")
+	barRoot.Name = "BarRoot"
+	barRoot.Size = Vector3.new(0.4, 0.4, 0.4)
+	barRoot.Transparency = 1
+	barRoot.CanCollide = false
+	barRoot.Massless = true
+	barRoot.CFrame = hrp.CFrame
+	barRoot.Parent = m
+	local barMount = Instance.new("Motor6D")
+	barMount.Name = "BarMount"
+	barMount.Part0 = hrp
+	barMount.Part1 = barRoot
+	barMount.Parent = barRoot
+	deckMount:SetAttribute("RideBaseC0", deckMount.C0)
+	barMount:SetAttribute("RideBaseC0", barMount.C0)
+	m:SetAttribute("DeckY", deckY)
+
 	sPart("Column", Vector3.new(0.25, colH, 0.25), CFrame.new(0, deckY + colH / 2, -2.2) * CFrame.Angles(math.rad(8), 0, 0),
-		Color3.fromRGB(200, 200, 205))
+		Color3.fromRGB(200, 200, 205), nil, barRoot)
 	local handlebar = sPart("Handlebar", Vector3.new(2.3, 0.22, 0.22), CFrame.new(0, deckY + colH - 0.1, -1.95),
-		Color3.fromRGB(40, 40, 45))
+		Color3.fromRGB(40, 40, 45), nil, barRoot)
 
 	-- Add beautiful speed trail to the rear wheel
 	local attachment0 = Instance.new("Attachment")
@@ -550,7 +627,7 @@ function mountScooterBody(plr, char)
 
 	m.Parent = char
 
-	local rig = { char = char, deckMount = deckMount, deckBase = deckMount.C0, deckY = deckY, iks = {} }
+	local rig = { char = char, deckMount = deckMount, deckBase = deckMount.C0, barMount = barMount, barBase = barMount.C0, deckY = deckY, iks = {} }
 
 	-- stand ON the deck: raise the hips by the deck stack height. The character's TRUE
 	-- resting hip height is remembered as an attribute on the character itself, so
@@ -601,7 +678,8 @@ function mountScooterBody(plr, char)
 					ik.EndEffector = hand
 					ik.ChainRoot = upper
 					ik.Target = (side == "Left") and gripL or gripR
-					ik.SmoothTime = 0.06
+					ik.Weight = 1
+					ik.SmoothTime = 0.02
 					ik.Parent = humanoid
 					table.insert(rig.iks, ik)
 				end
@@ -633,11 +711,9 @@ function mountScooterBody(plr, char)
 		warn("[DiscoveryBayShop] hand grips skipped: " .. tostring(gripErr))
 	end
 
-	if humanoid.RigType == Enum.HumanoidRigType.R15 then
-		local okStance, stanceErr = pcall(poseStance, char, rig)
-		if not okStance then
-			warn("[DiscoveryBayShop] stance pose skipped: " .. tostring(stanceErr))
-		end
+	local okStance, stanceErr = pcall(poseStance, char, rig)
+	if not okStance then
+		warn("[DiscoveryBayShop] stance pose skipped: " .. tostring(stanceErr))
 	end
 end
 
@@ -858,13 +934,19 @@ PianoDrop.OnServerEvent:Connect(function(plr, npc)
 			piano.Parent = workspace
 			
 			local sound = Instance.new("Sound")
-			sound.SoundId = "rbxassetid://7578813052"
+			sound.SoundId = "rbxassetid://9117314405"
+			local crashSound = Instance.new("Sound")
+			crashSound.SoundId = "rbxasset://sounds/impact_explosion_03.mp3"
+			crashSound.PlaybackSpeed = 1.15
+			crashSound.Volume = 1.8
+			crashSound.Parent = piano
 			sound.Volume = 2
 			sound.Parent = piano
 			
 			task.wait(0.95) -- wait for impact
 			
 			sound:Play()
+			crashSound:Play()
 			
 			if npc and npc.Parent then
 				-- Smash!
@@ -922,7 +1004,7 @@ PianoDrop.OnServerEvent:Connect(function(plr, npc)
 								
 								-- Soft pop/absorb sound so 10 of them don't deafen the player
 								local sfx = Instance.new("Sound")
-								sfx.SoundId = "rbxassetid://68950866" -- UI click / pop sound
+								sfx.SoundId = "rbxassetid://9061556942" -- Verified public chime / coin pop sound
 								sfx.Volume = 0.5
 								sfx.Pitch = math.random(90, 110) / 100 -- slightly randomize pitch for satisfying effect
 								sfx.Parent = char.PrimaryPart
@@ -953,9 +1035,12 @@ PianoDrop.OnServerEvent:Connect(function(plr, npc)
 			if part:IsA("BasePart") and part ~= npc.PrimaryPart then
 				local motor = Instance.new("Motor6D")
 				motor.Name = part.Name .. "Motor"
-				motor.Part0 = npc.PrimaryPart
+				local headPart = npc:FindFirstChild("Head")
+				local isHeadAcc = (part ~= headPart) and (part.Name == "Hair" or (part.Parent and part.Parent:IsA("Accessory")))
+				local parentPart = (isHeadAcc and headPart) or npc.PrimaryPart
+				motor.Part0 = parentPart
 				motor.Part1 = part
-				motor.C0 = npc.PrimaryPart.CFrame:Inverse() * part.CFrame
+				motor.C0 = parentPart.CFrame:Inverse() * part.CFrame
 				motor.C1 = CFrame.new()
 				motor.Parent = npc.PrimaryPart
 				
@@ -971,12 +1056,17 @@ PianoDrop.OnServerEvent:Connect(function(plr, npc)
 			local tween = ts:Create(npc.PrimaryPart, TweenInfo.new(totalTime, Enum.EasingStyle.Linear), {
 				CFrame = startCF * CFrame.new(0, 0, -distance)
 			})
-			tween:Play()
+			-- Driven smoothly by Heartbeat below with step bounce and sway
 			
 			local elapsed = 0
 			animConn = game:GetService("RunService").Heartbeat:Connect(function(dt)
 				elapsed = elapsed + dt
-				local angle = math.sin(elapsed * 12) * 0.6
+				local phase = elapsed * 14
+				local angle = math.sin(phase) * 0.75
+				local alpha = math.clamp(elapsed / totalTime, 0, 1)
+				local bounce = math.abs(math.sin(phase)) * 0.22
+				local sway = math.sin(phase) * math.rad(6)
+				npc.PrimaryPart.CFrame = startCF * CFrame.new(0, bounce, -distance * alpha) * CFrame.Angles(math.rad(-4), sway, math.cos(phase) * math.rad(2))
 				
 				local rl = motors["Right Leg"]
 				local ll = motors["Left Leg"]
@@ -987,6 +1077,8 @@ PianoDrop.OnServerEvent:Connect(function(plr, npc)
 				if ll then ll.C1 = CFrame.new(0, 1, 0) * CFrame.Angles(-angle, 0, 0) * CFrame.new(0, -1, 0) end
 				if ra then ra.C1 = CFrame.new(0, 0.5, 0) * CFrame.Angles(-angle, 0, 0) * CFrame.new(0, -0.5, 0) end
 				if la then la.C1 = CFrame.new(0, 0.5, 0) * CFrame.Angles(angle, 0, 0) * CFrame.new(0, -0.5, 0) end
+				local hd = motors["Head"]
+				if hd then hd.C1 = CFrame.new(0, -0.5, 0) * CFrame.Angles(math.sin(phase * 2) * 0.08, -sway * 0.6, 0) * CFrame.new(0, 0.5, 0) end
 			end)
 		end
 	end)
@@ -1160,9 +1252,15 @@ local function spinDeck(rig, axis, dur, kick)
 			if not mount or not mount.Parent then break end
 			local a = (i / steps) * math.pi * 2
 			local rot = axis == "y" and CFrame.Angles(0, a, 0) or CFrame.Angles(0, 0, a)
-			mount.C0 = rig.deckBase * pivot * rot * pivot:Inverse()
-			-- the RIDER moves too: dip into the tailwhip, lean through the kickflip
 			local wave = math.sin((i / steps) * math.pi)
+			mount.C0 = rig.deckBase * pivot * rot * pivot:Inverse()
+			if rig.barMount and rig.barMount.Parent then
+				if axis == "z" then
+					rig.barMount.C0 = rig.barBase * pivot * rot * pivot:Inverse()
+				else
+					rig.barMount.C0 = rig.barBase * CFrame.Angles(math.rad(-10 * wave), math.rad(20 * math.sin(a)), math.rad(12 * math.sin(a)))
+				end
+			end
 			if waistOK then
 				if axis == "y" then
 					rig.waist.motor.C0 = rig.waist.rest * CFrame.Angles(math.rad(-24 * wave), 0, 0)
@@ -1189,6 +1287,9 @@ local function spinDeck(rig, axis, dur, kick)
 		end
 		if rig.deckMount and rig.deckMount.Parent then
 			rig.deckMount.C0 = rig.deckBase
+		end
+		if rig.barMount and rig.barMount.Parent then
+			rig.barMount.C0 = rig.barBase
 		end
 		if waistOK and rig.waist.motor.Parent then
 			rig.waist.motor.C0 = rig.waist.rest
@@ -1271,26 +1372,39 @@ local function armsBack(rig, dur)
 	local hasArms = (rig.shoulders and #rig.shoulders > 0) or rig.r6arms
 	if not hasArms then return end
 	rig.posing = true
-	for _, ik in ipairs(rig.iks) do
-		if ik.Parent then ik.Enabled = false end
-	end
-	for _, s in ipairs(rig.shoulders or {}) do
-		if s.motor.Parent then
-			s.motor.C0 = s.pose(s.rest, -130)
+	task.spawn(function()
+		for _, ik in ipairs(rig.iks or {}) do
+			if ik.Parent then ik.Enabled = false end
 		end
-	end
-	if rig.r6arms then
-		for _, ra in ipairs(rig.r6arms) do
-			if ra.weld and ra.weld.Parent then
-				ra.weld.C0 = ra.gripC0 * CFrame.Angles(math.rad(-95), 0, 0)
+		local steps = 16
+		for i = 1, steps do
+			local p = i / steps
+			local wave = math.sin(p * math.pi)
+			for idx, s in ipairs(rig.shoulders or {}) do
+				if s.motor.Parent then
+					local side = (idx == 1) and -1 or 1
+					s.motor.C0 = s.pose(s.rest, 115 * wave, 0, side * 52 * wave)
+				end
 			end
+			if rig.r6arms then
+				for idx, ra in ipairs(rig.r6arms) do
+					if ra.weld and ra.weld.Parent then
+						local side = (idx == 1) and -1 or 1
+						ra.weld.C0 = ra.gripC0 * CFrame.Angles(math.rad(85 * wave), 0, math.rad(side * 45 * wave))
+					end
+				end
+			end
+			if rig.waist and rig.waist.motor.Parent then
+				rig.waist.motor.C0 = rig.waist.rest * CFrame.Angles(math.rad(22 * wave), 0, 0)
+			end
+			if rig.deckMount and rig.deckMount.Parent then
+				rig.deckMount.C0 = rig.deckBase * CFrame.Angles(math.rad(18 * wave), 0, 0)
+			end
+			if rig.barMount and rig.barMount.Parent then
+				rig.barMount.C0 = rig.barBase * CFrame.Angles(math.rad(18 * wave), 0, 0)
+			end
+			task.wait(dur / steps)
 		end
-	end
-	-- lean back with the arms flung: full no-hander commitment
-	if rig.waist and rig.waist.motor.Parent then
-		rig.waist.motor.C0 = rig.waist.rest * CFrame.Angles(math.rad(-16), 0, 0)
-	end
-	task.delay(dur, function()
 		for _, s in ipairs(rig.shoulders or {}) do
 			if s.motor.Parent then s.motor.C0 = s.rest end
 		end
@@ -1302,20 +1416,86 @@ local function armsBack(rig, dur)
 		if rig.waist and rig.waist.motor.Parent then
 			rig.waist.motor.C0 = rig.waist.rest
 		end
-		for _, ik in ipairs(rig.iks) do
+		if rig.deckMount and rig.deckMount.Parent then
+			rig.deckMount.C0 = rig.deckBase
+		end
+		if rig.barMount and rig.barMount.Parent then
+			rig.barMount.C0 = rig.barBase
+		end
+		for _, ik in ipairs(rig.iks or {}) do
 			if ik.Parent then ik.Enabled = true end
 		end
 		rig.posing = false
 	end)
 end
 
+local function fullFlipOrSpin(rig, mode, dur)
+	if not rig or rig.spinning or rig.posing then return end
+	rig.spinning = true
+	task.spawn(function()
+		for _, ik in ipairs(rig.iks or {}) do
+			if ik.Parent then ik.Enabled = false end
+		end
+		local steps = 18
+		for i = 1, steps do
+			local p = i / steps
+			local a = p * math.pi * 2
+			local wave = math.sin(p * math.pi)
+			local rot
+			if mode == "Backflip" then
+				rot = CFrame.new(0, 1.1 * wave, 0) * CFrame.Angles(a, 0, 0)
+			elseif mode == "Frontflip" then
+				rot = CFrame.new(0, 1.1 * wave, 0) * CFrame.Angles(-a, 0, 0)
+			else
+				rot = CFrame.new(0, 0.7 * wave, 0) * CFrame.Angles(0, a, math.rad(12 * wave))
+			end
+			if rig.root and rig.root.motor and rig.root.motor.Parent then
+				rig.root.motor.C0 = rig.root.rest * rot
+			end
+			if rig.deckMount and rig.deckMount.Parent then
+				rig.deckMount.C0 = rig.deckBase * rot
+			end
+			if rig.barMount and rig.barMount.Parent then
+				local barExtra = (mode == "360 Spin") and CFrame.Angles(0, math.rad(45 * wave), 0) or CFrame.new()
+				rig.barMount.C0 = rig.barBase * rot * barExtra
+			end
+			if rig.hips then
+				for _, hh in ipairs(rig.hips) do
+					if hh.motor.Parent then
+						hh.motor.C0 = hh.pose(hh.rest, -50 * wave)
+					end
+				end
+			end
+			task.wait(dur / steps)
+		end
+		if rig.root and rig.root.motor and rig.root.motor.Parent then
+			rig.root.motor.C0 = rig.root.rest
+		end
+		if rig.deckMount and rig.deckMount.Parent then
+			rig.deckMount.C0 = rig.deckBase
+		end
+		if rig.barMount and rig.barMount.Parent then
+			rig.barMount.C0 = rig.barBase
+		end
+		if rig.hips then
+			for _, hh in ipairs(rig.hips) do
+				if hh.motor.Parent then hh.motor.C0 = hh.rest end
+			end
+		end
+		for _, ik in ipairs(rig.iks or {}) do
+			if ik.Parent then ik.Enabled = true end
+		end
+		rig.spinning = false
+	end)
+end
+
 local TRICKS = {
-	{ name = "Tailwhip", pay = 4, fn = function(rig, hrp) spinDeck(rig, "y", 0.45) end },
-	{ name = "Kickflip", pay = 3, fn = function(rig, hrp) spinDeck(rig, "z", 0.5, true) end },
-	{ name = "360 Spin", pay = 6, fn = function(rig, hrp) end },
-	{ name = "Backflip", pay = 10, fn = function(rig, hrp) end },
-	{ name = "Frontflip", pay = 10, fn = function(rig, hrp) end },
-	{ name = "No-Hander", pay = 5, fn = function(rig, hrp) end },
+	{ name = "Tailwhip", pay = 4, fn = function(rig, hrp) spinDeck(rig, "y", 0.52) end },
+	{ name = "Kickflip", pay = 3, fn = function(rig, hrp) spinDeck(rig, "z", 0.55, true) end },
+	{ name = "360 Spin", pay = 6, fn = function(rig, hrp) fullFlipOrSpin(rig, "360 Spin", 0.52) end },
+	{ name = "Backflip", pay = 10, fn = function(rig, hrp) fullFlipOrSpin(rig, "Backflip", 0.58) end },
+	{ name = "Frontflip", pay = 10, fn = function(rig, hrp) fullFlipOrSpin(rig, "Frontflip", 0.58) end },
+	{ name = "No-Hander", pay = 5, fn = function(rig, hrp) armsBack(rig, 0.55) end },
 }
 local TRICK_BY_NAME = {}
 for _, t in ipairs(TRICKS) do
@@ -1354,7 +1534,7 @@ DoTrick.OnServerEvent:Connect(function(plr, trickName)
 	local function perform()
 		local cash = getCash(plr)
 		if not cash or humanoid.Health <= 0 then return end
-		trick.fn(rig, hrp)
+		-- Client RenderStepped handles 60fps trick & riding body/scooter animations without server C0/IK replication conflicts
 		local pay = trick.pay * (plr:GetAttribute("TrickMult") or 1) * getMult(plr)
 		if plr:GetAttribute("CarbLoad") then pay = pay * 1.25 end
 		pay = math.floor(pay)
@@ -1378,7 +1558,7 @@ DoTrick.OnServerEvent:Connect(function(plr, trickName)
 		if plr:GetAttribute("CarbLoad") then jumpV = 35 end
 		if plr:GetAttribute("BeanPower") then jumpV = 85 end
 		hrp.AssemblyLinearVelocity = Vector3.new(v.X, jumpV, v.Z)
-		task.delay(0.32, perform)
+		task.delay(0.05, perform)
 	end
 end)
 
@@ -2770,19 +2950,62 @@ local function tryFling(carPos, carDir)
 				if flat.Magnitude < FLING_RADIUS and math.abs(off.Y) < 12 then
 					flingCooldown[plr.UserId] = now
 					local away = flat.Magnitude > 0.1 and flat.Unit or Vector3.new(1, 0, 0)
+					pcall(function() setMounted(plr, false) end)
+					local flingVel = away * 95 + carDir * 85 + Vector3.new(0, 108, 0)
+					local angVel = Vector3.new(rng:NextNumber(-28, 28), rng:NextNumber(-28, 28), rng:NextNumber(-28, 28))
+					humanoid.PlatformStand = true
 					humanoid.Sit = true
-					hrp.AssemblyLinearVelocity = away * 55 + carDir * 30 + Vector3.new(0, 70, 0)
-					hrp.AssemblyAngularVelocity = Vector3.new(rng:NextNumber(-15, 15), rng:NextNumber(-15, 15), 0)
-					-- traffic is lethal, no exceptions: shred any forcefield, deal massive
-					-- damage AND hard-zero the health
-					local ff = ch:FindFirstChildOfClass("ForceField")
-					if ff then ff:Destroy() end
-					humanoid:TakeDamage(CAR_DAMAGE)
-					humanoid.Health = 0
+					local hitSnd = Instance.new("Sound")
+					hitSnd.SoundId = "rbxasset://sounds/impact_explosion_03.mp3"
+					hitSnd.PlaybackSpeed = 1.15
+					hitSnd.Volume = 2.5
+					hitSnd.Parent = hrp
+					hitSnd:Play()
+					game:GetService("Debris"):AddItem(hitSnd, 2)
+					local bv = Instance.new("BodyVelocity")
+					bv.MaxForce = Vector3.new(1e6, 1e6, 1e6)
+					bv.Velocity = flingVel
+					bv.Parent = hrp
+					game:GetService("Debris"):AddItem(bv, 0.35)
+					local bav = Instance.new("BodyAngularVelocity")
+					bav.MaxTorque = Vector3.new(1e6, 1e6, 1e6)
+					bav.AngularVelocity = angVel
+					bav.Parent = hrp
+					game:GetService("Debris"):AddItem(bav, 0.35)
+					hrp.AssemblyLinearVelocity = flingVel
+					hrp.AssemblyAngularVelocity = angVel
+					CarFling:FireClient(plr, flingVel, angVel)
+					task.delay(0.45, function()
+						if not ch or not ch.Parent then return end
+						local ff = ch:FindFirstChildOfClass("ForceField")
+						if ff then ff:Destroy() end
+						for _, part in ipairs(ch:GetDescendants()) do
+							if part:IsA("BasePart") then
+								part.AssemblyLinearVelocity = flingVel * 0.75
+							end
+						end
+						if humanoid and humanoid.Parent then
+							humanoid:TakeDamage(CAR_DAMAGE)
+							humanoid.Health = 0
+						end
+					end)
 				end
 			end
 		end
 	end
+end
+
+local carObstacleParams = OverlapParams.new()
+carObstacleParams.FilterType = Enum.RaycastFilterType.Include
+
+local function isRoadBoxBlocked(cf, size)
+	local hits = workspace:GetPartBoundsInBox(cf, size, carObstacleParams)
+	for _, h in ipairs(hits) do
+		if h.Size.Y > 1.5 and h.Name ~= "Parking" and h.Name ~= "Forecourt" and h.Name ~= "Floor" and h.Name ~= "KioskFloor" then
+			return true
+		end
+	end
+	return false
 end
 
 local function routeFromRoadModel(model)
@@ -2798,6 +3021,10 @@ local function routeFromRoadModel(model)
 			end
 			pts[#pts + 1] = Vector3.new(b.X, 0, b.Z)
 			roadTop = seg.Position.Y + seg.Size.Y / 2
+			if isRoadBoxBlocked(seg.CFrame * CFrame.new(0, 4.5, 0), Vector3.new(seg.Size.X + 10, 6, seg.Size.Z + 14)) then
+				if #pts >= 3 then break end
+				pts = {}
+			end
 		end
 	end
 	if #pts < 3 or not roadTop then return nil end
@@ -2847,6 +3074,11 @@ local function driveCar(template, route, startFrac, reverse)
 	head.CanCollide = false
 	head.Anchored = true
 	head.Parent = car
+	local driverFace = Instance.new("Decal")
+	driverFace.Name = "face"
+	driverFace.Texture = "rbxasset://textures/face.png"
+	driverFace.Face = Enum.NormalId.Front
+	driverFace.Parent = head
 	local root = car.PrimaryPart
 	torso.CFrame = root.CFrame * CFrame.new(0, 3.6, 1.2)
 	head.CFrame = root.CFrame * CFrame.new(0, 4.9, 1.2)
@@ -2877,7 +3109,15 @@ local function driveCar(template, route, startFrac, reverse)
 				end
 			else
 				local dir = delta / d
-				cur = cur + dir * step
+				local nextCur = cur + dir * step
+				local nextPos = Vector3.new(nextCur.X, route.y + 0.05, nextCur.Z)
+				local checkCF = CFrame.lookAt(nextPos + Vector3.new(0, 4, 0), nextPos + Vector3.new(0, 4, 0) + dir)
+				if isRoadBoxBlocked(checkCF * CFrame.new(0, 0, -4), Vector3.new(8, 5, 18)) then
+					dirSign = -dirSign
+					target = math.clamp(target + dirSign, 1, #pts)
+				else
+					cur = nextCur
+				end
 				local pos = Vector3.new(cur.X, route.y + 0.05, cur.Z)
 				car:PivotTo(CFrame.lookAt(pos, pos + dir))
 				tryFling(pos, dir)
@@ -2891,6 +3131,10 @@ local function startTraffic(town)
 	local carTemplate = kit and kit:FindFirstChild("car")
 	local roadsFolder = town:FindFirstChild("Roads")
 	if not carTemplate or not roadsFolder then return end
+	local filterList = {}
+	if town:FindFirstChild("Buildings") then table.insert(filterList, town.Buildings) end
+	if town:FindFirstChild("Landmarks") then table.insert(filterList, town.Landmarks) end
+	carObstacleParams.FilterDescendantsInstances = filterList
 	local routes = {}
 	for _, model in ipairs(roadsFolder:GetChildren()) do
 		local cls = model:GetAttribute("RoadClass")
