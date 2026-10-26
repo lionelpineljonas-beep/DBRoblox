@@ -13,7 +13,7 @@
       <Properties>
         <string name="Name">DiscoveryBayBuild</string>
         <token name="RunContext">0</token>
-        <string name="Source"><![CDATA[-- DISCOVERY BAY, CALIFORNIA — OSM-accurate procedural Roblox build (v119)
+        <string name="Source"><![CDATA[-- DISCOVERY BAY, CALIFORNIA — OSM-accurate procedural Roblox build (v123)
 --==============================================================================================
 -- Builds the real Discovery Bay from OpenStreetMap geometry (© OpenStreetMap contributors):
 --   * real terrain raster: every lagoon/bay polygon, Old River, golf fairways/greens/
@@ -4035,7 +4035,7 @@ local DAY_LENGTH = 600
 local START_CASH = 100
 local WALK_SPEED = 16
 local SCOOTER_SPEED = 30
-local VERSION = "v119"
+local VERSION = "v123"
 
 -- ==============================================================================================
 -- LIGHTING, DYNAMIC SUNSET & STARRY NIGHT SKY SYSTEM
@@ -4963,6 +4963,63 @@ CompleteQuest.OnServerEvent:Connect(function(plr, questId)
 	end
 end)
 
+--==============================================================================================
+-- NPC JOBS: talk to an NPC, take the job, do the thing, come back for the reward (repeatable).
+-- Progress lives in player attributes (saved with your progress):
+--   QuestState_<id> = "active" | "ready" | "done",  QuestProgress_<id> = count
+--==============================================================================================
+local QUESTS = {
+	FinnFish    = { npc = "Captain Finn", kind = "fish",  goal = 5,  reward = 150, title = "Fish Frenzy" },
+	RickTricks  = { npc = "Rider Rick",   kind = "trick", goal = 15, reward = 200, title = "Trick Master" },
+	SenseiMat   = { npc = "Sensei",       kind = "jjwin", goal = 3,  reward = 250, title = "Way of the Mat" },
+	EggbertEggs = { npc = "Eggbert",      kind = "hatch", goal = 3,  reward = 120, title = "Puppy Collector" },
+}
+local QuestAction = remote("QuestAction")
+local questNPCs = {} -- npc name -> model (found once)
+
+local function questProgress(plr, kind)
+	for id, q in pairs(QUESTS) do
+		if q.kind == kind and plr:GetAttribute("QuestState_" .. id) == "active" then
+			local n = math.min((plr:GetAttribute("QuestProgress_" .. id) or 0) + 1, q.goal)
+			plr:SetAttribute("QuestProgress_" .. id, n)
+			if n >= q.goal then
+				plr:SetAttribute("QuestState_" .. id, "ready")
+				TrickResult:FireClient(plr, q.title .. " complete! Go see " .. q.npc .. " for your $" .. q.reward .. ".", 0)
+			elseif kind ~= "trick" or n % 5 == 0 then -- tricks already pop a message each, so only milestones
+				TrickResult:FireClient(plr, q.title .. ": " .. n .. "/" .. q.goal, 0)
+			end
+		end
+	end
+end
+
+local function nearNPC(plr, npcName)
+	local npc = questNPCs[npcName]
+	if not npc or not npc.Parent then
+		local town = workspace:FindFirstChild("DiscoveryBay")
+		npc = town and town:FindFirstChild(npcName, true)
+		questNPCs[npcName] = npc
+	end
+	local hrp = plr.Character and plr.Character:FindFirstChild("HumanoidRootPart")
+	return npc ~= nil and hrp ~= nil and (npc:GetPivot().Position - hrp.Position).Magnitude < 30
+end
+
+QuestAction.OnServerEvent:Connect(function(plr, id, action)
+	local q = type(id) == "string" and QUESTS[id]
+	if not q or not nearNPC(plr, q.npc) then return end
+	local key = "QuestState_" .. id
+	local state = plr:GetAttribute(key)
+	if action == "accept" and (state == nil or state == "done") then
+		plr:SetAttribute(key, "active")
+		plr:SetAttribute("QuestProgress_" .. id, 0)
+		TrickResult:FireClient(plr, "New job: " .. q.title .. " (0/" .. q.goal .. ")", 0)
+	elseif action == "claim" and state == "ready" then
+		plr:SetAttribute(key, "done")
+		local cash = getCash(plr)
+		if cash then cash.Value = cash.Value + q.reward end
+		TrickResult:FireClient(plr, q.title .. " reward", q.reward)
+	end
+end)
+
 PianoDrop.OnServerEvent:Connect(function(plr, npc)
 	if not npc or not npc:IsA("Model") then return end
 	if npc:GetAttribute("PianoDropping") then return end
@@ -5620,6 +5677,7 @@ DoTrick.OnServerEvent:Connect(function(plr, trickName)
 		pay = math.floor(pay)
 		cash.Value = cash.Value + pay
 		TrickResult:FireClient(plr, trick.name, pay)
+		questProgress(plr, "trick")
 
 		-- Spawn a burst of sparks from the back wheel when executing a trick
 		local scooter = char:FindFirstChild("Scooter")
@@ -5806,6 +5864,7 @@ local function runChallenge(plr, mat)
 			cash.Value = cash.Value + JJ_WIN
 		end
 		TrickResult:FireClient(plr, "JIU JITSU CHAMPION!", JJ_WIN)
+		questProgress(plr, "jjwin")
 	end
 	task.wait(2) -- step-off grace before the mat can rearm
 	jjActive[uid] = nil
@@ -6584,6 +6643,7 @@ end
 local function spawnDog(plr, dogDef, spot)
 	local old = playerDog[plr.UserId]
 	if old and old.Parent then old:Destroy() end
+	plr:SetAttribute("SavedDog", dogDef.name) -- saved with your progress; comes back when you rent again
 	local town = workspace:FindFirstChild("DiscoveryBay") or workspace
 	local mdl = Instance.new("Model")
 	mdl.Name = dogDef.name
@@ -6776,6 +6836,7 @@ local function hookEgg(egg)
 		-- while the pet spawns at home ready for petting afterwards
 		HatchEgg:FireClient(plr, dogDef.name)
 		spawnDog(plr, dogDef, Vector3.new(homeSpot.X, homeSpot.Y, homeSpot.Z))
+		questProgress(plr, "hatch")
 	end)
 end
 
@@ -6795,6 +6856,7 @@ ClaimPity.OnServerEvent:Connect(function(plr)
 			or home.house:GetAttribute("DogSpot") or home.house:GetPivot().Position
 		HatchEgg:FireClient(plr, DOGS[3].name)
 		spawnDog(plr, DOGS[3], Vector3.new(homeSpot.X, homeSpot.Y, homeSpot.Z))
+		questProgress(plr, "hatch")
 	end
 end)
 
@@ -6821,7 +6883,8 @@ DoRebirth.OnServerEvent:Connect(function(plr)
 	local dog = playerDog[plr.UserId]
 	if dog and dog.Parent then dog:Destroy() end
 	playerDog[plr.UserId] = nil
-	
+	plr:SetAttribute("SavedDog", nil)
+
 	-- Force speed update so scooter updates immediately
 	updateSpeed(plr)
 end)
@@ -7062,6 +7125,7 @@ FishReel.OnServerEvent:Connect(function(plr, success)
 	end
 	local f = rollFish()
 	giveFishTool(plr, f)
+	questProgress(plr, "fish")
 	if f.name == "THE LIONEL" then
 		TrickResult:FireClient(plr, "THE LIONEL!!! The 1-in-100 legend is in your inventory - worth $500!", 0)
 	else
@@ -7172,6 +7236,191 @@ for _, plr in ipairs(Players:GetPlayers()) do
 end
 Players.PlayerRemoving:Connect(function(plr)
 	clearCast(plr.UserId)
+end)
+
+--==============================================================================================
+-- SAVED PROGRESS: cash, rebirths, Fast Scooter, Terry's quest, bait, egg pity, your dog, the
+-- permanent speed boosts and your inventory (food + fish). Loaded on join, saved when you leave,
+-- every 2 minutes, and when the server shuts down.
+--==============================================================================================
+local DataStoreService = game:GetService("DataStoreService")
+local SAVE_KEY_PREFIX = "player_"
+local progressStore = nil
+pcall(function()
+	progressStore = DataStoreService:GetDataStore("DiscoveryBayProgress_v1")
+end)
+local loaded = {} -- uid -> true once their save is safely loaded (never save over data we failed to read)
+local DOGS_BY_NAME = {}
+for _, dd in ipairs(DOGS) do DOGS_BY_NAME[dd.name] = dd end
+local SAVED_BOOSTS = { "SodaBoost", "VanillaBoost", "WalkBoost" }
+
+local function productTemplate(name)
+	local kit = ReplicatedStorage:FindFirstChild("DiscoveryBayKit")
+	local tools = kit and kit:FindFirstChild("Products")
+	return tools and tools:FindFirstChild(name)
+end
+
+local function snapshot(plr)
+	local cash, rebirths = getCash(plr), getRebirths(plr)
+	local data = {
+		cash = cash and cash.Value or START_CASH,
+		rebirths = rebirths and rebirths.Value or 0,
+		fastScooter = plr:GetAttribute("FastScooter") == true,
+		terryQuest = plr:GetAttribute("TerryQuestCompleted") == true,
+		bait = plr:GetAttribute("Bait") or 0,
+		pity = playerRolls[plr.UserId] or 0,
+		dog = plr:GetAttribute("SavedDog"),
+		boosts = {},
+		tools = {},
+		quests = {},
+	}
+	for id in pairs(QUESTS) do
+		local st = plr:GetAttribute("QuestState_" .. id)
+		if st then
+			data.quests[id] = { state = st, progress = plr:GetAttribute("QuestProgress_" .. id) or 0 }
+		end
+	end
+	for _, b in ipairs(SAVED_BOOSTS) do
+		data.boosts[b] = plr:GetAttribute(b) or 0
+	end
+	for _, container in ipairs({ plr:FindFirstChildOfClass("Backpack"), plr.Character }) do
+		if container then
+			for _, t in ipairs(container:GetChildren()) do
+				if t:IsA("Tool") and (FISH_BY_NAME[t.Name] or productTemplate(t.Name)) then
+					table.insert(data.tools, t.Name)
+				end
+			end
+		end
+	end
+	return data
+end
+
+local function restoreTools(plr, names)
+	local backpack = plr:FindFirstChildOfClass("Backpack") or plr:WaitForChild("Backpack", 20)
+	if not backpack then return end
+	for _, n in ipairs(names or {}) do
+		if FISH_BY_NAME[n] then
+			giveFishTool(plr, FISH_BY_NAME[n])
+		else
+			local tpl = productTemplate(n)
+			if tpl then tpl:Clone().Parent = backpack end
+		end
+	end
+end
+
+local function applySave(plr, data)
+	local cash, rebirths = getCash(plr), getRebirths(plr)
+	if cash and type(data.cash) == "number" then cash.Value = data.cash end
+	if rebirths and type(data.rebirths) == "number" then rebirths.Value = data.rebirths end
+	if data.fastScooter then plr:SetAttribute("FastScooter", true) end
+	if data.terryQuest then plr:SetAttribute("TerryQuestCompleted", true) end
+	if type(data.bait) == "number" and data.bait > 0 then plr:SetAttribute("Bait", data.bait) end
+	if type(data.pity) == "number" then
+		playerRolls[plr.UserId] = data.pity
+		UpdatePity:FireClient(plr, 90 - data.pity)
+		-- again once the client has surely hooked up its pity label
+		task.delay(6, function()
+			if plr.Parent then UpdatePity:FireClient(plr, 90 - (playerRolls[plr.UserId] or 0)) end
+		end)
+	end
+	if type(data.dog) == "string" and DOGS_BY_NAME[data.dog] then plr:SetAttribute("SavedDog", data.dog) end
+	for _, b in ipairs(SAVED_BOOSTS) do
+		local v = data.boosts and data.boosts[b]
+		if type(v) == "number" and v > 0 then plr:SetAttribute(b, v) end
+	end
+	for id, qs in pairs(type(data.quests) == "table" and data.quests or {}) do
+		if QUESTS[id] and type(qs) == "table" and (qs.state == "active" or qs.state == "ready" or qs.state == "done") then
+			plr:SetAttribute("QuestState_" .. id, qs.state)
+			plr:SetAttribute("QuestProgress_" .. id, tonumber(qs.progress) or 0)
+		end
+	end
+	task.spawn(restoreTools, plr, data.tools)
+	updateSpeed(plr)
+end
+
+local function loadProgress(plr)
+	if not progressStore then return end
+	local key = SAVE_KEY_PREFIX .. plr.UserId
+	for attempt = 1, 3 do
+		local ok, data = pcall(progressStore.GetAsync, progressStore, key)
+		if ok then
+			if not plr.Parent then return end
+			if type(data) == "table" then
+				applySave(plr, data)
+				TrickResult:FireClient(plr, "Welcome back! Your progress was loaded.", 0)
+			end
+			loaded[plr.UserId] = true
+			return
+		end
+		warn("[DiscoveryBayShop] loading progress failed (try " .. attempt .. "): " .. tostring(data))
+		task.wait(2 * attempt)
+	end
+	-- couldn't read their save: play on, but don't save so we never overwrite real progress.
+	-- (In Studio this is normal for an unpublished place / API access off, so no popup there.)
+	if not game:GetService("RunService"):IsStudio() then
+		TrickResult:FireClient(plr, "Couldn't load your save right now - progress won't save this session.", 0)
+	end
+end
+
+local function saveProgress(plr)
+	if not progressStore or not loaded[plr.UserId] then return end
+	local data = snapshot(plr)
+	local key = SAVE_KEY_PREFIX .. plr.UserId
+	for attempt = 1, 3 do
+		local ok, err = pcall(progressStore.SetAsync, progressStore, key, data)
+		if ok then return true end
+		warn("[DiscoveryBayShop] saving progress failed (try " .. attempt .. "): " .. tostring(err))
+		task.wait(attempt)
+	end
+	return false
+end
+
+Players.PlayerAdded:Connect(function(plr)
+	task.spawn(loadProgress, plr)
+end)
+for _, plr in ipairs(Players:GetPlayers()) do
+	task.spawn(loadProgress, plr)
+end
+Players.PlayerRemoving:Connect(function(plr)
+	saveProgress(plr)
+	loaded[plr.UserId] = nil
+end)
+game:BindToClose(function()
+	local pending = 0
+	for _, plr in ipairs(Players:GetPlayers()) do
+		pending += 1
+		task.spawn(function()
+			saveProgress(plr)
+			pending -= 1
+		end)
+	end
+	local t0 = os.clock()
+	while pending > 0 and os.clock() - t0 < 25 do task.wait(0.2) end
+end)
+-- autosave, and bring your saved dog home once you've rented a house again
+task.spawn(function()
+	local sinceSave = 0
+	while true do
+		task.wait(1)
+		sinceSave += 1
+		for _, plr in ipairs(Players:GetPlayers()) do
+			local dogName = plr:GetAttribute("SavedDog")
+			local home = ownedHouse[plr.UserId]
+			if dogName and DOGS_BY_NAME[dogName] and home and home.house.Parent and not playerDog[plr.UserId] then
+				local spot = home.house:GetAttribute("DogSpotInside")
+				if spot then
+					spawnDog(plr, DOGS_BY_NAME[dogName], Vector3.new(spot.X, spot.Y, spot.Z))
+					TrickResult:FireClient(plr, dogName .. " is waiting for you at home!", 0)
+				end
+			end
+		end
+		if sinceSave >= 120 then
+			sinceSave = 0
+			for _, plr in ipairs(Players:GetPlayers()) do
+				task.spawn(saveProgress, plr)
+			end
+		end
+	end
 end)
 
 --==============================================================================================
@@ -7821,7 +8070,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 
-local VERSION = "v119"
+local VERSION = "v123"
 local SPEED_PASS_ID = 0 -- paste the real Game Pass ID here (same one as in DiscoveryBayShop)
 local RunService = game:GetService("RunService")
 local Lighting = game:GetService("Lighting")
@@ -9780,6 +10029,66 @@ local function playTerrySodaCutscene(npcModel)
 	cutStepConn = RunService.Stepped:Connect(updateCutsceneFrame)
 end
 
+-- NPC jobs (the server tracks progress in QuestState_<id> / QuestProgress_<id> player attributes)
+local NPC_QUESTS = {
+	["Captain Finn"] = { id = "FinnFish", reward = 150,
+		offer = "Me nets are empty, matey! Catch me 5 fish - any kind - and there's $150 in it for ye.",
+		again = "Back for more? Another 5 fish, another $150. Deal?",
+		accept = "Aye! Any water in the bay will do. Don't forget yer bait!",
+		progress = "How's the fishin'? That's %d of 5 so far.",
+		ready = "FIVE fish! Ye've got sea legs after all. Here's yer $150!" },
+	["Rider Rick"] = { id = "RickTricks", reward = 200,
+		offer = "Think you can ride? Land 15 tricks and I'll pay you $200. Any tricks count.",
+		again = "Again? 15 more tricks, $200 more. Let's see it.",
+		accept = "Go shred. Z X C V B, or T for a random one.",
+		progress = "You're at %d of 15 tricks. Keep shredding!",
+		ready = "Fifteen tricks! You're a natural. $200, as promised." },
+	["Sensei"] = { id = "SenseiMat", reward = 250,
+		offer = "Win my mat challenge three times and you will earn $250. Discipline pays.",
+		again = "Your training continues. Three more victories, $250 more.",
+		accept = "Step on the grey mat when you are ready.",
+		progress = "%d of 3 victories. Focus.",
+		ready = "Three victories. You honour this dojo. Take your $250." },
+	["Eggbert"] = { id = "EggbertEggs", reward = 120,
+		offer = "Help my research! Hatch 3 mystery eggs and I'll pay you $120. Science!",
+		again = "More data needed! Hatch 3 more eggs for another $120.",
+		accept = "Excellent. Remember - pups need a rented house first!",
+		progress = "%d of 3 eggs hatched. The science is going GREAT.",
+		ready = "Three hatchlings! The data is beautiful. Here's $120!" },
+}
+local QuestAction = remotes:WaitForChild("QuestAction", 10)
+
+-- puts the job option at the top of an NPC's choices (label depends on where the job is at)
+local function withQuestChoice(npcName, choices)
+	local q = NPC_QUESTS[npcName]
+	if not q or not QuestAction then return choices end
+	local state = plr:GetAttribute("QuestState_" .. q.id)
+	local label = (state == "ready") and ("Claim $" .. q.reward .. "!") or (state == "active") and "My job?" or "Got a job?"
+	table.insert(choices, 1, { id = "quest", text = label })
+	return choices
+end
+
+local function handleQuestChoice(npcName)
+	local q = NPC_QUESTS[npcName]
+	local state = plr:GetAttribute("QuestState_" .. q.id)
+	if state == "ready" then
+		QuestAction:FireServer(q.id, "claim")
+		showDialogue(npcName, q.ready, {}, nil)
+	elseif state == "active" then
+		showDialogue(npcName, string.format(q.progress, plr:GetAttribute("QuestProgress_" .. q.id) or 0), {}, nil)
+	else
+		showDialogue(npcName, state == "done" and q.again or q.offer, {
+			{ id = "accept", text = "I'm on it!" },
+			{ id = "no", text = "Maybe later." },
+		}, function(choiceId)
+			if choiceId == "accept" then
+				QuestAction:FireServer(q.id, "accept")
+				showDialogue(npcName, q.accept, {}, nil)
+			end
+		end)
+	end
+end
+
 local function hookNPC(prompt)
 	local npcName = prompt.ObjectText
 	task.spawn(function()
@@ -9819,26 +10128,32 @@ local function hookNPC(prompt)
 				remotes:WaitForChild("BuyCustomItem"):FireServer(choiceId)
 			end)
 		elseif npcName == "Eggbert" then
-			showDialogue("Eggbert", "Psst! Mystery dogs in these eggs. Mostly Mary or Jolene... but one in a HUNDRED hatches Linus. Rent a house first - pups need a home!", {
+			showDialogue("Eggbert", "Psst! Mystery dogs in these eggs. Mostly Mary or Jolene... but one in a HUNDRED hatches Linus. Rent a house first - pups need a home!", withQuestChoice("Eggbert", {
 				{ id = "linus", text = "Who's Linus?" }
-			}, function(choiceId)
-				if choiceId == "linus" then
+			}), function(choiceId)
+				if choiceId == "quest" then
+					handleQuestChoice("Eggbert")
+				elseif choiceId == "linus" then
 					showDialogue("Eggbert", "A golden legend. Pays $100 a pet. I saw him hatch once. Changed my whole life.", {}, nil)
 				end
 			end)
 		elseif npcName == "Captain Finn" then
-			showDialogue("Captain Finn", "Ahoy! Grab a rod, grab bait, and cast into ANY water in the bay. When the bobber glows - REEL! I buy every fish in your inventory.", {
+			showDialogue("Captain Finn", "Ahoy! Grab a rod, grab bait, and cast into ANY water in the bay. When the bobber glows - REEL! I buy every fish in your inventory.", withQuestChoice("Captain Finn", {
 				{ id = "secret", text = "Any secret fish?" }
-			}, function(choiceId)
-				if choiceId == "secret" then
+			}), function(choiceId)
+				if choiceId == "quest" then
+					handleQuestChoice("Captain Finn")
+				elseif choiceId == "secret" then
 					showDialogue("Captain Finn", "They whisper of THE LIONEL. One cast in a hundred. Worth five hundred bucks. Never landed it myself... yet.", {}, nil)
 				end
 			end)
 		elseif npcName == "Rider Rick" then
-			showDialogue("Rider Rick", "Looking to upgrade? The Fast Scooter bumps your base speed up by 20. And yes, it stacks with the Speed Pass. Pure adrenaline.", {
+			showDialogue("Rider Rick", "Looking to upgrade? The Fast Scooter bumps your base speed up by 20. And yes, it stacks with the Speed Pass. Pure adrenaline.", withQuestChoice("Rider Rick", {
 				{ id = "gold", text = "Why gold?" }
-			}, function(choiceId)
-				if choiceId == "gold" then
+			}), function(choiceId)
+				if choiceId == "quest" then
+					handleQuestChoice("Rider Rick")
+				elseif choiceId == "gold" then
 					showDialogue("Rider Rick", "Because you want everyone to know you're rich and fast. Mostly fast.", {}, nil)
 				end
 			end)
@@ -9882,10 +10197,12 @@ local function hookNPC(prompt)
 				end
 			end)
 		elseif npcName == "Sensei" then
-			showDialogue("Sensei", "Step on the grey mat to begin your training. Seven buttons. Five seconds each. Miss and you PAY. Win, and you feast: $50.", {
+			showDialogue("Sensei", "Step on the grey mat to begin your training. Seven buttons. Five seconds each. Miss and you PAY. Win, and you feast: $50.", withQuestChoice("Sensei", {
 				{ id = "advice", text = "Any advice?" }
-			}, function(choiceId)
-				if choiceId == "advice" then
+			}), function(choiceId)
+				if choiceId == "quest" then
+					handleQuestChoice("Sensei")
+				elseif choiceId == "advice" then
 					showDialogue("Sensei", "Never leave the mat mid-fight. And never, EVER, challenge me on a Monday.", {}, nil)
 				end
 			end)
@@ -10079,6 +10396,7 @@ local function runIntro()
 	panTitle.TextSize = 20
 	panTitle.TextColor3 = Color3.new(1, 1, 1)
 	panTitle.Text = "UPDATE NOTES"
+	panTitle.ZIndex = 10
 	panTitle.Parent = panel
 	local pCorner = Instance.new("UICorner")
 	pCorner.CornerRadius = UDim.new(0, 8)
@@ -10089,10 +10407,11 @@ local function runIntro()
 	panBody.BackgroundTransparency = 1
 	panBody.Font = Enum.Font.LuckiestGuy
 	panBody.TextSize = 16
-	panBody.TextColor3 = Color3.fromRGB(60, 70, 80)
+	panBody.TextColor3 = Color3.fromRGB(232, 235, 240) -- light text on the dark panel
 	panBody.TextWrapped = true
 	panBody.TextXAlignment = Enum.TextXAlignment.Left
 	panBody.TextYAlignment = Enum.TextYAlignment.Top
+	panBody.ZIndex = 10
 	panBody.Parent = panel
 	local panClose = Instance.new("TextButton")
 	panClose.AnchorPoint = Vector2.new(0.5, 1)
@@ -10103,6 +10422,7 @@ local function runIntro()
 	panClose.TextSize = 16
 	panClose.TextColor3 = Color3.new(1, 1, 1)
 	panClose.Text = "Got it!"
+	panClose.ZIndex = 10
 	panClose.Parent = panel
 	local pcCorner = Instance.new("UICorner")
 	pcCorner.CornerRadius = UDim.new(0, 8)
@@ -10862,6 +11182,130 @@ styleHudButton(moneyBtn, "💰")
 styleHudButton(mountBtn, "🛴")
 styleHudButton(tricksToggleBtn, "🔥")
 styleHudButton(pityLabel, "🥚")
+
+-- LOW DETAIL MODE (LDM) -----------------------------------------------------------------------
+-- For phones: hides small decoration parts (trees, yard and window trim, shop dressing, interior
+-- clutter) on this client only, and switches off shadows, lights, particles and glow effects.
+-- On by default for touch devices without a keyboard; the HUD button toggles it for anyone.
+local LDM_HIDE = {}
+for _, n in ipairs({
+	-- house exteriors
+	"Shrub", "Flowers", "FlowerBox", "Mullion", "Transom", "WindowHeader", "Sill", "WindowSill", "WindowJamb",
+	"Shutter", "MailboxPost", "Mailbox", "MailboxFlag", "PorchLight", "RidgeCap", "GarageTrim", "DoorJamb",
+	"DoorLintel", "RentPostCap", "RentChain", "Walkway",
+	-- shop dressing
+	"BaseCourse", "Pilaster", "ParapetCap", "LanternArm", "Lantern", "Planter", "PlanterShrub", "AwningStripe",
+	"AwningValance", "RoofAC", "RoofACFan", "RoofVent", "PumpStripe", "PumpScreen", "PumpNozzle", "PumpHose",
+	"Bollard", "EggSpot", "SpotlightPost", "SpotlightHead", "TurntableGlow", "FacadeNeon", "WallNeon", "RunwayTile",
+	"CafeChairLeg", "BenchLeg", "RackWheel", "TireRim", "CoolerDoorSplit",
+	-- interior clutter
+	"Books", "Magazine", "Mug", "Kibble", "ChewBone", "PoolBall", "PoolCue", "CabinetLine", "Burner", "FridgeSeam",
+	"FridgeDrawing", "ThrowPillow", "LightCord", "Baseboard", "GameConsole", "Soundbar", "Pot", "CupStack",
+}) do
+	LDM_HIDE[n] = true
+end
+local LDM_TREES = { tree_oak = true, tree_palm = true }
+local LDM_FX = { "PointLight", "SpotLight", "SurfaceLight", "ParticleEmitter", "Trail", "Beam", "Smoke", "Fire", "Sparkles" }
+local ldmOn = false
+local ldmHidden = {}   -- part -> true (we set its LocalTransparencyModifier)
+local ldmDisabled = {} -- light/effect -> true (we switched it off)
+local ldmLightingWas = nil
+local ldmConns = {}
+
+local function ldmIsFx(d)
+	for _, c in ipairs(LDM_FX) do
+		if d:IsA(c) then return true end
+	end
+	return false
+end
+local function ldmApply(d)
+	if d:IsA("BasePart") then
+		local m = d.Parent
+		if LDM_HIDE[d.Name] or (m and LDM_TREES[m.Name]) then
+			d.LocalTransparencyModifier = 1
+			ldmHidden[d] = true
+		end
+	elseif ldmIsFx(d) and d.Enabled then
+		d.Enabled = false
+		ldmDisabled[d] = true
+	end
+end
+
+local function setLowDetail(on)
+	if on == ldmOn then return end
+	ldmOn = on
+	for _, c in ipairs(ldmConns) do c:Disconnect() end
+	ldmConns = {}
+	if on then
+		ldmLightingWas = { shadows = Lighting.GlobalShadows, effects = {} }
+		Lighting.GlobalShadows = false
+		for _, e in ipairs(Lighting:GetChildren()) do
+			if (e:IsA("BloomEffect") or e:IsA("SunRaysEffect") or e:IsA("DepthOfFieldEffect")) and e.Enabled then
+				e.Enabled = false
+				table.insert(ldmLightingWas.effects, e)
+			end
+		end
+		-- the server (weather, day/night) may switch shadows back on; keep them off while LDM is on
+		table.insert(ldmConns, Lighting:GetPropertyChangedSignal("GlobalShadows"):Connect(function()
+			if ldmOn and Lighting.GlobalShadows then Lighting.GlobalShadows = false end
+		end))
+		-- interiors, cars and effects keep arriving as you play
+		table.insert(ldmConns, workspace.DescendantAdded:Connect(function(d)
+			if ldmOn then task.defer(ldmApply, d) end
+		end))
+		task.spawn(function()
+			for i, d in ipairs(workspace:GetDescendants()) do
+				if not ldmOn then return end
+				ldmApply(d)
+				if i % 4000 == 0 then task.wait() end
+			end
+		end)
+	else
+		for p in pairs(ldmHidden) do
+			if p.Parent then p.LocalTransparencyModifier = 0 end
+		end
+		for e in pairs(ldmDisabled) do
+			if e.Parent then e.Enabled = true end
+		end
+		ldmHidden, ldmDisabled = {}, {}
+		if ldmLightingWas then
+			Lighting.GlobalShadows = ldmLightingWas.shadows
+			for _, e in ipairs(ldmLightingWas.effects) do
+				if e.Parent then e.Enabled = true end
+			end
+			ldmLightingWas = nil
+		end
+	end
+end
+
+local ldmBtn = Instance.new("TextButton")
+ldmBtn.Name = "LowDetailToggle"
+ldmBtn.AnchorPoint = Vector2.new(1, 0)
+ldmBtn.Position = UDim2.new(1, -18, 0, 66)
+ldmBtn.Size = UDim2.new(0, 136, 0, 38)
+ldmBtn.Font = Enum.Font.LuckiestGuy
+ldmBtn.TextSize = 15
+ldmBtn.TextColor3 = Color3.new(1, 1, 1)
+ldmBtn.Parent = gui
+local function refreshLdmBtn()
+	ldmBtn.Text = ldmOn and "LDM: ON" or "LDM: OFF"
+	ldmBtn.BackgroundColor3 = ldmOn and Color3.fromRGB(60, 150, 90) or Color3.fromRGB(90, 95, 110)
+end
+refreshLdmBtn()
+styleHudButton(ldmBtn, "📱")
+ldmBtn.Activated:Connect(function()
+	setLowDetail(not ldmOn)
+	refreshLdmBtn()
+end)
+-- phones and tablets start in low detail
+if UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled then
+	task.spawn(function()
+		local town = workspace:WaitForChild("DiscoveryBay", 300)
+		while town and not town:GetAttribute("BuildComplete") do task.wait(0.5) end
+		setLowDetail(true)
+		refreshLdmBtn()
+	end)
+end
 
 -- Global UI sound effects
 for _, child in ipairs(gui:GetDescendants()) do

@@ -36,7 +36,7 @@ local DAY_LENGTH = 600
 local START_CASH = 100
 local WALK_SPEED = 16
 local SCOOTER_SPEED = 30
-local VERSION = "v119"
+local VERSION = "v123"
 
 -- ==============================================================================================
 -- LIGHTING, DYNAMIC SUNSET & STARRY NIGHT SKY SYSTEM
@@ -964,6 +964,63 @@ CompleteQuest.OnServerEvent:Connect(function(plr, questId)
 	end
 end)
 
+--==============================================================================================
+-- NPC JOBS: talk to an NPC, take the job, do the thing, come back for the reward (repeatable).
+-- Progress lives in player attributes (saved with your progress):
+--   QuestState_<id> = "active" | "ready" | "done",  QuestProgress_<id> = count
+--==============================================================================================
+local QUESTS = {
+	FinnFish    = { npc = "Captain Finn", kind = "fish",  goal = 5,  reward = 150, title = "Fish Frenzy" },
+	RickTricks  = { npc = "Rider Rick",   kind = "trick", goal = 15, reward = 200, title = "Trick Master" },
+	SenseiMat   = { npc = "Sensei",       kind = "jjwin", goal = 3,  reward = 250, title = "Way of the Mat" },
+	EggbertEggs = { npc = "Eggbert",      kind = "hatch", goal = 3,  reward = 120, title = "Puppy Collector" },
+}
+local QuestAction = remote("QuestAction")
+local questNPCs = {} -- npc name -> model (found once)
+
+local function questProgress(plr, kind)
+	for id, q in pairs(QUESTS) do
+		if q.kind == kind and plr:GetAttribute("QuestState_" .. id) == "active" then
+			local n = math.min((plr:GetAttribute("QuestProgress_" .. id) or 0) + 1, q.goal)
+			plr:SetAttribute("QuestProgress_" .. id, n)
+			if n >= q.goal then
+				plr:SetAttribute("QuestState_" .. id, "ready")
+				TrickResult:FireClient(plr, q.title .. " complete! Go see " .. q.npc .. " for your $" .. q.reward .. ".", 0)
+			elseif kind ~= "trick" or n % 5 == 0 then -- tricks already pop a message each, so only milestones
+				TrickResult:FireClient(plr, q.title .. ": " .. n .. "/" .. q.goal, 0)
+			end
+		end
+	end
+end
+
+local function nearNPC(plr, npcName)
+	local npc = questNPCs[npcName]
+	if not npc or not npc.Parent then
+		local town = workspace:FindFirstChild("DiscoveryBay")
+		npc = town and town:FindFirstChild(npcName, true)
+		questNPCs[npcName] = npc
+	end
+	local hrp = plr.Character and plr.Character:FindFirstChild("HumanoidRootPart")
+	return npc ~= nil and hrp ~= nil and (npc:GetPivot().Position - hrp.Position).Magnitude < 30
+end
+
+QuestAction.OnServerEvent:Connect(function(plr, id, action)
+	local q = type(id) == "string" and QUESTS[id]
+	if not q or not nearNPC(plr, q.npc) then return end
+	local key = "QuestState_" .. id
+	local state = plr:GetAttribute(key)
+	if action == "accept" and (state == nil or state == "done") then
+		plr:SetAttribute(key, "active")
+		plr:SetAttribute("QuestProgress_" .. id, 0)
+		TrickResult:FireClient(plr, "New job: " .. q.title .. " (0/" .. q.goal .. ")", 0)
+	elseif action == "claim" and state == "ready" then
+		plr:SetAttribute(key, "done")
+		local cash = getCash(plr)
+		if cash then cash.Value = cash.Value + q.reward end
+		TrickResult:FireClient(plr, q.title .. " reward", q.reward)
+	end
+end)
+
 PianoDrop.OnServerEvent:Connect(function(plr, npc)
 	if not npc or not npc:IsA("Model") then return end
 	if npc:GetAttribute("PianoDropping") then return end
@@ -1621,6 +1678,7 @@ DoTrick.OnServerEvent:Connect(function(plr, trickName)
 		pay = math.floor(pay)
 		cash.Value = cash.Value + pay
 		TrickResult:FireClient(plr, trick.name, pay)
+		questProgress(plr, "trick")
 
 		-- Spawn a burst of sparks from the back wheel when executing a trick
 		local scooter = char:FindFirstChild("Scooter")
@@ -1807,6 +1865,7 @@ local function runChallenge(plr, mat)
 			cash.Value = cash.Value + JJ_WIN
 		end
 		TrickResult:FireClient(plr, "JIU JITSU CHAMPION!", JJ_WIN)
+		questProgress(plr, "jjwin")
 	end
 	task.wait(2) -- step-off grace before the mat can rearm
 	jjActive[uid] = nil
@@ -2585,6 +2644,7 @@ end
 local function spawnDog(plr, dogDef, spot)
 	local old = playerDog[plr.UserId]
 	if old and old.Parent then old:Destroy() end
+	plr:SetAttribute("SavedDog", dogDef.name) -- saved with your progress; comes back when you rent again
 	local town = workspace:FindFirstChild("DiscoveryBay") or workspace
 	local mdl = Instance.new("Model")
 	mdl.Name = dogDef.name
@@ -2777,6 +2837,7 @@ local function hookEgg(egg)
 		-- while the pet spawns at home ready for petting afterwards
 		HatchEgg:FireClient(plr, dogDef.name)
 		spawnDog(plr, dogDef, Vector3.new(homeSpot.X, homeSpot.Y, homeSpot.Z))
+		questProgress(plr, "hatch")
 	end)
 end
 
@@ -2796,6 +2857,7 @@ ClaimPity.OnServerEvent:Connect(function(plr)
 			or home.house:GetAttribute("DogSpot") or home.house:GetPivot().Position
 		HatchEgg:FireClient(plr, DOGS[3].name)
 		spawnDog(plr, DOGS[3], Vector3.new(homeSpot.X, homeSpot.Y, homeSpot.Z))
+		questProgress(plr, "hatch")
 	end
 end)
 
@@ -2822,7 +2884,8 @@ DoRebirth.OnServerEvent:Connect(function(plr)
 	local dog = playerDog[plr.UserId]
 	if dog and dog.Parent then dog:Destroy() end
 	playerDog[plr.UserId] = nil
-	
+	plr:SetAttribute("SavedDog", nil)
+
 	-- Force speed update so scooter updates immediately
 	updateSpeed(plr)
 end)
@@ -3063,6 +3126,7 @@ FishReel.OnServerEvent:Connect(function(plr, success)
 	end
 	local f = rollFish()
 	giveFishTool(plr, f)
+	questProgress(plr, "fish")
 	if f.name == "THE LIONEL" then
 		TrickResult:FireClient(plr, "THE LIONEL!!! The 1-in-100 legend is in your inventory - worth $500!", 0)
 	else
@@ -3173,6 +3237,191 @@ for _, plr in ipairs(Players:GetPlayers()) do
 end
 Players.PlayerRemoving:Connect(function(plr)
 	clearCast(plr.UserId)
+end)
+
+--==============================================================================================
+-- SAVED PROGRESS: cash, rebirths, Fast Scooter, Terry's quest, bait, egg pity, your dog, the
+-- permanent speed boosts and your inventory (food + fish). Loaded on join, saved when you leave,
+-- every 2 minutes, and when the server shuts down.
+--==============================================================================================
+local DataStoreService = game:GetService("DataStoreService")
+local SAVE_KEY_PREFIX = "player_"
+local progressStore = nil
+pcall(function()
+	progressStore = DataStoreService:GetDataStore("DiscoveryBayProgress_v1")
+end)
+local loaded = {} -- uid -> true once their save is safely loaded (never save over data we failed to read)
+local DOGS_BY_NAME = {}
+for _, dd in ipairs(DOGS) do DOGS_BY_NAME[dd.name] = dd end
+local SAVED_BOOSTS = { "SodaBoost", "VanillaBoost", "WalkBoost" }
+
+local function productTemplate(name)
+	local kit = ReplicatedStorage:FindFirstChild("DiscoveryBayKit")
+	local tools = kit and kit:FindFirstChild("Products")
+	return tools and tools:FindFirstChild(name)
+end
+
+local function snapshot(plr)
+	local cash, rebirths = getCash(plr), getRebirths(plr)
+	local data = {
+		cash = cash and cash.Value or START_CASH,
+		rebirths = rebirths and rebirths.Value or 0,
+		fastScooter = plr:GetAttribute("FastScooter") == true,
+		terryQuest = plr:GetAttribute("TerryQuestCompleted") == true,
+		bait = plr:GetAttribute("Bait") or 0,
+		pity = playerRolls[plr.UserId] or 0,
+		dog = plr:GetAttribute("SavedDog"),
+		boosts = {},
+		tools = {},
+		quests = {},
+	}
+	for id in pairs(QUESTS) do
+		local st = plr:GetAttribute("QuestState_" .. id)
+		if st then
+			data.quests[id] = { state = st, progress = plr:GetAttribute("QuestProgress_" .. id) or 0 }
+		end
+	end
+	for _, b in ipairs(SAVED_BOOSTS) do
+		data.boosts[b] = plr:GetAttribute(b) or 0
+	end
+	for _, container in ipairs({ plr:FindFirstChildOfClass("Backpack"), plr.Character }) do
+		if container then
+			for _, t in ipairs(container:GetChildren()) do
+				if t:IsA("Tool") and (FISH_BY_NAME[t.Name] or productTemplate(t.Name)) then
+					table.insert(data.tools, t.Name)
+				end
+			end
+		end
+	end
+	return data
+end
+
+local function restoreTools(plr, names)
+	local backpack = plr:FindFirstChildOfClass("Backpack") or plr:WaitForChild("Backpack", 20)
+	if not backpack then return end
+	for _, n in ipairs(names or {}) do
+		if FISH_BY_NAME[n] then
+			giveFishTool(plr, FISH_BY_NAME[n])
+		else
+			local tpl = productTemplate(n)
+			if tpl then tpl:Clone().Parent = backpack end
+		end
+	end
+end
+
+local function applySave(plr, data)
+	local cash, rebirths = getCash(plr), getRebirths(plr)
+	if cash and type(data.cash) == "number" then cash.Value = data.cash end
+	if rebirths and type(data.rebirths) == "number" then rebirths.Value = data.rebirths end
+	if data.fastScooter then plr:SetAttribute("FastScooter", true) end
+	if data.terryQuest then plr:SetAttribute("TerryQuestCompleted", true) end
+	if type(data.bait) == "number" and data.bait > 0 then plr:SetAttribute("Bait", data.bait) end
+	if type(data.pity) == "number" then
+		playerRolls[plr.UserId] = data.pity
+		UpdatePity:FireClient(plr, 90 - data.pity)
+		-- again once the client has surely hooked up its pity label
+		task.delay(6, function()
+			if plr.Parent then UpdatePity:FireClient(plr, 90 - (playerRolls[plr.UserId] or 0)) end
+		end)
+	end
+	if type(data.dog) == "string" and DOGS_BY_NAME[data.dog] then plr:SetAttribute("SavedDog", data.dog) end
+	for _, b in ipairs(SAVED_BOOSTS) do
+		local v = data.boosts and data.boosts[b]
+		if type(v) == "number" and v > 0 then plr:SetAttribute(b, v) end
+	end
+	for id, qs in pairs(type(data.quests) == "table" and data.quests or {}) do
+		if QUESTS[id] and type(qs) == "table" and (qs.state == "active" or qs.state == "ready" or qs.state == "done") then
+			plr:SetAttribute("QuestState_" .. id, qs.state)
+			plr:SetAttribute("QuestProgress_" .. id, tonumber(qs.progress) or 0)
+		end
+	end
+	task.spawn(restoreTools, plr, data.tools)
+	updateSpeed(plr)
+end
+
+local function loadProgress(plr)
+	if not progressStore then return end
+	local key = SAVE_KEY_PREFIX .. plr.UserId
+	for attempt = 1, 3 do
+		local ok, data = pcall(progressStore.GetAsync, progressStore, key)
+		if ok then
+			if not plr.Parent then return end
+			if type(data) == "table" then
+				applySave(plr, data)
+				TrickResult:FireClient(plr, "Welcome back! Your progress was loaded.", 0)
+			end
+			loaded[plr.UserId] = true
+			return
+		end
+		warn("[DiscoveryBayShop] loading progress failed (try " .. attempt .. "): " .. tostring(data))
+		task.wait(2 * attempt)
+	end
+	-- couldn't read their save: play on, but don't save so we never overwrite real progress.
+	-- (In Studio this is normal for an unpublished place / API access off, so no popup there.)
+	if not game:GetService("RunService"):IsStudio() then
+		TrickResult:FireClient(plr, "Couldn't load your save right now - progress won't save this session.", 0)
+	end
+end
+
+local function saveProgress(plr)
+	if not progressStore or not loaded[plr.UserId] then return end
+	local data = snapshot(plr)
+	local key = SAVE_KEY_PREFIX .. plr.UserId
+	for attempt = 1, 3 do
+		local ok, err = pcall(progressStore.SetAsync, progressStore, key, data)
+		if ok then return true end
+		warn("[DiscoveryBayShop] saving progress failed (try " .. attempt .. "): " .. tostring(err))
+		task.wait(attempt)
+	end
+	return false
+end
+
+Players.PlayerAdded:Connect(function(plr)
+	task.spawn(loadProgress, plr)
+end)
+for _, plr in ipairs(Players:GetPlayers()) do
+	task.spawn(loadProgress, plr)
+end
+Players.PlayerRemoving:Connect(function(plr)
+	saveProgress(plr)
+	loaded[plr.UserId] = nil
+end)
+game:BindToClose(function()
+	local pending = 0
+	for _, plr in ipairs(Players:GetPlayers()) do
+		pending += 1
+		task.spawn(function()
+			saveProgress(plr)
+			pending -= 1
+		end)
+	end
+	local t0 = os.clock()
+	while pending > 0 and os.clock() - t0 < 25 do task.wait(0.2) end
+end)
+-- autosave, and bring your saved dog home once you've rented a house again
+task.spawn(function()
+	local sinceSave = 0
+	while true do
+		task.wait(1)
+		sinceSave += 1
+		for _, plr in ipairs(Players:GetPlayers()) do
+			local dogName = plr:GetAttribute("SavedDog")
+			local home = ownedHouse[plr.UserId]
+			if dogName and DOGS_BY_NAME[dogName] and home and home.house.Parent and not playerDog[plr.UserId] then
+				local spot = home.house:GetAttribute("DogSpotInside")
+				if spot then
+					spawnDog(plr, DOGS_BY_NAME[dogName], Vector3.new(spot.X, spot.Y, spot.Z))
+					TrickResult:FireClient(plr, dogName .. " is waiting for you at home!", 0)
+				end
+			end
+		end
+		if sinceSave >= 120 then
+			sinceSave = 0
+			for _, plr in ipairs(Players:GetPlayers()) do
+				task.spawn(saveProgress, plr)
+			end
+		end
+	end
 end)
 
 --==============================================================================================

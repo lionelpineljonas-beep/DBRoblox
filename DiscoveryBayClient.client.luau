@@ -11,7 +11,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 
-local VERSION = "v119"
+local VERSION = "v123"
 local SPEED_PASS_ID = 0 -- paste the real Game Pass ID here (same one as in DiscoveryBayShop)
 local RunService = game:GetService("RunService")
 local Lighting = game:GetService("Lighting")
@@ -1970,6 +1970,66 @@ local function playTerrySodaCutscene(npcModel)
 	cutStepConn = RunService.Stepped:Connect(updateCutsceneFrame)
 end
 
+-- NPC jobs (the server tracks progress in QuestState_<id> / QuestProgress_<id> player attributes)
+local NPC_QUESTS = {
+	["Captain Finn"] = { id = "FinnFish", reward = 150,
+		offer = "Me nets are empty, matey! Catch me 5 fish - any kind - and there's $150 in it for ye.",
+		again = "Back for more? Another 5 fish, another $150. Deal?",
+		accept = "Aye! Any water in the bay will do. Don't forget yer bait!",
+		progress = "How's the fishin'? That's %d of 5 so far.",
+		ready = "FIVE fish! Ye've got sea legs after all. Here's yer $150!" },
+	["Rider Rick"] = { id = "RickTricks", reward = 200,
+		offer = "Think you can ride? Land 15 tricks and I'll pay you $200. Any tricks count.",
+		again = "Again? 15 more tricks, $200 more. Let's see it.",
+		accept = "Go shred. Z X C V B, or T for a random one.",
+		progress = "You're at %d of 15 tricks. Keep shredding!",
+		ready = "Fifteen tricks! You're a natural. $200, as promised." },
+	["Sensei"] = { id = "SenseiMat", reward = 250,
+		offer = "Win my mat challenge three times and you will earn $250. Discipline pays.",
+		again = "Your training continues. Three more victories, $250 more.",
+		accept = "Step on the grey mat when you are ready.",
+		progress = "%d of 3 victories. Focus.",
+		ready = "Three victories. You honour this dojo. Take your $250." },
+	["Eggbert"] = { id = "EggbertEggs", reward = 120,
+		offer = "Help my research! Hatch 3 mystery eggs and I'll pay you $120. Science!",
+		again = "More data needed! Hatch 3 more eggs for another $120.",
+		accept = "Excellent. Remember - pups need a rented house first!",
+		progress = "%d of 3 eggs hatched. The science is going GREAT.",
+		ready = "Three hatchlings! The data is beautiful. Here's $120!" },
+}
+local QuestAction = remotes:WaitForChild("QuestAction", 10)
+
+-- puts the job option at the top of an NPC's choices (label depends on where the job is at)
+local function withQuestChoice(npcName, choices)
+	local q = NPC_QUESTS[npcName]
+	if not q or not QuestAction then return choices end
+	local state = plr:GetAttribute("QuestState_" .. q.id)
+	local label = (state == "ready") and ("Claim $" .. q.reward .. "!") or (state == "active") and "My job?" or "Got a job?"
+	table.insert(choices, 1, { id = "quest", text = label })
+	return choices
+end
+
+local function handleQuestChoice(npcName)
+	local q = NPC_QUESTS[npcName]
+	local state = plr:GetAttribute("QuestState_" .. q.id)
+	if state == "ready" then
+		QuestAction:FireServer(q.id, "claim")
+		showDialogue(npcName, q.ready, {}, nil)
+	elseif state == "active" then
+		showDialogue(npcName, string.format(q.progress, plr:GetAttribute("QuestProgress_" .. q.id) or 0), {}, nil)
+	else
+		showDialogue(npcName, state == "done" and q.again or q.offer, {
+			{ id = "accept", text = "I'm on it!" },
+			{ id = "no", text = "Maybe later." },
+		}, function(choiceId)
+			if choiceId == "accept" then
+				QuestAction:FireServer(q.id, "accept")
+				showDialogue(npcName, q.accept, {}, nil)
+			end
+		end)
+	end
+end
+
 local function hookNPC(prompt)
 	local npcName = prompt.ObjectText
 	task.spawn(function()
@@ -2009,26 +2069,32 @@ local function hookNPC(prompt)
 				remotes:WaitForChild("BuyCustomItem"):FireServer(choiceId)
 			end)
 		elseif npcName == "Eggbert" then
-			showDialogue("Eggbert", "Psst! Mystery dogs in these eggs. Mostly Mary or Jolene... but one in a HUNDRED hatches Linus. Rent a house first - pups need a home!", {
+			showDialogue("Eggbert", "Psst! Mystery dogs in these eggs. Mostly Mary or Jolene... but one in a HUNDRED hatches Linus. Rent a house first - pups need a home!", withQuestChoice("Eggbert", {
 				{ id = "linus", text = "Who's Linus?" }
-			}, function(choiceId)
-				if choiceId == "linus" then
+			}), function(choiceId)
+				if choiceId == "quest" then
+					handleQuestChoice("Eggbert")
+				elseif choiceId == "linus" then
 					showDialogue("Eggbert", "A golden legend. Pays $100 a pet. I saw him hatch once. Changed my whole life.", {}, nil)
 				end
 			end)
 		elseif npcName == "Captain Finn" then
-			showDialogue("Captain Finn", "Ahoy! Grab a rod, grab bait, and cast into ANY water in the bay. When the bobber glows - REEL! I buy every fish in your inventory.", {
+			showDialogue("Captain Finn", "Ahoy! Grab a rod, grab bait, and cast into ANY water in the bay. When the bobber glows - REEL! I buy every fish in your inventory.", withQuestChoice("Captain Finn", {
 				{ id = "secret", text = "Any secret fish?" }
-			}, function(choiceId)
-				if choiceId == "secret" then
+			}), function(choiceId)
+				if choiceId == "quest" then
+					handleQuestChoice("Captain Finn")
+				elseif choiceId == "secret" then
 					showDialogue("Captain Finn", "They whisper of THE LIONEL. One cast in a hundred. Worth five hundred bucks. Never landed it myself... yet.", {}, nil)
 				end
 			end)
 		elseif npcName == "Rider Rick" then
-			showDialogue("Rider Rick", "Looking to upgrade? The Fast Scooter bumps your base speed up by 20. And yes, it stacks with the Speed Pass. Pure adrenaline.", {
+			showDialogue("Rider Rick", "Looking to upgrade? The Fast Scooter bumps your base speed up by 20. And yes, it stacks with the Speed Pass. Pure adrenaline.", withQuestChoice("Rider Rick", {
 				{ id = "gold", text = "Why gold?" }
-			}, function(choiceId)
-				if choiceId == "gold" then
+			}), function(choiceId)
+				if choiceId == "quest" then
+					handleQuestChoice("Rider Rick")
+				elseif choiceId == "gold" then
 					showDialogue("Rider Rick", "Because you want everyone to know you're rich and fast. Mostly fast.", {}, nil)
 				end
 			end)
@@ -2072,10 +2138,12 @@ local function hookNPC(prompt)
 				end
 			end)
 		elseif npcName == "Sensei" then
-			showDialogue("Sensei", "Step on the grey mat to begin your training. Seven buttons. Five seconds each. Miss and you PAY. Win, and you feast: $50.", {
+			showDialogue("Sensei", "Step on the grey mat to begin your training. Seven buttons. Five seconds each. Miss and you PAY. Win, and you feast: $50.", withQuestChoice("Sensei", {
 				{ id = "advice", text = "Any advice?" }
-			}, function(choiceId)
-				if choiceId == "advice" then
+			}), function(choiceId)
+				if choiceId == "quest" then
+					handleQuestChoice("Sensei")
+				elseif choiceId == "advice" then
 					showDialogue("Sensei", "Never leave the mat mid-fight. And never, EVER, challenge me on a Monday.", {}, nil)
 				end
 			end)
@@ -2269,6 +2337,7 @@ local function runIntro()
 	panTitle.TextSize = 20
 	panTitle.TextColor3 = Color3.new(1, 1, 1)
 	panTitle.Text = "UPDATE NOTES"
+	panTitle.ZIndex = 10
 	panTitle.Parent = panel
 	local pCorner = Instance.new("UICorner")
 	pCorner.CornerRadius = UDim.new(0, 8)
@@ -2279,10 +2348,11 @@ local function runIntro()
 	panBody.BackgroundTransparency = 1
 	panBody.Font = Enum.Font.LuckiestGuy
 	panBody.TextSize = 16
-	panBody.TextColor3 = Color3.fromRGB(60, 70, 80)
+	panBody.TextColor3 = Color3.fromRGB(232, 235, 240) -- light text on the dark panel
 	panBody.TextWrapped = true
 	panBody.TextXAlignment = Enum.TextXAlignment.Left
 	panBody.TextYAlignment = Enum.TextYAlignment.Top
+	panBody.ZIndex = 10
 	panBody.Parent = panel
 	local panClose = Instance.new("TextButton")
 	panClose.AnchorPoint = Vector2.new(0.5, 1)
@@ -2293,6 +2363,7 @@ local function runIntro()
 	panClose.TextSize = 16
 	panClose.TextColor3 = Color3.new(1, 1, 1)
 	panClose.Text = "Got it!"
+	panClose.ZIndex = 10
 	panClose.Parent = panel
 	local pcCorner = Instance.new("UICorner")
 	pcCorner.CornerRadius = UDim.new(0, 8)
@@ -3052,6 +3123,130 @@ styleHudButton(moneyBtn, "💰")
 styleHudButton(mountBtn, "🛴")
 styleHudButton(tricksToggleBtn, "🔥")
 styleHudButton(pityLabel, "🥚")
+
+-- LOW DETAIL MODE (LDM) -----------------------------------------------------------------------
+-- For phones: hides small decoration parts (trees, yard and window trim, shop dressing, interior
+-- clutter) on this client only, and switches off shadows, lights, particles and glow effects.
+-- On by default for touch devices without a keyboard; the HUD button toggles it for anyone.
+local LDM_HIDE = {}
+for _, n in ipairs({
+	-- house exteriors
+	"Shrub", "Flowers", "FlowerBox", "Mullion", "Transom", "WindowHeader", "Sill", "WindowSill", "WindowJamb",
+	"Shutter", "MailboxPost", "Mailbox", "MailboxFlag", "PorchLight", "RidgeCap", "GarageTrim", "DoorJamb",
+	"DoorLintel", "RentPostCap", "RentChain", "Walkway",
+	-- shop dressing
+	"BaseCourse", "Pilaster", "ParapetCap", "LanternArm", "Lantern", "Planter", "PlanterShrub", "AwningStripe",
+	"AwningValance", "RoofAC", "RoofACFan", "RoofVent", "PumpStripe", "PumpScreen", "PumpNozzle", "PumpHose",
+	"Bollard", "EggSpot", "SpotlightPost", "SpotlightHead", "TurntableGlow", "FacadeNeon", "WallNeon", "RunwayTile",
+	"CafeChairLeg", "BenchLeg", "RackWheel", "TireRim", "CoolerDoorSplit",
+	-- interior clutter
+	"Books", "Magazine", "Mug", "Kibble", "ChewBone", "PoolBall", "PoolCue", "CabinetLine", "Burner", "FridgeSeam",
+	"FridgeDrawing", "ThrowPillow", "LightCord", "Baseboard", "GameConsole", "Soundbar", "Pot", "CupStack",
+}) do
+	LDM_HIDE[n] = true
+end
+local LDM_TREES = { tree_oak = true, tree_palm = true }
+local LDM_FX = { "PointLight", "SpotLight", "SurfaceLight", "ParticleEmitter", "Trail", "Beam", "Smoke", "Fire", "Sparkles" }
+local ldmOn = false
+local ldmHidden = {}   -- part -> true (we set its LocalTransparencyModifier)
+local ldmDisabled = {} -- light/effect -> true (we switched it off)
+local ldmLightingWas = nil
+local ldmConns = {}
+
+local function ldmIsFx(d)
+	for _, c in ipairs(LDM_FX) do
+		if d:IsA(c) then return true end
+	end
+	return false
+end
+local function ldmApply(d)
+	if d:IsA("BasePart") then
+		local m = d.Parent
+		if LDM_HIDE[d.Name] or (m and LDM_TREES[m.Name]) then
+			d.LocalTransparencyModifier = 1
+			ldmHidden[d] = true
+		end
+	elseif ldmIsFx(d) and d.Enabled then
+		d.Enabled = false
+		ldmDisabled[d] = true
+	end
+end
+
+local function setLowDetail(on)
+	if on == ldmOn then return end
+	ldmOn = on
+	for _, c in ipairs(ldmConns) do c:Disconnect() end
+	ldmConns = {}
+	if on then
+		ldmLightingWas = { shadows = Lighting.GlobalShadows, effects = {} }
+		Lighting.GlobalShadows = false
+		for _, e in ipairs(Lighting:GetChildren()) do
+			if (e:IsA("BloomEffect") or e:IsA("SunRaysEffect") or e:IsA("DepthOfFieldEffect")) and e.Enabled then
+				e.Enabled = false
+				table.insert(ldmLightingWas.effects, e)
+			end
+		end
+		-- the server (weather, day/night) may switch shadows back on; keep them off while LDM is on
+		table.insert(ldmConns, Lighting:GetPropertyChangedSignal("GlobalShadows"):Connect(function()
+			if ldmOn and Lighting.GlobalShadows then Lighting.GlobalShadows = false end
+		end))
+		-- interiors, cars and effects keep arriving as you play
+		table.insert(ldmConns, workspace.DescendantAdded:Connect(function(d)
+			if ldmOn then task.defer(ldmApply, d) end
+		end))
+		task.spawn(function()
+			for i, d in ipairs(workspace:GetDescendants()) do
+				if not ldmOn then return end
+				ldmApply(d)
+				if i % 4000 == 0 then task.wait() end
+			end
+		end)
+	else
+		for p in pairs(ldmHidden) do
+			if p.Parent then p.LocalTransparencyModifier = 0 end
+		end
+		for e in pairs(ldmDisabled) do
+			if e.Parent then e.Enabled = true end
+		end
+		ldmHidden, ldmDisabled = {}, {}
+		if ldmLightingWas then
+			Lighting.GlobalShadows = ldmLightingWas.shadows
+			for _, e in ipairs(ldmLightingWas.effects) do
+				if e.Parent then e.Enabled = true end
+			end
+			ldmLightingWas = nil
+		end
+	end
+end
+
+local ldmBtn = Instance.new("TextButton")
+ldmBtn.Name = "LowDetailToggle"
+ldmBtn.AnchorPoint = Vector2.new(1, 0)
+ldmBtn.Position = UDim2.new(1, -18, 0, 66)
+ldmBtn.Size = UDim2.new(0, 136, 0, 38)
+ldmBtn.Font = Enum.Font.LuckiestGuy
+ldmBtn.TextSize = 15
+ldmBtn.TextColor3 = Color3.new(1, 1, 1)
+ldmBtn.Parent = gui
+local function refreshLdmBtn()
+	ldmBtn.Text = ldmOn and "LDM: ON" or "LDM: OFF"
+	ldmBtn.BackgroundColor3 = ldmOn and Color3.fromRGB(60, 150, 90) or Color3.fromRGB(90, 95, 110)
+end
+refreshLdmBtn()
+styleHudButton(ldmBtn, "📱")
+ldmBtn.Activated:Connect(function()
+	setLowDetail(not ldmOn)
+	refreshLdmBtn()
+end)
+-- phones and tablets start in low detail
+if UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled then
+	task.spawn(function()
+		local town = workspace:WaitForChild("DiscoveryBay", 300)
+		while town and not town:GetAttribute("BuildComplete") do task.wait(0.5) end
+		setLowDetail(true)
+		refreshLdmBtn()
+	end)
+end
 
 -- Global UI sound effects
 for _, child in ipairs(gui:GetDescendants()) do
