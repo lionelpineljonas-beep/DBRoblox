@@ -13,7 +13,7 @@
       <Properties>
         <string name="Name">DiscoveryBayBuild</string>
         <token name="RunContext">0</token>
-        <string name="Source"><![CDATA[-- DISCOVERY BAY, CALIFORNIA — OSM-accurate procedural Roblox build (v111)
+        <string name="Source"><![CDATA[-- DISCOVERY BAY, CALIFORNIA — OSM-accurate procedural Roblox build (v112)
 --==============================================================================================
 -- Builds the real Discovery Bay from OpenStreetMap geometry (© OpenStreetMap contributors):
 --   * real terrain raster: every lagoon/bay polygon, Old River, golf fairways/greens/
@@ -3565,7 +3565,7 @@ local DAY_LENGTH = 600
 local START_CASH = 100
 local WALK_SPEED = 16
 local SCOOTER_SPEED = 30
-local VERSION = "v111"
+local VERSION = "v112"
 
 -- ==============================================================================================
 -- LIGHTING, DYNAMIC SUNSET & STARRY NIGHT SKY SYSTEM
@@ -6950,9 +6950,20 @@ ForceWeather.OnServerEvent:Connect(function(plr)
 	end)
 end)
 
+-- the game's owner (or anyone testing in Studio); for a group game, the group's owner
+local function isGameOwner(plr)
+	if game:GetService("RunService"):IsStudio() then return true end
+	if game.CreatorType == Enum.CreatorType.User then
+		return plr.UserId == game.CreatorId
+	end
+	local ok, rank = pcall(plr.GetRankInGroup, plr, game.CreatorId)
+	return ok and rank == 255
+end
+
 local InfiniteMoney = remote("InfiniteMoney")
 InfiniteMoney.OnServerEvent:Connect(function(plr)
-	-- only for testing!
+	-- owner-only test cheat; checked here so exploiters can't fire the remote themselves
+	if not isGameOwner(plr) then return end
 	local cash = getCash(plr)
 	if cash then
 		cash.Value = 999999999
@@ -7312,7 +7323,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 
-local VERSION = "v111"
+local VERSION = "v112"
 local SPEED_PASS_ID = 0 -- paste the real Game Pass ID here (same one as in DiscoveryBayShop)
 local RunService = game:GetService("RunService")
 local Lighting = game:GetService("Lighting")
@@ -9772,6 +9783,15 @@ moneyBtn.TextColor3 = Color3.new(1, 1, 1)
 moneyBtn.Font = Enum.Font.LuckiestGuy
 moneyBtn.TextSize = 15
 moneyBtn.Text = "+ Inf Money"
+-- owner-only (the server checks too): hidden for everyone but the game's owner / Studio testing
+moneyBtn.Visible = RunService:IsStudio()
+	or (game.CreatorType == Enum.CreatorType.User and plr.UserId == game.CreatorId)
+if game.CreatorType == Enum.CreatorType.Group and not moneyBtn.Visible then
+	task.spawn(function()
+		local ok, rank = pcall(plr.GetRankInGroup, plr, game.CreatorId)
+		moneyBtn.Visible = ok and rank == 255
+	end)
+end
 moneyBtn.Parent = gui
 local mb2Corner = Instance.new("UICorner")
 mb2Corner.CornerRadius = UDim.new(0, 12)

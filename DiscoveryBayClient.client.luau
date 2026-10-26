@@ -11,7 +11,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 
-local VERSION = "v111"
+local VERSION = "v112"
 local SPEED_PASS_ID = 0 -- paste the real Game Pass ID here (same one as in DiscoveryBayShop)
 local RunService = game:GetService("RunService")
 local Lighting = game:GetService("Lighting")
@@ -2471,6 +2471,15 @@ moneyBtn.TextColor3 = Color3.new(1, 1, 1)
 moneyBtn.Font = Enum.Font.LuckiestGuy
 moneyBtn.TextSize = 15
 moneyBtn.Text = "+ Inf Money"
+-- owner-only (the server checks too): hidden for everyone but the game's owner / Studio testing
+moneyBtn.Visible = RunService:IsStudio()
+	or (game.CreatorType == Enum.CreatorType.User and plr.UserId == game.CreatorId)
+if game.CreatorType == Enum.CreatorType.Group and not moneyBtn.Visible then
+	task.spawn(function()
+		local ok, rank = pcall(plr.GetRankInGroup, plr, game.CreatorId)
+		moneyBtn.Visible = ok and rank == 255
+	end)
+end
 moneyBtn.Parent = gui
 local mb2Corner = Instance.new("UICorner")
 mb2Corner.CornerRadius = UDim.new(0, 12)

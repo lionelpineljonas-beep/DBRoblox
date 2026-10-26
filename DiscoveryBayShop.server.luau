@@ -36,7 +36,7 @@ local DAY_LENGTH = 600
 local START_CASH = 100
 local WALK_SPEED = 16
 local SCOOTER_SPEED = 30
-local VERSION = "v111"
+local VERSION = "v112"
 
 -- ==============================================================================================
 -- LIGHTING, DYNAMIC SUNSET & STARRY NIGHT SKY SYSTEM
@@ -3421,9 +3421,20 @@ ForceWeather.OnServerEvent:Connect(function(plr)
 	end)
 end)
 
+-- the game's owner (or anyone testing in Studio); for a group game, the group's owner
+local function isGameOwner(plr)
+	if game:GetService("RunService"):IsStudio() then return true end
+	if game.CreatorType == Enum.CreatorType.User then
+		return plr.UserId == game.CreatorId
+	end
+	local ok, rank = pcall(plr.GetRankInGroup, plr, game.CreatorId)
+	return ok and rank == 255
+end
+
 local InfiniteMoney = remote("InfiniteMoney")
 InfiniteMoney.OnServerEvent:Connect(function(plr)
-	-- only for testing!
+	-- owner-only test cheat; checked here so exploiters can't fire the remote themselves
+	if not isGameOwner(plr) then return end
 	local cash = getCash(plr)
 	if cash then
 		cash.Value = 999999999
