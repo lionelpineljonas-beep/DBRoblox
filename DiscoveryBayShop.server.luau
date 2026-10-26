@@ -36,7 +36,7 @@ local DAY_LENGTH = 600
 local START_CASH = 100
 local WALK_SPEED = 16
 local SCOOTER_SPEED = 30
-local VERSION = "v112"
+local VERSION = "v119"
 
 -- ==============================================================================================
 -- LIGHTING, DYNAMIC SUNSET & STARRY NIGHT SKY SYSTEM
@@ -734,6 +734,16 @@ function mountScooterBody(plr, char)
 					ik.EndEffector = hand
 					ik.ChainRoot = upper
 					ik.Target = (side == "Left") and gripL or gripR
+					-- pole behind, below and outside the shoulder: elbows bend back and down
+					-- (without one the solver twists the upper arm sideways)
+					local upperTorso = char:FindFirstChild("UpperTorso")
+					if upperTorso then
+						local pole = Instance.new("Attachment")
+						pole.Name = side .. "ElbowPole"
+						pole.Position = Vector3.new((side == "Left") and -1.6 or 1.6, -1.2, 2)
+						pole.Parent = upperTorso
+						ik.Pole = pole
+					end
 					ik.Weight = 1
 					ik.SmoothTime = 0.02
 					ik.Parent = humanoid
@@ -833,6 +843,7 @@ local function dismountScooter(plr)
 			humanoid.HipHeight = orig or rig.hipBase or humanoid.HipHeight
 		end
 		for _, ik in ipairs(rig.iks or {}) do
+			if ik.Pole then ik.Pole:Destroy() end
 			if ik.Parent then ik:Destroy() end
 		end
 		if rig.waist and rig.waist.motor.Parent then rig.waist.motor.C0 = rig.waist.orig end
@@ -863,6 +874,11 @@ local function dismountScooter(plr)
 			for _, ikName in ipairs({ "LeftHandGrip", "RightHandGrip" }) do
 				local ik = humanoid:FindFirstChild(ikName)
 				if ik then ik:Destroy() end
+			end
+			local ut = char:FindFirstChild("UpperTorso")
+			for _, poleName in ipairs({ "LeftElbowPole", "RightElbowPole" }) do
+				local pole = ut and ut:FindFirstChild(poleName)
+				if pole then pole:Destroy() end
 			end
 			local orig = char:GetAttribute("ScooterOrigHip")
 			if orig then humanoid.HipHeight = orig end
@@ -1274,6 +1290,12 @@ end)
 --==============================================================================================
 -- TRICKS
 --==============================================================================================
+-- body joints can refuse C0 writes on newer rigs (IK-driven arms); a refused write must only
+-- skip that joint, never kill the trick task (which would leave rig.spinning stuck)
+local function trySetC0(motor, cf)
+	pcall(function() motor.C0 = cf end)
+end
+
 local function spinDeck(rig, axis, dur, kick)
 	if not rig or not rig.deckMount or rig.spinning then return end
 	rig.spinning = true
@@ -1285,9 +1307,9 @@ local function spinDeck(rig, axis, dur, kick)
 			for idx, hh in ipairs(rig.hips) do
 				if hh.motor.Parent then
 					if kick and idx == 2 then
-						hh.motor.C0 = hh.pose(hh.rest, -20, 0, -55)
+						trySetC0(hh.motor, hh.pose(hh.rest, -20, 0, -55))
 					else
-						hh.motor.C0 = hh.pose(hh.rest, kick and -62 or -55)
+						trySetC0(hh.motor, hh.pose(hh.rest, kick and -62 or -55))
 					end
 					tucked[#tucked + 1] = hh
 				end
@@ -1322,16 +1344,16 @@ local function spinDeck(rig, axis, dur, kick)
 			end
 			if waistOK then
 				if axis == "y" then
-					rig.waist.motor.C0 = rig.waist.rest * CFrame.Angles(math.rad(-24 * wave), 0, 0)
+					trySetC0(rig.waist.motor, rig.waist.rest * CFrame.Angles(math.rad(-24 * wave), 0, 0))
 				else
-					rig.waist.motor.C0 = rig.waist.rest * CFrame.Angles(0, 0, math.rad(26 * wave))
+					trySetC0(rig.waist.motor, rig.waist.rest * CFrame.Angles(0, 0, math.rad(26 * wave)))
 				end
 			end
 			if armsOn then
 				for idx, sh in ipairs(rig.shoulders) do
 					if sh.motor.Parent then
 						local side = (idx == 1) and 1 or -1
-						sh.motor.C0 = sh.pose(sh.rest, -38 * wave, 0, 10 * wave * side)
+						trySetC0(sh.motor, sh.pose(sh.rest, -38 * wave, 0, 10 * wave * side))
 					end
 				end
 			end
@@ -1351,14 +1373,14 @@ local function spinDeck(rig, axis, dur, kick)
 			rig.barMount.C0 = rig.barBase
 		end
 		if waistOK and rig.waist.motor.Parent then
-			rig.waist.motor.C0 = rig.waist.rest
+			trySetC0(rig.waist.motor, rig.waist.rest)
 		end
 		for _, hh in ipairs(tucked) do
-			if hh.motor.Parent then hh.motor.C0 = hh.rest end
+			if hh.motor.Parent then trySetC0(hh.motor, hh.rest) end
 		end
 		if armsOn then
 			for _, sh in ipairs(rig.shoulders) do
-				if sh.motor.Parent then sh.motor.C0 = sh.rest end
+				if sh.motor.Parent then trySetC0(sh.motor, sh.rest) end
 			end
 			for _, ik in ipairs(rig.iks) do
 				if ik.Parent then ik.Enabled = true end
@@ -1381,7 +1403,7 @@ local function legsBack(rig, dur)
 		if h.motor.Parent then
 			local pitch = (idx == 1) and -70 or -86
 			local yaw = (idx == 1) and 9 or -9
-			h.motor.C0 = h.pose(h.rest, pitch, yaw)
+			trySetC0(h.motor, h.pose(h.rest, pitch, yaw))
 		end
 	end
 	-- arms punch straight ahead (IK paused): the full flying-superman silhouette
@@ -1390,7 +1412,7 @@ local function legsBack(rig, dur)
 	end
 	for idx, s in ipairs(rig.shoulders or {}) do
 		if s.motor.Parent then
-			s.motor.C0 = s.pose(s.rest, 85, 0, (idx == 1) and 8 or -8)
+			trySetC0(s.motor, s.pose(s.rest, 85, 0, (idx == 1) and 8 or -8))
 		end
 	end
 	if rig.r6arms then
@@ -1402,14 +1424,14 @@ local function legsBack(rig, dur)
 	end
 	-- arch the chest up for the full superman silhouette
 	if rig.waist and rig.waist.motor.Parent then
-		rig.waist.motor.C0 = rig.waist.rest * CFrame.Angles(math.rad(20), 0, 0)
+		trySetC0(rig.waist.motor, rig.waist.rest * CFrame.Angles(math.rad(20), 0, 0))
 	end
 	task.delay(dur, function()
 		for _, h in ipairs(rig.hips) do
-			if h.motor.Parent then h.motor.C0 = h.rest end
+			if h.motor.Parent then trySetC0(h.motor, h.rest) end
 		end
 		for _, s in ipairs(rig.shoulders or {}) do
-			if s.motor.Parent then s.motor.C0 = s.rest end
+			if s.motor.Parent then trySetC0(s.motor, s.rest) end
 		end
 		if rig.r6arms then
 			for _, ra in ipairs(rig.r6arms) do
@@ -1417,7 +1439,7 @@ local function legsBack(rig, dur)
 			end
 		end
 		if rig.waist and rig.waist.motor.Parent then
-			rig.waist.motor.C0 = rig.waist.rest
+			trySetC0(rig.waist.motor, rig.waist.rest)
 		end
 		for _, ik in ipairs(rig.iks) do
 			if ik.Parent then ik.Enabled = true end
@@ -1442,7 +1464,7 @@ local function armsBack(rig, dur)
 			for idx, s in ipairs(rig.shoulders or {}) do
 				if s.motor.Parent then
 					local side = (idx == 1) and -1 or 1
-					s.motor.C0 = s.pose(s.rest, 115 * wave, 0, side * 52 * wave)
+					trySetC0(s.motor, s.pose(s.rest, 115 * wave, 0, side * 52 * wave))
 				end
 			end
 			if rig.r6arms then
@@ -1454,7 +1476,7 @@ local function armsBack(rig, dur)
 				end
 			end
 			if rig.waist and rig.waist.motor.Parent then
-				rig.waist.motor.C0 = rig.waist.rest * CFrame.Angles(math.rad(22 * wave), 0, 0)
+				trySetC0(rig.waist.motor, rig.waist.rest * CFrame.Angles(math.rad(22 * wave), 0, 0))
 			end
 			if rig.deckMount and rig.deckMount.Parent then
 				rig.deckMount.C0 = rig.deckBase * CFrame.Angles(math.rad(18 * wave), 0, 0)
@@ -1465,7 +1487,7 @@ local function armsBack(rig, dur)
 			task.wait(dur / steps)
 		end
 		for _, s in ipairs(rig.shoulders or {}) do
-			if s.motor.Parent then s.motor.C0 = s.rest end
+			if s.motor.Parent then trySetC0(s.motor, s.rest) end
 		end
 		if rig.r6arms then
 			for _, ra in ipairs(rig.r6arms) do
@@ -1473,7 +1495,7 @@ local function armsBack(rig, dur)
 			end
 		end
 		if rig.waist and rig.waist.motor.Parent then
-			rig.waist.motor.C0 = rig.waist.rest
+			trySetC0(rig.waist.motor, rig.waist.rest)
 		end
 		if rig.deckMount and rig.deckMount.Parent then
 			rig.deckMount.C0 = rig.deckBase
@@ -1509,7 +1531,7 @@ local function fullFlipOrSpin(rig, mode, dur)
 				rot = CFrame.new(0, 0.7 * wave, 0) * CFrame.Angles(0, a, math.rad(12 * wave))
 			end
 			if rig.root and rig.root.motor and rig.root.motor.Parent then
-				rig.root.motor.C0 = rig.root.rest * rot
+				trySetC0(rig.root.motor, rig.root.rest * rot)
 			end
 			if rig.deckMount and rig.deckMount.Parent then
 				rig.deckMount.C0 = rig.deckBase * rot
@@ -1521,14 +1543,14 @@ local function fullFlipOrSpin(rig, mode, dur)
 			if rig.hips then
 				for _, hh in ipairs(rig.hips) do
 					if hh.motor.Parent then
-						hh.motor.C0 = hh.pose(hh.rest, -50 * wave)
+						trySetC0(hh.motor, hh.pose(hh.rest, -50 * wave))
 					end
 				end
 			end
 			task.wait(dur / steps)
 		end
 		if rig.root and rig.root.motor and rig.root.motor.Parent then
-			rig.root.motor.C0 = rig.root.rest
+			trySetC0(rig.root.motor, rig.root.rest)
 		end
 		if rig.deckMount and rig.deckMount.Parent then
 			rig.deckMount.C0 = rig.deckBase
@@ -1538,7 +1560,7 @@ local function fullFlipOrSpin(rig, mode, dur)
 		end
 		if rig.hips then
 			for _, hh in ipairs(rig.hips) do
-				if hh.motor.Parent then hh.motor.C0 = hh.rest end
+				if hh.motor.Parent then trySetC0(hh.motor, hh.rest) end
 			end
 		end
 		for _, ik in ipairs(rig.iks or {}) do
@@ -2072,6 +2094,9 @@ local function hollowHouse(house)
 	if doorOnBody then
 		doorX = math.clamp(doorRel.X, -w / 2 + 4, w / 2 - 4)
 		addHole(frontHoles, doorX, DOOR_W, 0, DOOR_H)
+		-- threshold fills the doorway under the inset floor edge (top a hair below the floor)
+		mk(house, "Threshold", Vector3.new(DOOR_W, 0.4, 0.3), cfB * CFrame.new(doorX, -h / 2 + 0.18, -d / 2 + 0.15),
+			Color3.fromRGB(120, 90, 60), Enum.Material.WoodPlanks)
 	end
 	glassHolesOn(frontHoles, -d / 2, 0, 0, h)
 
@@ -2102,14 +2127,16 @@ local function hollowHouse(house)
 			end
 			local len = bf - wf
 			wingInfo = { x = wx, front = wf, len = len, wdt = ws.X, h = wh, floorY = wy - wh / 2 + 0.4 }
-			mk(house, "Floor", Vector3.new(ws.X, 0.4, len), cfB * CFrame.new(wx, wy - wh / 2 + 0.2, wf + len / 2),
+			mk(house, "Floor", Vector3.new(ws.X - 0.4, 0.4, len + 0.1), cfB * CFrame.new(wx, wy - wh / 2 + 0.18, wf + 0.2 + (len + 0.1) / 2),
 				Color3.fromRGB(160, 125, 85), Enum.Material.WoodPlanks)
-			mk(house, "Ceiling", Vector3.new(ws.X, 0.4, len), cfB * CFrame.new(wx, wy + wh / 2 - 0.2, wf + len / 2),
+			mk(house, "Ceiling", Vector3.new(ws.X - 0.4, 0.4, len - 0.2), cfB * CFrame.new(wx, wy + wh / 2 - 0.2, wf + 0.2 + (len - 0.2) / 2),
 				Color3.fromRGB(238, 234, 224))
 			local wHoles = {}
 			if doorRel and not doorOnBody then
 				addHole(wHoles, doorRel.X - wx, DOOR_W, 0, DOOR_H)
 				doorX = wx
+				mk(house, "Threshold", Vector3.new(DOOR_W, 0.4, 0.3), cfB * CFrame.new(doorRel.X, wy - wh / 2 + 0.16, wf + 0.15),
+					Color3.fromRGB(120, 90, 60), Enum.Material.WoodPlanks)
 			end
 			glassHolesOn(wHoles, wf, wx, wy, wh)
 			buildWall("WingFront", cfB * CFrame.new(wx, wy, wf + 0.4), ws.X, wh, wHoles)
@@ -2151,9 +2178,10 @@ local function hollowHouse(house)
 		addHole(sD > 0 and rightHoles or leftHoles, sD > 0 and diningZ or -diningZ, 5, 3.4, 7.2)
 	end
 
-	mk(house, "Floor", Vector3.new(w, 0.4, d), cfB * CFrame.new(0, -h / 2 + 0.2, 0),
+	-- floor + ceiling stop 0.2 inside the walls' outer faces (flush edges shimmered on the outside)
+	mk(house, "Floor", Vector3.new(w - 0.4, 0.4, d - 0.4), cfB * CFrame.new(0, -h / 2 + 0.2, 0),
 		Color3.fromRGB(160, 125, 85), Enum.Material.WoodPlanks)
-	mk(house, "Ceiling", Vector3.new(w, 0.4, d), cfB * CFrame.new(0, h / 2 - 0.2, 0), Color3.fromRGB(238, 234, 224))
+	mk(house, "Ceiling", Vector3.new(w - 0.4, 0.4, d - 0.4), cfB * CFrame.new(0, h / 2 - 0.2, 0), Color3.fromRGB(238, 234, 224))
 	buildWall("FrontWall", cfB * CFrame.new(0, 0, -d / 2 + 0.4), w, h, frontHoles)
 	buildWall("BackWall", cfB * CFrame.new(0, 0, d / 2 - 0.4) * CFrame.Angles(0, math.pi, 0), w, h, backHoles)
 	buildWall("SideL", cfB * CFrame.new(-w / 2 + 0.4, 0, 0) * CFrame.Angles(0, math.pi / 2, 0), d - 1.6, h, leftHoles, d - 1.6)
@@ -2235,7 +2263,7 @@ local function hollowHouse(house)
 			mk(interior, "ArmchairCushion", Vector3.new(2.4, 0.5, 2.4), arm * CFrame.new(0, 1.65, -0.15), armCol:Lerp(WHITE, 0.15), Enum.Material.Fabric)
 			mk(interior, "ArmchairBack", Vector3.new(3.2, 2.4, 0.7), arm * CFrame.new(0, 2.6, 1.15), armCol, Enum.Material.Fabric)
 			for _, ax in ipairs({ -1.45, 1.45 }) do
-				mk(interior, "ArmchairArm", Vector3.new(0.5, 2.1, 3), arm * CFrame.new(ax, 1.05, 0), armCol, Enum.Material.Fabric)
+				mk(interior, "ArmchairArm", Vector3.new(0.5, 2.1, 3.06), arm * CFrame.new(ax, 1.05, 0), armCol, Enum.Material.Fabric)
 			end
 		end
 
@@ -2347,7 +2375,7 @@ local function hollowHouse(house)
 			local art = cfB * CFrame.new(sA * (iw / 2 - 0.05), y0 + 6.4, bz) * CFrame.Angles(0, sA * math.pi / 2, 0)
 			mk(interior, "PaintingFrame", Vector3.new(4.6, 3.2, 0.15), art, DARK_WOOD)
 			mk(interior, "PaintingSky", Vector3.new(4.1, 2.7, 0.06), art * CFrame.new(0, 0, -0.09), Color3.fromRGB(140, 195, 235))
-			mk(interior, "PaintingHill", Vector3.new(4.1, 1, 0.06), art * CFrame.new(0, -0.85, -0.11), Color3.fromRGB(90, 160, 80))
+			mk(interior, "PaintingHill", Vector3.new(4.06, 0.96, 0.06), art * CFrame.new(0, -0.83, -0.11), Color3.fromRGB(90, 160, 80))
 			mk(interior, "PaintingSun", Vector3.new(0.05, 0.9, 0.9), art * CFrame.new(1.2, 0.6, -0.12) * CFrame.Angles(0, math.pi / 2, 0),
 				Color3.fromRGB(255, 210, 80), Enum.Material.Neon, Enum.PartType.Cylinder)
 		end
@@ -2370,7 +2398,7 @@ local function hollowHouse(house)
 		local shelfZ = (roomEndZ + zMax - sofaDist - 1.5) / 2
 		if (zMax - sofaDist - 1.5) - roomEndZ > 5.5 then
 			local sh = F(sA * (iw / 2 - 0.75), shelfZ, sA * math.pi / 2)
-			mk(interior, "ShelfBack", Vector3.new(5, 7, 0.25), sh * CFrame.new(0, 3.5, 0.6), DARK_WOOD, Enum.Material.WoodPlanks)
+			mk(interior, "ShelfBack", Vector3.new(4.96, 6.9, 0.25), sh * CFrame.new(0, 3.47, 0.6), DARK_WOOD, Enum.Material.WoodPlanks)
 			for _, sxo in ipairs({ -2.4, 2.4 }) do
 				mk(interior, "ShelfSide", Vector3.new(0.25, 7, 1.4), sh * CFrame.new(sxo, 3.5, 0), DARK_WOOD, Enum.Material.WoodPlanks)
 			end

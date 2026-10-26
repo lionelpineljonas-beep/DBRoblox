@@ -1,4 +1,4 @@
--- DISCOVERY BAY, CALIFORNIA — OSM-accurate procedural Roblox build (v112)
+-- DISCOVERY BAY, CALIFORNIA — OSM-accurate procedural Roblox build (v119)
 --==============================================================================================
 -- Builds the real Discovery Bay from OpenStreetMap geometry (© OpenStreetMap contributors):
 --   * real terrain raster: every lagoon/bay polygon, Old River, golf fairways/greens/
@@ -819,11 +819,15 @@ end
 local function buildGround()
 	local zOff = H_FT - RASTER_NORTH -- align raster rows with the exact-feet frame
 	local MAX_TILE = 2000 -- Roblox Part.Size max is 2048 studs; tile strips >2000 so nothing is ever clamped!
-	for _, g in ipairs(rasterGroups) do
+	-- Tiles overlap their neighbours by half a stud (no hairline cracks), so neighbours must NOT
+	-- share a top surface or the overlap z-fights. Each neighbour pair differs in height:
+	-- row groups alternate by 0.04, runs within a row by 0.02, sub-tiles within a run by 0.008
+	-- (gaps under ~0.02 still shimmer from far away).
+	for gi, g in ipairs(rasterGroups) do
 		local z0 = g.startRow * CELL + zOff   -- feet from NORTH edge
 		local z1 = (g.startRow + g.span) * CELL + zOff
 		local prevEnd = 0
-		for _, run in ipairs(g.runs) do
+		for ri, run in ipairs(g.runs) do
 			local x0, x1 = prevEnd * CELL, run.endCol * CELL
 			prevEnd = run.endCol
 			local style = GROUND_STYLE[run.class]
@@ -837,12 +841,14 @@ local function buildGround()
 				local tileD = totalD / nz
 				local parent = run.class == "w" and FOLDERS.Water or FOLDERS.Ground
 				local cy = style.top * S - style.thick * S / 2
+				local stagger = (gi % 2) * 0.04 + (ri % 2) * 0.02
 				for ix = 0, nx - 1 do
 					for iz = 0, nz - 1 do
 						local cx = x0 * S + (ix + 0.5) * tileW
 						local cz = z0 * S + (iz + 0.5) * tileD
 						local size = Vector3.new(tileW + 0.5, style.thick * S, tileD + 0.5)
-						local p = newPart(parent, "G_" .. run.class, size, CFrame.new(cx, cy, cz),
+						local dy = -(stagger + ((ix + iz) % 2) * 0.008) -- only ever lowers, never above Y_LAND
+						local p = newPart(parent, "G_" .. run.class, size, CFrame.new(cx, cy + dy, cz),
 							style.color, style.material, style.transparency)
 						p.CastShadow = false
 						if run.class == "w" then
@@ -996,15 +1002,18 @@ local function buildRoad(rd, roadIndex)
 	elseif rd.cls == "s" then
 		color, material = Color3.fromRGB(70, 70, 72), Enum.Material.Asphalt
 	end
-	-- Anti-z-fighting, two layers:
-	--   * per-ROAD height band (100 distinct layers) so crossing roads never share a surface
-	--   * per-SEGMENT stagger within a road so bend overlaps never share one either
-	local lift = (((roadIndex or 0) * 137) % 100) * 0.0015 * S
+	-- Anti-z-fighting, two layers (gaps must be ~0.01+ or surfaces still shimmer at a distance):
+	--   * per-ROAD height band: 8 layers 0.036 apart, so crossing roads never share a surface
+	--   * per-SEGMENT stagger in 3 steps of 0.012 (short segments on tight curves overlap the
+	--     segment two along, so a plain odd/even stagger wasn't enough)
+	-- Sidewalks sit 0.006 above their segment and centre lines 0.018: both land between other
+	-- roads' segment heights, never on one.
+	local lift = (((roadIndex or 0) * 137) % 8) * 0.036 * S
 	for i = 1, #rd.pts - 1 do
 		local a, b = rd.pts[i], rd.pts[i + 1]
 		local lenFt = ftDist(a, b)
 		if lenFt > 1 then
-			local jitter = (i % 2) * 0.005 * S
+			local jitter = (i % 3) * 0.012 * S
 			local mid = toWorld((a[1] + b[1]) / 2, (a[2] + b[2]) / 2, Y_ROAD - ROAD_THICK / 2 + lift + jitter)
 			local dir = dirToWorld(b[1] - a[1], b[2] - a[2])
 			newPart(model, "Seg", Vector3.new(w * S, ROAD_THICK, lenFt * S),
@@ -1014,9 +1023,9 @@ local function buildRoad(rd, roadIndex)
 				local offX = (w * S) / 2 + (sw / 2)
 				local swColor, swMat = Color3.fromRGB(160, 160, 160), Enum.Material.Concrete
 				newPart(model, "Sidewalk", Vector3.new(sw, ROAD_THICK, lenFt * S),
-					CFrame.lookAt(mid, mid + dir) * CFrame.new(-offX, 0.01 * S, 0), swColor, swMat)
+					CFrame.lookAt(mid, mid + dir) * CFrame.new(-offX, 0.006 * S, 0), swColor, swMat)
 				newPart(model, "Sidewalk", Vector3.new(sw, ROAD_THICK, lenFt * S),
-					CFrame.lookAt(mid, mid + dir) * CFrame.new(offX, 0.01 * S, 0), swColor, swMat)
+					CFrame.lookAt(mid, mid + dir) * CFrame.new(offX, 0.006 * S, 0), swColor, swMat)
 				
 				-- Randomly spawn a pedestrian on the sidewalk
 				if rng:NextNumber() < 0.1 then
@@ -1035,7 +1044,7 @@ local function buildRoad(rd, roadIndex)
 				end
 				
 				-- Add yellow centerline
-				newPart(model, "CenterLine", Vector3.new(0.6 * S, ROAD_THICK + 0.05 * S, lenFt * S),
+				newPart(model, "CenterLine", Vector3.new(0.6 * S, ROAD_THICK + 0.036 * S, lenFt * S),
 					CFrame.lookAt(mid, mid + dir), Color3.fromRGB(255, 204, 0), Enum.Material.SmoothPlastic)
 			end
 			buildCauseways(model, w, a[1], a[2], b[1], b[2])
@@ -1262,7 +1271,7 @@ local function buildResidential(m, cf, b)
 		if gR - gL > 3 then
 			newPart(m, "GlassBand", Vector3.new(gR - gL, h * 0.55, 0.3) * S,
 				cf * CFrame.new((gL + gR) / 2 * S, (0.5 + h * 0.55) * S, (frontZ - 0.1) * S), glass, Enum.Material.Glass, 0.2)
-			newPart(m, "GlassBandFrame", Vector3.new(gR - gL + 0.8, 0.4, 0.5) * S,
+			newPart(m, "GlassBandFrame", Vector3.new(gR - gL + 0.8, 0.4, 0.56) * S,
 				cf * CFrame.new((gL + gR) / 2 * S, (0.5 + h * 0.55 + h * 0.275 + 0.2) * S, (frontZ - 0.25) * S), trim, Enum.Material.Concrete)
 		end
 		newPart(m, "Canopy", Vector3.new(8, 0.4, 4) * S,
@@ -1276,8 +1285,8 @@ local function buildResidential(m, cf, b)
 			cf * CFrame.new(0, (0.5 + h / 2) * S, (d / 2 - mainD / 2) * S), wall, wallMat)
 		gableRoof(m, cf * CFrame.new(0, (0.5 + h) * S, (d / 2 - mainD / 2) * S),
 			(w + 1.5) * S, (mainD + 1.5) * S, math.clamp(mainD * 0.3, 3.5, 8) * S, roof)
-		newPart(m, "Wing", Vector3.new(wingW, h * 0.85, d * 0.55) * S,
-			cf * CFrame.new(wingX * S, (0.5 + h * 0.425) * S, (-d / 2 + d * 0.275) * S), wall, wallMat)
+		newPart(m, "Wing", Vector3.new(wingW - 0.1, h * 0.85, d * 0.55) * S,
+			cf * CFrame.new((wingX + 0.05) * S, (0.5 + h * 0.425) * S, (-d / 2 + d * 0.275) * S), wall, wallMat)
 		gableRoof(m, cf * CFrame.new(wingX * S, (0.5 + h * 0.85) * S, (-d / 2 + d * 0.275) * S)
 			* CFrame.Angles(0, math.rad(90), 0),
 			(d * 0.55 + 1.5) * S, (wingW + 1.5) * S, math.clamp(wingW * 0.3, 3, 7) * S, roof)
@@ -1327,8 +1336,8 @@ local function buildResidential(m, cf, b)
 			cf * CFrame.new((doorX + jx) * S, (0.5 + 3.6) * S, (frontZ - 0.08) * S),
 			trim, Enum.Material.Concrete)
 	end
-	newPart(m, "DoorLintel", Vector3.new(5.5, 0.5, 0.18) * S,
-		cf * CFrame.new(doorX * S, (0.5 + 6.85) * S, (frontZ - 0.08) * S),
+	newPart(m, "DoorLintel", Vector3.new(5.56, 0.5, 0.22) * S,
+		cf * CFrame.new(doorX * S, (0.5 + 6.85) * S, (frontZ - 0.115) * S),
 		trim, Enum.Material.Concrete)
 	newPart(m, "DoorStep", Vector3.new(6.0, 0.6, 2.6) * S,
 		cf * CFrame.new(doorX * S, 0.55 * S, (frontZ - 1.6) * S),
@@ -1649,6 +1658,138 @@ local function storefront(parent, name, cf, w, d, h, bg, fg)
 	return m
 end
 
+-- SHOP DRESSING -------------------------------------------------------------------------------
+-- All in a shop's own frame: origin at the base centre at grade, local -Z = the storefront.
+
+-- a front-wall span (x0..x1) with a real window opening, so you can see in and out
+local function windowedWall(parent, sh, x0, x1, h, d, win, color, mat)
+	local z = (-d / 2 + 0.3) * S
+	local wx, wy, ww, wh = win[1], win[2], win[3], win[4]
+	local function seg(a, b, y0, y1)
+		if b - a > 0.05 and y1 - y0 > 0.05 then
+			newPart(parent, "FrontWall", Vector3.new(b - a, y1 - y0, 0.6) * S,
+				sh * CFrame.new((a + b) / 2 * S, (y0 + y1) / 2 * S, z), color, mat)
+		end
+	end
+	seg(x0, wx - ww / 2, 0, h)
+	seg(wx + ww / 2, x1, 0, h)
+	seg(wx - ww / 2, wx + ww / 2, 0, wy - wh / 2)
+	seg(wx - ww / 2, wx + ww / 2, wy + wh / 2, h)
+	newPart(parent, "Window", Vector3.new(ww, wh, 0.2) * S, sh * CFrame.new(wx * S, wy * S, z),
+		Color3.fromRGB(150, 200, 220), Enum.Material.Glass, 0.45)
+end
+
+-- trim around a front window: header, sill, side jambs, a mullion and a transom bar
+local function frameWindow(parent, sh, d, win, trim)
+	local fz = -d / 2
+	local wx, wy, ww, wh = win[1], win[2], win[3], win[4]
+	newPart(parent, "WindowHeader", Vector3.new(ww + 0.9, 0.45, 0.45) * S,
+		sh * CFrame.new(wx * S, (wy + wh / 2 + 0.22) * S, (fz - 0.225) * S), trim)
+	newPart(parent, "WindowSill", Vector3.new(ww + 1.1, 0.35, 0.8) * S,
+		sh * CFrame.new(wx * S, (wy - wh / 2 - 0.17) * S, (fz - 0.4) * S), trim)
+	for _, sx in ipairs({ -1, 1 }) do
+		newPart(parent, "WindowJamb", Vector3.new(0.35, wh, 0.3) * S,
+			sh * CFrame.new((wx + sx * (ww / 2 + 0.17)) * S, wy * S, (fz - 0.15) * S), trim)
+	end
+	newPart(parent, "Mullion", Vector3.new(0.2, wh, 0.15) * S, sh * CFrame.new(wx * S, wy * S, (fz - 0.05) * S), trim)
+	newPart(parent, "Transom", Vector3.new(ww, 0.2, 0.15) * S,
+		sh * CFrame.new(wx * S, (wy + wh * 0.18) * S, (fz - 0.05) * S), trim)
+end
+
+-- a sloped, striped fabric awning hung off the wall at height yTop, with a valance on the edge
+local function stripedAwning(parent, sh, d, x, yTop, width, depth, c1, c2)
+	local n = math.max(3, math.floor(width / 1.6))
+	local sw = width / n
+	local tilt = math.rad(25)
+	local fz = -d / 2
+	local mid = sh * CFrame.new(0, yTop * S, fz * S) * CFrame.Angles(-tilt, 0, 0) * CFrame.new(0, 0, -depth / 2 * S)
+	for i = 1, n do
+		newPart(parent, "AwningStripe", Vector3.new(sw, 0.18, depth) * S,
+			mid * CFrame.new((x - width / 2 + (i - 0.5) * sw) * S, 0, 0), (i % 2 == 1) and c1 or c2, Enum.Material.Fabric)
+	end
+	newPart(parent, "AwningValance", Vector3.new(width, 0.6, 0.15) * S,
+		sh * CFrame.new(x * S, (yTop - math.sin(tilt) * depth - 0.3) * S, (fz - math.cos(tilt) * depth) * S), c1, Enum.Material.Fabric)
+end
+
+-- a wall-mounted ring buoy / sign disc: a cylinder whose flat face points along local -Z
+local function wallDisc(parent, name, dia, thick, cf, color)
+	local p = newPart(parent, name, Vector3.new(thick, dia, dia) * S, cf * CFrame.Angles(0, math.pi / 2, 0), color)
+	p.Shape = Enum.PartType.Cylinder
+	return p
+end
+
+-- the shared storefront kit: stone base course, corner pilasters, parapet cap, door frame,
+-- wall lanterns, planters, framed windows (+ striped awnings), an OPEN sign, a bench and a
+-- rooftop AC unit. o = { w, d, h, trim, doorW, doorH, windows = {{x, y, w, h}}, awning = {c1, c2},
+-- noDoor, lanterns, planters, lintel, openSign, bench = x, capY }
+local function shopFront(parent, sh, o)
+	local w, d, h = o.w, o.d, o.h
+	local fz = -d / 2
+	local trim = o.trim
+	local stone = Color3.fromRGB(150, 145, 138)
+	local dw, dh = o.doorW or 5, o.doorH or 7
+	local gap = o.noDoor and 0 or (dw + 1)
+	for _, sx in ipairs({ -1, 1 }) do
+		local segW = w / 2 - gap / 2
+		newPart(parent, "BaseCourse", Vector3.new(segW, 1.2, 0.45) * S,
+			sh * CFrame.new(sx * (gap / 2 + segW / 2) * S, 0.6 * S, (fz - 0.22) * S), stone, Enum.Material.Slate)
+		newPart(parent, "Pilaster", Vector3.new(1.4, h, 0.7) * S,
+			sh * CFrame.new(sx * (w / 2 - 0.4) * S, h / 2 * S, (fz - 0.35) * S), trim)
+	end
+	newPart(parent, "ParapetCap", Vector3.new(w + 2, 0.7, 1.4) * S,
+		sh * CFrame.new(0, (o.capY or (h + 1.35)) * S, (fz - 0.2) * S), trim)
+	local lampX = o.noDoor and (w / 2 - 2.2) or (dw / 2 + 1.6)
+	for _, sx in ipairs({ -1, 1 }) do
+		if not o.noDoor then
+			newPart(parent, "DoorJamb", Vector3.new(0.5, dh + 0.3, 0.5) * S,
+				sh * CFrame.new(sx * (dw / 2 + 0.25) * S, (dh + 0.3) / 2 * S, (fz - 0.25) * S), trim)
+		end
+		if o.lanterns ~= false then
+			local ly = o.noDoor and 5.5 or (dh - 0.2)
+			newPart(parent, "LanternArm", Vector3.new(0.25, 0.25, 0.8) * S,
+				sh * CFrame.new(sx * lampX * S, ly * S, (fz - 0.4) * S), Color3.fromRGB(40, 40, 45))
+			newPart(parent, "Lantern", Vector3.new(0.7, 1, 0.7) * S,
+				sh * CFrame.new(sx * lampX * S, (ly - 0.4) * S, (fz - 0.85) * S), Color3.fromRGB(255, 220, 150), Enum.Material.Neon)
+		end
+		if o.planters ~= false then
+			local px = sx * (o.noDoor and (w / 2 - 2.6) or (dw / 2 + 1.7))
+			newPart(parent, "Planter", Vector3.new(2.2, 1.4, 1.6) * S, sh * CFrame.new(px * S, 0.7 * S, (fz - 1.3) * S),
+				Color3.fromRGB(120, 85, 55), Enum.Material.WoodPlanks)
+			newBall(parent, "PlanterShrub", 2 * S, sh * CFrame.new(px * S, 2.1 * S, (fz - 1.3) * S),
+				Color3.fromRGB(70, 140, 65), Enum.Material.Grass)
+		end
+	end
+	if not o.noDoor and o.lintel ~= false then
+		newPart(parent, "DoorLintel", Vector3.new(dw + 1.6, 0.6, 0.5) * S, sh * CFrame.new(0, (dh + 0.6) * S, (fz - 0.25) * S), trim)
+	end
+	for _, win in ipairs(o.windows or {}) do
+		frameWindow(parent, sh, d, win, trim)
+		if o.awning then
+			stripedAwning(parent, sh, d, win[1], win[2] + win[4] / 2 + 1, win[3] + 1.6, 3, o.awning[1], o.awning[2])
+		end
+	end
+	if o.openSign and o.windows and o.windows[1] then
+		local win = o.windows[1]
+		local open = newPart(parent, "OpenSign", Vector3.new(2.6, 1, 0.1) * S,
+			sh * CFrame.new(win[1] * S, (win[2] - win[4] / 2 + 0.9) * S, (fz + 0.75) * S), Color3.fromRGB(230, 40, 60), Enum.Material.Neon)
+		makeSign(open, Enum.NormalId.Front, "OPEN", Color3.fromRGB(230, 40, 60), Color3.fromRGB(255, 240, 240))
+	end
+	if o.bench then
+		local b = sh * CFrame.new(o.bench * S, 0, (fz - 2.6) * S)
+		local wood = Color3.fromRGB(130, 90, 55)
+		newPart(parent, "BenchSeat", Vector3.new(4, 0.3, 1.2) * S, b * CFrame.new(0, 1.5 * S, 0), wood, Enum.Material.WoodPlanks)
+		newPart(parent, "BenchBack", Vector3.new(4, 1.1, 0.25) * S, b * CFrame.new(0, 2.3 * S, 0.5 * S), wood, Enum.Material.WoodPlanks)
+		for _, lx in ipairs({ -1.6, 1.6 }) do
+			newPart(parent, "BenchLeg", Vector3.new(0.3, 1.4, 1) * S, b * CFrame.new(lx * S, 0.7 * S, 0), Color3.fromRGB(40, 40, 45))
+		end
+	end
+	local ac = sh * CFrame.new(w * 0.22 * S, (h + 1) * S, d * 0.18 * S)
+	newPart(parent, "RoofAC", Vector3.new(4, 2, 3) * S, ac * CFrame.new(0, 1 * S, 0), Color3.fromRGB(190, 192, 195), Enum.Material.Metal)
+	newDisc(parent, "RoofACFan", 2.2 * S, 0.2 * S, ac * CFrame.new(0, 2.1 * S, 0), Color3.fromRGB(60, 62, 66), Enum.Material.Metal)
+	newColumn(parent, "RoofVent", 1.6 * S, 0.8 * S, ac * CFrame.new(-w * 0.4 * S, 0.8 * S, -d * 0.2 * S),
+		Color3.fromRGB(170, 172, 175), Enum.Material.Metal)
+end
+
 local plazaSpawnPos = nil -- set by buildPlaza: a guaranteed-open spot on the parking lot
 
 local function buildPlaza()
@@ -1674,7 +1815,7 @@ local function buildPlaza()
 	-- kiosk: a hollow, enterable mini-mart with auto-sliding doors and buyable products
 	local K = cf * CFrame.new(0, 0, 14 * S) -- kiosk base center at grade; local -Z = storefront
 	local wallColor = Color3.fromRGB(235, 232, 225)
-	newPart(shell, "KioskFloor", Vector3.new(24, 0.4, 18) * S, K * CFrame.new(0, 0.2 * S, 0),
+	newPart(shell, "KioskFloor", Vector3.new(23.8, 0.4, 17.8) * S, K * CFrame.new(0, 0.2 * S, 0),
 		Color3.fromRGB(200, 196, 188), Enum.Material.Concrete)
 	newPart(shell, "KioskBack", Vector3.new(22.8, 10, 0.6) * S, K * CFrame.new(0, 5 * S, 8.7 * S),
 		wallColor, Enum.Material.Brick)
@@ -1748,6 +1889,34 @@ local function buildPlaza()
 			addProductDisplay(shell, pr, K * CFrame.new(sp[1] * S, sp[2] * S, sp[3] * S))
 		end
 	end
+	-- kiosk front dressing (the big canopy covers it, so no awnings; the KIOSK sign sits on the header)
+	shopFront(shell, K, {
+		w = 24, d = 18, h = 10, trim = Color3.fromRGB(200, 30, 30), doorW = 7, doorH = 7,
+		windows = { { -7.45, 5.5, 5.5, 4 }, { 7.45, 5.5, 5.5, 4 } },
+		lanterns = false, lintel = false, openSign = true,
+	})
+	-- drink cooler on the back-left wall: glowing glass doors over rows of bottles
+	local cooler = K * CFrame.new(-9 * S, 0, 7.4 * S)
+	newPart(shell, "DrinkCooler", Vector3.new(5, 7.2, 2.2) * S, cooler * CFrame.new(0, 4 * S, 0), Color3.fromRGB(40, 42, 48), Enum.Material.Metal)
+	for i, c in ipairs({ Color3.fromRGB(200, 40, 40), Color3.fromRGB(50, 170, 70), Color3.fromRGB(240, 170, 40) }) do
+		newPart(shell, "CoolerBottles", Vector3.new(4.2, 1, 0.8) * S, cooler * CFrame.new(0, (1.8 + i * 1.8) * S, -0.78 * S), c)
+	end
+	newPart(shell, "CoolerGlass", Vector3.new(4.6, 6.4, 0.12) * S, cooler * CFrame.new(0, 4.1 * S, -1.25 * S),
+		Color3.fromRGB(190, 230, 255), Enum.Material.Neon, 0.75)
+	newPart(shell, "CoolerDoorSplit", Vector3.new(0.15, 6.4, 0.15) * S, cooler * CFrame.new(0, 4.1 * S, -1.38 * S), Color3.fromRGB(40, 42, 48))
+	-- till on the counter
+	newPart(shell, "Register", Vector3.new(1.4, 0.9, 1.2) * S, K * CFrame.new(-8.6 * S, 4.1 * S, -5 * S), Color3.fromRGB(45, 45, 50))
+	newPart(shell, "RegisterScreen", Vector3.new(1.1, 0.7, 0.1) * S,
+		K * CFrame.new(-8.6 * S, 4.9 * S, -5.3 * S) * CFrame.Angles(math.rad(-20), 0, 0), Color3.fromRGB(90, 200, 120), Enum.Material.Neon)
+	-- ice chest beside the kiosk, trash can by the door
+	local ice = K * CFrame.new(-14.6 * S, 0, -5 * S)
+	newPart(shell, "IceChest", Vector3.new(2.4, 3.4, 4.2) * S, ice * CFrame.new(0, 1.7 * S, 0), Color3.fromRGB(245, 248, 252))
+	local iceSign = newPart(shell, "IceSign", Vector3.new(0.1, 1.2, 3.4) * S, ice * CFrame.new(-1.25 * S, 2.3 * S, 0), Color3.fromRGB(40, 120, 210))
+	makeSign(iceSign, Enum.NormalId.Left, "ICE", Color3.fromRGB(40, 120, 210), Color3.new(1, 1, 1))
+	local trash = K * CFrame.new(10.2 * S, 0, -11 * S)
+	newColumn(shell, "TrashCan", 2.8 * S, 1.6 * S, trash * CFrame.new(0, 1.4 * S, 0), Color3.fromRGB(60, 90, 60), Enum.Material.Metal)
+	newColumn(shell, "TrashLid", 0.3 * S, 1.8 * S, trash * CFrame.new(0, 2.95 * S, 0), Color3.fromRGB(45, 70, 45), Enum.Material.Metal)
+
 	for _, o in ipairs({ { -16, -16 }, { 16, -16 }, { -16, 2 }, { 16, 2 } }) do
 		newColumn(shell, "CanopyColumn", 15 * S, 1.4 * S, cf * CFrame.new(o[1] * S, 7.5 * S, o[2] * S),
 			Color3.fromRGB(230, 228, 222), Enum.Material.Metal)
@@ -1760,8 +1929,23 @@ local function buildPlaza()
 		newPart(shell, "PumpIsland", Vector3.new(13, 0.6, 4) * S, cf * CFrame.new(0, 0.6 * S, oz * S),
 			Color3.fromRGB(200, 200, 200), Enum.Material.Concrete)
 		for _, ox in ipairs({ -4, 4 }) do
-			newPart(shell, "Pump", Vector3.new(1.8, 4.2, 1.2) * S, cf * CFrame.new(ox * S, 3 * S, oz * S),
+			local pump = cf * CFrame.new(ox * S, 0, oz * S)
+			newPart(shell, "Pump", Vector3.new(1.8, 4.2, 1.2) * S, pump * CFrame.new(0, 3 * S, 0),
 				Color3.fromRGB(235, 235, 235))
+			newPart(shell, "PumpStripe", Vector3.new(1.85, 0.45, 1.25) * S, pump * CFrame.new(0, 2.3 * S, 0), Color3.fromRGB(200, 30, 30))
+			local topper = newPart(shell, "PumpPrice", Vector3.new(2, 0.9, 1.3) * S, pump * CFrame.new(0, 5.55 * S, 0), Color3.fromRGB(250, 205, 30))
+			makeSign(topper, Enum.NormalId.Front, "$3.99", Color3.fromRGB(250, 205, 30), Color3.fromRGB(200, 30, 30))
+			makeSign(topper, Enum.NormalId.Back, "$3.99", Color3.fromRGB(250, 205, 30), Color3.fromRGB(200, 30, 30))
+			for _, side in ipairs({ -1, 1 }) do
+				newPart(shell, "PumpScreen", Vector3.new(1.2, 0.8, 0.1) * S, pump * CFrame.new(0, 3.9 * S, side * 0.62 * S),
+					Color3.fromRGB(60, 160, 230), Enum.Material.Neon)
+			end
+			newPart(shell, "PumpNozzle", Vector3.new(0.35, 0.8, 0.45) * S, pump * CFrame.new(0.98 * S, 3.4 * S, 0), Color3.fromRGB(30, 30, 30))
+			newPart(shell, "PumpHose", Vector3.new(0.18, 2.2, 0.18) * S, pump * CFrame.new(1.05 * S, 2.1 * S, 0.2 * S), Color3.fromRGB(25, 25, 25))
+		end
+		-- yellow safety bollards at both ends of the island
+		for _, bx in ipairs({ -6.8, 6.8 }) do
+			newColumn(shell, "Bollard", 3 * S, 0.6 * S, cf * CFrame.new(bx * S, 2.4 * S, oz * S), Color3.fromRGB(250, 205, 30))
 		end
 	end
 	local spole = cf * CFrame.new(24 * S, 0, -20 * S)
@@ -1786,6 +1970,43 @@ local function buildPlaza()
 	local egg = newBall(m, "MysteryEgg", 4 * S, CFrame.new(eggBase + Vector3.new(0, 3 * S, 0)),
 		Color3.fromRGB(250, 245, 228))
 	egg:SetAttribute("EggShop", true)
+	-- the egg sits in a straw nest on a gold-rimmed pedestal, pastel spots, two spotlights
+	-- and a big "?" sign over it
+	do
+		local eggCf = rowCf * CFrame.new(9 * S, 0, 2 * S)
+		local GOLD = Color3.fromRGB(240, 190, 60)
+		newDisc(m, "EggPedestalRim", 6.8 * S, 0.4 * S, eggCf * CFrame.new(0, 0.2 * S, 0), GOLD, Enum.Material.Metal)
+		newDisc(m, "EggPedestalTrim", 6.3 * S, 0.25 * S, eggCf * CFrame.new(0, 1.05 * S, 0), GOLD, Enum.Material.Metal)
+		newDisc(m, "EggNest", 4.6 * S, 0.7 * S, eggCf * CFrame.new(0, 1.4 * S, 0), Color3.fromRGB(215, 180, 95), Enum.Material.Grass)
+		for i, sp in ipairs({ { 0.62, 0.35, -0.7 }, { -0.75, 0.55, -0.35 }, { 0.15, -0.15, -0.98 }, { -0.4, 0.9, 0.2 } }) do
+			local dir = Vector3.new(sp[1], sp[2], sp[3]).Unit
+			newBall(m, "EggSpot", 0.9 * S, eggCf * CFrame.new(dir * 1.85 * S + Vector3.new(0, 3 * S, 0)),
+				({ Color3.fromRGB(150, 200, 240), Color3.fromRGB(245, 160, 190), Color3.fromRGB(160, 220, 160), GOLD })[i])
+		end
+		for _, sx in ipairs({ -1, 1 }) do
+			local lamp = eggCf * CFrame.new(sx * 3.8 * S, 0, -2 * S)
+			newPart(m, "SpotlightPost", Vector3.new(0.3, 3.4, 0.3) * S, lamp * CFrame.new(0, 1.7 * S, 0), Color3.fromRGB(40, 40, 45))
+			newBall(m, "SpotlightHead", 0.9 * S, lamp * CFrame.new(0, 3.5 * S, 0), Color3.fromRGB(255, 240, 190), Enum.Material.Neon)
+		end
+		newPart(m, "MysteryPole", Vector3.new(0.3, 7.5, 0.3) * S, eggCf * CFrame.new(0, 3.75 * S, 3.3 * S), Color3.fromRGB(40, 40, 45))
+		local q = newPart(m, "MysterySign", Vector3.new(2.2, 2.2, 0.25) * S, eggCf * CFrame.new(0, 8.4 * S, 3.3 * S), GOLD)
+		makeSign(q, Enum.NormalId.Front, "?", GOLD, Color3.fromRGB(120, 60, 20))
+		-- a little dog house (the pups' first home)
+		local dh = rowCf * CFrame.new(-9 * S, 0, 1.5 * S)
+		newPart(m, "DogHouse", Vector3.new(3.6, 3, 4) * S, dh * CFrame.new(0, 1.5 * S, 0), Color3.fromRGB(180, 70, 55), Enum.Material.WoodPlanks)
+		gableRoof(m, dh * CFrame.new(0, 3 * S, 0) * CFrame.Angles(0, math.rad(90), 0), 4.6 * S, 4.4 * S, 1.6 * S, Color3.fromRGB(70, 60, 55))
+		newPart(m, "DogHouseDoor", Vector3.new(1.5, 1.9, 0.1) * S, dh * CFrame.new(0, 0.95 * S, -2.03 * S), Color3.fromRGB(25, 20, 18))
+		local plate = newPart(m, "DogHousePlate", Vector3.new(2, 0.6, 0.1) * S, dh * CFrame.new(0, 2.45 * S, -2.05 * S), Color3.fromRGB(245, 235, 210))
+		makeSign(plate, Enum.NormalId.Front, "LINUS?", Color3.fromRGB(245, 235, 210), Color3.fromRGB(120, 60, 20))
+		newDisc(m, "DogBowl", 1.2 * S, 0.4 * S, dh * CFrame.new(2.4 * S, 0.2 * S, -1.6 * S), Color3.fromRGB(200, 60, 60))
+	end
+	shopFront(m, rowCf * CFrame.new(0, 0, 18 * S), {
+		w = 30, d = 24, h = 12, trim = Color3.fromRGB(150, 110, 50), noDoor = true,
+		windows = { { 0, 3.6, 21, 6 } }, bench = 0,
+	})
+	local poster = newPart(m, "EggPoster", Vector3.new(6, 2.6, 0.1) * S, rowCf * CFrame.new(-6.5 * S, 4.2 * S, (6 - 0.35) * S),
+		Color3.fromRGB(255, 245, 220))
+	makeSign(poster, Enum.NormalId.Front, "MARY · JOLENE · ...LINUS?", Color3.fromRGB(255, 245, 220), Color3.fromRGB(150, 90, 30))
 	local eggPrompt = Instance.new("ProximityPrompt")
 	eggPrompt.ActionText = "Hatch"
 	eggPrompt.ObjectText = "Mystery Egg - $30 (needs a rented house)"
@@ -1808,7 +2029,9 @@ local function buildPlaza()
 		local mF = newModel(m, "Fish N Bait")
 		local w, d, h = 30, 24, 12
 		local wallF = Color3.fromRGB(200, 214, 224)
-		newPart(mF, "Floor", Vector3.new(w, 0.4, d) * S, fSh * CFrame.new(0, 0.22 * S, 0),
+		-- plaza floors are 0.5 thick (top 0.47): Riverlake Road runs under the plaza and its
+		-- centre line would otherwise poke up through the shop floors
+		newPart(mF, "Floor", Vector3.new(w - 0.2, 0.5, d - 0.2) * S, fSh * CFrame.new(0, 0.22 * S, 0),
 			Color3.fromRGB(150, 130, 105), Enum.Material.WoodPlanks)
 		newPart(mF, "Back", Vector3.new(w - 1.2, h, 0.6) * S, fSh * CFrame.new(0, h / 2 * S, (d / 2 - 0.3) * S),
 			wallF, Enum.Material.WoodPlanks)
@@ -1816,11 +2039,9 @@ local function buildPlaza()
 			newPart(mF, "Side", Vector3.new(0.6, h, d) * S,
 				fSh * CFrame.new(sx * (w / 2 - 0.3) * S, h / 2 * S, 0), wallF, Enum.Material.WoodPlanks)
 			-- front wall segments beside a central door opening
-			newPart(mF, "FrontWall", Vector3.new(11.9, h, 0.6) * S,
-				fSh * CFrame.new(sx * 8.45 * S, h / 2 * S, (-d / 2 + 0.3) * S), wallF, Enum.Material.WoodPlanks)
-			newPart(mF, "Window", Vector3.new(7, 4.5, 0.3) * S,
-				fSh * CFrame.new(sx * 8.45 * S, 5.6 * S, (-d / 2 + 0.1) * S),
-				Color3.fromRGB(140, 195, 215), Enum.Material.Glass, 0.3)
+			-- front wall with a real window opening (see in and out)
+			windowedWall(mF, fSh, sx > 0 and 2.5 or -14.4, sx > 0 and 14.4 or -2.5, h, d,
+				{ sx * 8.45, 5.6, 7, 4.5 }, wallF, Enum.Material.WoodPlanks)
 		end
 		local fDoor = newPart(mF, "AutoDoor", Vector3.new(4.6, 8, 0.25) * S,
 			fSh * CFrame.new(0, 4 * S, (-d / 2 + 0.3) * S),
@@ -1886,6 +2107,62 @@ local function buildPlaza()
 			fSh * CFrame.new(5.5 * S, 8 * S, (d / 2 - 0.5) * S), Color3.fromRGB(110, 85, 60), Enum.Material.Wood)
 		newPart(mF, "TrophyFish", Vector3.new(4, 1.3, 0.5) * S,
 			fSh * CFrame.new(5.5 * S, 8 * S, (d / 2 - 0.95) * S), Color3.fromRGB(70, 140, 190))
+		-- nautical dressing --------------------------------------------------------------
+		shopFront(mF, fSh, {
+			w = w, d = d, h = h, trim = Color3.fromRGB(245, 245, 240), doorW = 5, doorH = 8,
+			windows = { { -8.45, 5.6, 7, 4.5 }, { 8.45, 5.6, 7, 4.5 } },
+			awning = { Color3.fromRGB(40, 90, 150), Color3.fromRGB(245, 245, 240) }, openSign = true,
+		})
+		local IRON = Color3.fromRGB(45, 50, 58)
+		-- big iron anchor out front on a stone block
+		local anc = fSh * CFrame.new(-11 * S, 0, (-d / 2 - 5) * S)
+		newPart(mF, "AnchorBase", Vector3.new(3.2, 0.6, 2.2) * S, anc * CFrame.new(0, 0.3 * S, 0), Color3.fromRGB(150, 145, 138), Enum.Material.Slate)
+		newPart(mF, "AnchorShank", Vector3.new(0.6, 5, 0.6) * S, anc * CFrame.new(0, 3.1 * S, 0), IRON, Enum.Material.Metal)
+		newPart(mF, "AnchorStock", Vector3.new(3, 0.5, 0.5) * S, anc * CFrame.new(0, 4.9 * S, 0), IRON, Enum.Material.Metal)
+		newBall(mF, "AnchorRing", 1 * S, anc * CFrame.new(0, 5.9 * S, 0), IRON, Enum.Material.Metal)
+		for _, sx in ipairs({ -1, 1 }) do
+			newPart(mF, "AnchorArm", Vector3.new(2.3, 0.5, 0.5) * S,
+				anc * CFrame.new(sx * 0.9 * S, 1.3 * S, 0) * CFrame.Angles(0, 0, math.rad(sx * 35)), IRON, Enum.Material.Metal)
+			newPart(mF, "AnchorFluke", Vector3.new(0.7, 0.9, 0.56) * S, anc * CFrame.new(sx * 1.95 * S, 1.95 * S, 0), IRON, Enum.Material.Metal)
+		end
+		-- life ring on the east wall, crossed oars on the west wall
+		wallDisc(mF, "LifeRing", 2.6, 0.35, fSh * CFrame.new((w / 2 + 0.2) * S, 6.5 * S, -5 * S) * CFrame.Angles(0, -math.pi / 2, 0),
+			Color3.fromRGB(240, 110, 40))
+		wallDisc(mF, "LifeRingHole", 1.2, 0.4, fSh * CFrame.new((w / 2 + 0.22) * S, 6.5 * S, -5 * S) * CFrame.Angles(0, -math.pi / 2, 0),
+			Color3.fromRGB(200, 214, 224))
+		for _, a in ipairs({ -30, 30 }) do
+			local oar = fSh * CFrame.new((-w / 2 - 0.2 - (a > 0 and 0.06 or 0)) * S, 6.5 * S, -5 * S) * CFrame.Angles(math.rad(a), 0, 0)
+			newPart(mF, "OarShaft", Vector3.new(0.25, 7, 0.25) * S, oar, Color3.fromRGB(170, 130, 85), Enum.Material.Wood)
+			newPart(mF, "OarBlade", Vector3.new(0.2, 1.8, 0.8) * S, oar * CFrame.new(0, -3.6 * S, 0), Color3.fromRGB(200, 60, 50), Enum.Material.Wood)
+		end
+		-- lobster trap + coiled rope under the east window
+		local trap = fSh * CFrame.new(10.5 * S, 0, (-d / 2 - 1.8) * S)
+		newPart(mF, "LobsterTrap", Vector3.new(3, 1.8, 1.8) * S, trap * CFrame.new(0, 0.9 * S, 0), Color3.fromRGB(150, 115, 75), Enum.Material.WoodPlanks)
+		newPart(mF, "LobsterTrapNet", Vector3.new(2.6, 1.4, 1.9) * S, trap * CFrame.new(0, 0.9 * S, 0), Color3.fromRGB(60, 70, 60), Enum.Material.Fabric, 0.4)
+		newDisc(mF, "RopeCoil", 1.6 * S, 0.5 * S, trap * CFrame.new(2.6 * S, 0.25 * S, 0.2 * S), Color3.fromRGB(210, 180, 120), Enum.Material.Fabric)
+		-- fish tank against the east wall inside: stand, gravel, water, three fish, a lid light
+		local tank = fSh * CFrame.new(12.6 * S, 0, -4 * S)
+		newPart(mF, "TankStand", Vector3.new(2.4, 3, 6.4) * S, tank * CFrame.new(0, 1.9 * S, 0), Color3.fromRGB(110, 85, 60), Enum.Material.WoodPlanks)
+		newPart(mF, "TankGravel", Vector3.new(2.2, 0.35, 6.2) * S, tank * CFrame.new(0, 3.6 * S, 0), Color3.fromRGB(210, 190, 150), Enum.Material.Sand)
+		newPart(mF, "TankWater", Vector3.new(2.14, 2.6, 6.14) * S, tank * CFrame.new(0, 5.05 * S, 0), Color3.fromRGB(70, 150, 210), Enum.Material.Glass, 0.55)
+		newPart(mF, "TankLid", Vector3.new(2.4, 0.2, 6.4) * S, tank * CFrame.new(0, 6.45 * S, 0), Color3.fromRGB(220, 240, 255), Enum.Material.Neon)
+		for i, f in ipairs({ { 4.4, -1.6, Color3.fromRGB(250, 140, 40) }, { 5.2, 0.6, Color3.fromRGB(250, 220, 60) }, { 4.8, 2.2, Color3.fromRGB(240, 90, 120) } }) do
+			newPart(mF, "TankFish" .. i, Vector3.new(0.3, 0.45, 0.8) * S, tank * CFrame.new(-0.2 * S, f[1] * S, f[2] * S), f[3])
+		end
+		-- three rods racked on the back wall
+		for i, c in ipairs({ Color3.fromRGB(200, 60, 50), Color3.fromRGB(60, 120, 200), Color3.fromRGB(60, 160, 90) }) do
+			local rod = newPart(mF, "WallRod", Vector3.new(6.5, 0.18, 0.18) * S,
+				fSh * CFrame.new(-8 * S, (5 + i * 1.1) * S, (d / 2 - 0.9) * S), c)
+			rod.Shape = Enum.PartType.Cylinder
+		end
+		for _, bx in ipairs({ -10.5, -5.5 }) do
+			newPart(mF, "RodBracket", Vector3.new(0.3, 3.8, 0.3) * S, fSh * CFrame.new(bx * S, 7.2 * S, (d / 2 - 0.75) * S), Color3.fromRGB(110, 85, 60), Enum.Material.Wood)
+		end
+		-- cooler box and welcome mat
+		newPart(mF, "Cooler", Vector3.new(3, 2, 2) * S, fSh * CFrame.new(-1.5 * S, 1.42 * S, 8.5 * S), Color3.fromRGB(245, 245, 245))
+		newPart(mF, "CoolerLid", Vector3.new(3.1, 0.35, 2.1) * S, fSh * CFrame.new(-1.5 * S, 2.6 * S, 8.5 * S), Color3.fromRGB(40, 110, 190))
+		newPart(mF, "WelcomeMat", Vector3.new(4.4, 0.1, 2.4) * S, fSh * CFrame.new(0, 0.47 * S, (-d / 2 + 2) * S), Color3.fromRGB(70, 60, 50), Enum.Material.Fabric)
+
 		buildNPC(mF, "Captain Finn", fSh * CFrame.new(5.5 * S, 0.4 * S, 9 * S),
 			{ face = "rbxassetid://7074786", hatAccessory = "234479549", shirtTemplate = "rbxassetid://607785314", pantsTemplate = "rbxassetid://129458426" },
 			"Ahoy! Grab a rod, grab bait, and cast into ANY water in the bay. When the bobber glows - REEL! I buy every fish in your inventory.",
@@ -1899,7 +2176,7 @@ local function buildPlaza()
 		local mS = newModel(m, "Discovery Bay Scooters")
 		local w, d, h = 30, 24, 12
 		local wallS = Color3.fromRGB(40, 40, 45) -- sleek dark grey exterior
-		newPart(mS, "Floor", Vector3.new(w, 0.4, d) * S, sSh * CFrame.new(0, 0.22 * S, 0),
+		newPart(mS, "Floor", Vector3.new(w - 0.2, 0.5, d - 0.2) * S, sSh * CFrame.new(0, 0.22 * S, 0),
 			Color3.fromRGB(220, 220, 225), Enum.Material.Marble)
 		newPart(mS, "Back", Vector3.new(w - 1.2, h, 0.6) * S, sSh * CFrame.new(0, h / 2 * S, (d / 2 - 0.3) * S),
 			wallS, Enum.Material.Concrete)
@@ -1907,11 +2184,9 @@ local function buildPlaza()
 			newPart(mS, "Side", Vector3.new(0.6, h, d) * S,
 				sSh * CFrame.new(sx * (w / 2 - 0.3) * S, h / 2 * S, 0), wallS, Enum.Material.Concrete)
 			-- front wall segments beside a central door opening
-			newPart(mS, "FrontWall", Vector3.new(11.9, h, 0.6) * S,
-				sSh * CFrame.new(sx * 8.45 * S, h / 2 * S, (-d / 2 + 0.3) * S), wallS, Enum.Material.Concrete)
-			newPart(mS, "Window", Vector3.new(7, 4.5, 0.3) * S,
-				sSh * CFrame.new(sx * 8.45 * S, 5.6 * S, (-d / 2 + 0.1) * S),
-				Color3.fromRGB(255, 200, 50), Enum.Material.Glass, 0.3) -- tinted gold windows
+			-- front wall with a real window opening (see in and out)
+			windowedWall(mS, sSh, sx > 0 and 2.5 or -14.4, sx > 0 and 14.4 or -2.5, h, d,
+				{ sx * 8.45, 5.6, 7, 4.5 }, wallS, Enum.Material.Concrete)
 		end
 		local sDoor = newPart(mS, "AutoDoor", Vector3.new(4.6, 8, 0.25) * S,
 			sSh * CFrame.new(0, 4 * S, (-d / 2 + 0.3) * S),
@@ -1954,6 +2229,66 @@ local function buildPlaza()
 		sPrompt.RequiresLineOfSight = false
 		sPrompt.Parent = dDeck
 		
+		-- pro-shop dressing ------------------------------------------------------------------
+		local GOLDS = Color3.fromRGB(250, 200, 30)
+		local BLACK = Color3.fromRGB(25, 25, 28)
+		shopFront(mS, sSh, {
+			w = w, d = d, h = h, trim = Color3.fromRGB(70, 70, 78), doorW = 5, doorH = 8,
+			windows = { { -8.45, 5.6, 7, 4.5 }, { 8.45, 5.6, 7, 4.5 } },
+			awning = { Color3.fromRGB(25, 25, 28), GOLDS }, openSign = true,
+		})
+		newPart(mS, "FacadeNeon", Vector3.new(w - 2.4, 0.3, 0.12) * S, sSh * CFrame.new(0, 9.05 * S, (-d / 2 - 0.08) * S), GOLDS, Enum.Material.Neon)
+		-- the display scooter: finish the deck + battery into a whole scooter on a glowing turntable
+		newDisc(mS, "TurntableGlow", 10.8 * S, 0.15 * S, dispBase * CFrame.new(0, 0.08 * S, 0), GOLDS, Enum.Material.Neon)
+		for _, wz in ipairs({ -2.4, 2.2 }) do
+			local wheel = newPart(mS, "DisplayWheel", Vector3.new(0.4, 1.1, 1.1) * S, dispBase * CFrame.new(0, 1.55 * S, wz * S), BLACK)
+			wheel.Shape = Enum.PartType.Cylinder
+		end
+		newPart(mS, "DisplayColumn", Vector3.new(0.25, 3.8, 0.25) * S,
+			dispBase * CFrame.new(0, 3.45 * S, -2.4 * S) * CFrame.Angles(math.rad(8), 0, 0), Color3.fromRGB(210, 210, 215), Enum.Material.Metal)
+		newPart(mS, "DisplayBar", Vector3.new(2.3, 0.22, 0.22) * S, dispBase * CFrame.new(0, 5.3 * S, -2.15 * S), BLACK)
+		for _, gx in ipairs({ -1, 1 }) do
+			newPart(mS, "DisplayGrip", Vector3.new(0.55, 0.32, 0.32) * S, dispBase * CFrame.new(gx * 1.05 * S, 5.3 * S, -2.15 * S), GOLDS)
+		end
+		local tag = newPart(mS, "PriceTag", Vector3.new(2.6, 1.1, 0.12) * S,
+			dispBase * CFrame.new(0, 1.6 * S, -4.6 * S) * CFrame.Angles(math.rad(-25), 0, 0), BLACK)
+		makeSign(tag, Enum.NormalId.Front, "FAST · $1000", BLACK, GOLDS)
+		-- three scooters hung on back-wall racks
+		for i, c in ipairs({ Color3.fromRGB(200, 50, 50), Color3.fromRGB(50, 110, 210), Color3.fromRGB(50, 170, 90) }) do
+			local rx = (-12 + i * 6) * S
+			local rack = sSh * CFrame.new(rx, 6 * S, (d / 2 - 1.3) * S)
+			newPart(mS, "WallRack", Vector3.new(4.8, 0.3, 1.6) * S, rack * CFrame.new(0, -0.3 * S, 0), Color3.fromRGB(70, 70, 78), Enum.Material.Metal)
+			newPart(mS, "RackDeck", Vector3.new(4.2, 0.25, 1.1) * S, rack, c, Enum.Material.Metal)
+			newPart(mS, "RackColumn", Vector3.new(0.22, 3, 0.22) * S, rack * CFrame.new(1.9 * S, 1.5 * S, 0), Color3.fromRGB(210, 210, 215), Enum.Material.Metal)
+			newPart(mS, "RackBar", Vector3.new(0.22, 0.22, 1.8) * S, rack * CFrame.new(1.9 * S, 3 * S, 0), BLACK)
+			for _, wx in ipairs({ -1.8, 1.8 }) do
+				local wh = newPart(mS, "RackWheel", Vector3.new(0.35, 0.9, 0.9) * S,
+					rack * CFrame.new(wx * S, -0.05 * S, 0) * CFrame.Angles(0, math.pi / 2, 0), BLACK)
+				wh.Shape = Enum.PartType.Cylinder
+			end
+		end
+		-- tire stack, workbench with a red toolbox, neon strips along both walls
+		local tires = sSh * CFrame.new(11.5 * S, 0, 8 * S)
+		for k = 0, 2 do
+			newDisc(mS, "Tire", 2.2 * S, 0.7 * S, tires * CFrame.new(0, (0.8 + k * 0.72) * S, 0), BLACK)
+			newDisc(mS, "TireRim", 1.1 * S, 0.74 * S, tires * CFrame.new(0, (0.8 + k * 0.72) * S, 0), Color3.fromRGB(170, 170, 175), Enum.Material.Metal)
+		end
+		local bench = sSh * CFrame.new(-10.5 * S, 0, 9.5 * S)
+		newPart(mS, "Workbench", Vector3.new(6, 3, 2.2) * S, bench * CFrame.new(0, 1.9 * S, 0), Color3.fromRGB(110, 85, 60), Enum.Material.WoodPlanks)
+		newPart(mS, "Toolbox", Vector3.new(2, 1, 1) * S, bench * CFrame.new(-1.2 * S, 3.9 * S, 0), Color3.fromRGB(200, 40, 40), Enum.Material.Metal)
+		newPart(mS, "Wrench", Vector3.new(1.6, 0.15, 0.3) * S, bench * CFrame.new(1.3 * S, 3.47 * S, -0.2 * S) * CFrame.Angles(0, 0.4, 0), Color3.fromRGB(190, 190, 195), Enum.Material.Metal)
+		for _, sx in ipairs({ -1, 1 }) do
+			newPart(mS, "WallNeon", Vector3.new(0.15, 0.3, d - 3) * S, sSh * CFrame.new(sx * (w / 2 - 0.68) * S, 9 * S, 0), GOLDS, Enum.Material.Neon)
+		end
+		-- checkered runway from the door to the display
+		for row = 0, 3 do
+			for col = 0, 1 do
+				newPart(mS, "RunwayTile", Vector3.new(2, 0.06, 2) * S,
+					sSh * CFrame.new((col == 0 and -1 or 1) * S, 0.5 * S, (-d / 2 + 1.6 + row * 2) * S),
+					((row + col) % 2 == 0) and BLACK or Color3.fromRGB(245, 245, 245))
+			end
+		end
+
 		buildNPC(mS, "Rider Rick", sSh * CFrame.new(-8 * S, 0.4 * S, -4 * S),
 			{ face = "rbxassetid://144075591", hairAccessory = "12270336", hatAccessory = "61208920", shirtTemplate = "rbxassetid://144076358", pantsTemplate = "rbxassetid://144076370" },
 			"Looking to upgrade? The Fast Scooter bumps your base speed up by 20. And yes, it stacks with the Speed Pass. Pure adrenaline.",
@@ -1967,7 +2302,7 @@ local function buildPlaza()
 		local mC = newModel(m, "Callahan's Coffee and Cones")
 		local w, d, h = 30, 24, 12
 		local wallC = Color3.fromRGB(240, 224, 214)
-		newPart(mC, "Floor", Vector3.new(w, 0.4, d) * S, cSh * CFrame.new(0, 0.22 * S, 0),
+		newPart(mC, "Floor", Vector3.new(w - 0.2, 0.5, d - 0.2) * S, cSh * CFrame.new(0, 0.22 * S, 0),
 			Color3.fromRGB(238, 214, 205), Enum.Material.Concrete)
 		newPart(mC, "Back", Vector3.new(w - 1.2, h, 0.6) * S, cSh * CFrame.new(0, h / 2 * S, (d / 2 - 0.3) * S),
 			wallC, Enum.Material.Brick)
@@ -1975,11 +2310,9 @@ local function buildPlaza()
 			newPart(mC, "Side", Vector3.new(0.6, h, d) * S, cSh * CFrame.new(sx * (w / 2 - 0.3) * S, h / 2 * S, 0),
 				wallC, Enum.Material.Brick)
 			-- front wall segments beside a 5-stud door opening
-			newPart(mC, "FrontWall", Vector3.new(11.9, h, 0.6) * S,
-				cSh * CFrame.new(sx * 8.45 * S, h / 2 * S, (-d / 2 + 0.3) * S), wallC, Enum.Material.Brick)
-			newPart(mC, "Window", Vector3.new(7, 4.5, 0.3) * S,
-				cSh * CFrame.new(sx * 8.45 * S, 5.6 * S, (-d / 2 + 0.1) * S),
-				Color3.fromRGB(140, 195, 215), Enum.Material.Glass, 0.3)
+			-- front wall with a real window opening (see in and out)
+			windowedWall(mC, cSh, sx > 0 and 2.5 or -14.4, sx > 0 and 14.4 or -2.5, h, d,
+				{ sx * 8.45, 5.6, 7, 4.5 }, wallC, Enum.Material.Brick)
 			local doorP = newPart(mC, "AutoDoor", Vector3.new(2.5, 7, 0.25) * S,
 				cSh * CFrame.new(sx * 1.25 * S, 3.5 * S, (-d / 2 + 0.3) * S),
 				Color3.fromRGB(190, 220, 235), Enum.Material.Glass, 0.35)
@@ -1990,8 +2323,6 @@ local function buildPlaza()
 			cSh * CFrame.new(0, (7 + (h - 7) / 2) * S, (-d / 2 + 0.3) * S), wallC, Enum.Material.Brick)
 		newPart(mC, "Roof", Vector3.new(w + 1, 1, d + 1) * S, cSh * CFrame.new(0, (h + 0.5) * S, 0),
 			Color3.fromRGB(150, 75, 105))
-		newPart(mC, "Awning", Vector3.new(w * 0.85, 0.4, 4) * S, cSh * CFrame.new(0, 8 * S, (-d / 2 - 2) * S),
-			Color3.fromRGB(150, 75, 105), Enum.Material.Fabric)
 		local cSign = newPart(mC, "SignBoard", Vector3.new(w * 0.9, 2.6, 0.4) * S,
 			cSh * CFrame.new(0, (h - 1.4) * S, (-d / 2 - 0.35) * S), Color3.fromRGB(150, 75, 105))
 		makeSign(cSign, Enum.NormalId.Front, "Callahan's Coffee and Cones",
@@ -2016,6 +2347,56 @@ local function buildPlaza()
 				addProductDisplay(mC, pr, cSh * CFrame.new(fx * S, 3.6 * S + 0.55, 4 * S))
 			end
 		end
+		-- parlour dressing --------------------------------------------------------------------
+		local PINK = Color3.fromRGB(150, 75, 105)
+		local CREAM = Color3.fromRGB(255, 245, 235)
+		shopFront(mC, cSh, {
+			w = w, d = d, h = h, trim = Color3.fromRGB(255, 250, 245), doorW = 5, doorH = 7,
+			windows = { { -8.45, 5.6, 7, 4.5 }, { 8.45, 5.6, 7, 4.5 } },
+			awning = { PINK, CREAM }, openSign = true,
+		})
+		-- two cafe tables with umbrellas out front
+		for _, tx in ipairs({ -9, 5.5 }) do
+			local t = cSh * CFrame.new(tx * S, 0, (-d / 2 - 5) * S)
+			newColumn(mC, "CafeTableLeg", 2.6 * S, 0.4 * S, t * CFrame.new(0, 1.3 * S, 0), Color3.fromRGB(40, 40, 45), Enum.Material.Metal)
+			newDisc(mC, "CafeTableTop", 3 * S, 0.25 * S, t * CFrame.new(0, 2.7 * S, 0), CREAM)
+			newColumn(mC, "UmbrellaPole", 4.6 * S, 0.2 * S, t * CFrame.new(0, 5 * S, 0), Color3.fromRGB(230, 230, 230), Enum.Material.Metal)
+			newDisc(mC, "Umbrella", 5.6 * S, 0.3 * S, t * CFrame.new(0, 7.3 * S, 0), PINK, Enum.Material.Fabric)
+			newDisc(mC, "UmbrellaTop", 3 * S, 0.35 * S, t * CFrame.new(0, 7.5 * S, 0), CREAM, Enum.Material.Fabric)
+			for _, a in ipairs({ 0, math.pi }) do
+				local ch = t * CFrame.Angles(0, a, 0) * CFrame.new(0, 0, 2.3 * S)
+				newPart(mC, "CafeChairSeat", Vector3.new(1.4, 0.25, 1.4) * S, ch * CFrame.new(0, 1.5 * S, 0), CREAM)
+				newPart(mC, "CafeChairBack", Vector3.new(1.4, 1.4, 0.2) * S, ch * CFrame.new(0, 2.3 * S, 0.6 * S), CREAM)
+				newColumn(mC, "CafeChairLeg", 1.4 * S, 0.25 * S, ch * CFrame.new(0, 0.7 * S, 0), Color3.fromRGB(40, 40, 45), Enum.Material.Metal)
+			end
+		end
+		-- back counter: coffee machine, cup stacks and tubs of ice cream
+		newPart(mC, "BackCounter", Vector3.new(20, 3, 1.8) * S, cSh * CFrame.new(0, 1.92 * S, (d / 2 - 1.5) * S), CREAM)
+		local cm = cSh * CFrame.new(6 * S, 0, (d / 2 - 1.5) * S)
+		newPart(mC, "CoffeeMachine", Vector3.new(2.4, 2.2, 1.4) * S, cm * CFrame.new(0, 4.5 * S, 0), Color3.fromRGB(45, 45, 50), Enum.Material.Metal)
+		newPart(mC, "CoffeeLight", Vector3.new(0.4, 0.4, 0.1) * S, cm * CFrame.new(0.7 * S, 5 * S, -0.72 * S), Color3.fromRGB(230, 50, 50), Enum.Material.Neon)
+		for k = 0, 1 do
+			newColumn(mC, "CupStack", 1.4 * S, 0.6 * S, cm * CFrame.new((2 + k * 0.8) * S, 4.1 * S, 0), CREAM)
+		end
+		for i, c in ipairs({ Color3.fromRGB(120, 75, 50), Color3.fromRGB(250, 240, 210), Color3.fromRGB(150, 220, 170), Color3.fromRGB(245, 160, 190) }) do
+			newPart(mC, "IceCreamTub", Vector3.new(1.4, 0.7, 1.1) * S, cSh * CFrame.new((-9 + i * 1.7) * S, 3.75 * S, (d / 2 - 1.5) * S), c)
+		end
+		-- pendant lights over the front counter
+		for _, lx in ipairs({ -5, 0, 5 }) do
+			newPart(mC, "PendantCord", Vector3.new(0.1, 3, 0.1) * S, cSh * CFrame.new(lx * S, (h - 1.5) * S, 4 * S), Color3.fromRGB(30, 30, 30))
+			newBall(mC, "PendantLamp", 1 * S, cSh * CFrame.new(lx * S, (h - 3.2) * S, 4 * S), Color3.fromRGB(255, 225, 180), Enum.Material.Neon)
+		end
+		-- window seating: a little round table + two stools by each window
+		for _, sx in ipairs({ -1, 1 }) do
+			local t = cSh * CFrame.new(sx * 9 * S, 0, -7.5 * S)
+			newColumn(mC, "InsideTableLeg", 2.2 * S, 0.35 * S, t * CFrame.new(0, 1.5 * S, 0), Color3.fromRGB(40, 40, 45), Enum.Material.Metal)
+			newDisc(mC, "InsideTableTop", 2.4 * S, 0.2 * S, t * CFrame.new(0, 2.65 * S, 0), CREAM)
+			for _, oz in ipairs({ -1.9, 1.9 }) do
+				newColumn(mC, "StoolLeg", 1.6 * S, 0.3 * S, t * CFrame.new(0, 1.2 * S, oz * S), Color3.fromRGB(40, 40, 45), Enum.Material.Metal)
+				newDisc(mC, "StoolSeat", 1.3 * S, 0.3 * S, t * CFrame.new(0, 2.1 * S, oz * S), PINK)
+			end
+		end
+
 		buildNPC(mC, "Callahan", cSh * CFrame.new(-4 * S, 0.4 * S, 8 * S),
 			{ face = "rbxassetid://240928159", hairAccessory = "376527350", shirtTemplate = "rbxassetid://607785314", pantsTemplate = "rbxassetid://129458426" },
 			"Welcome to Callahan's Coffee and Cones! Chocolate makes your legs faster, Vanilla feeds your scooter, and Mint... Mint DOUBLES your trick money!",
@@ -2029,19 +2410,16 @@ local function buildPlaza()
 		local mJ = newModel(m, "Discovery Bay Jiu Jitsu")
 		local w, d, h = 32, 24, 13
 		local wallJ = Color3.fromRGB(60, 64, 70)
-		newPart(mJ, "Floor", Vector3.new(w, 0.4, d) * S, jSh * CFrame.new(0, 0.22 * S, 0),
+		newPart(mJ, "Floor", Vector3.new(w - 0.2, 0.5, d - 0.2) * S, jSh * CFrame.new(0, 0.22 * S, 0),
 			Color3.fromRGB(120, 90, 65), Enum.Material.WoodPlanks)
 		newPart(mJ, "Back", Vector3.new(w - 1.2, h, 0.6) * S, jSh * CFrame.new(0, h / 2 * S, (d / 2 - 0.3) * S),
 			wallJ, Enum.Material.Concrete)
 		for _, sx in ipairs({ -1, 1 }) do
 			newPart(mJ, "Side", Vector3.new(0.6, h, d) * S, jSh * CFrame.new(sx * (w / 2 - 0.3) * S, h / 2 * S, 0),
 				wallJ, Enum.Material.Concrete)
-			newPart(mJ, "FrontWall", Vector3.new(12.9, h, 0.6) * S,
-				jSh * CFrame.new(sx * 8.95 * S, h / 2 * S, (-d / 2 + 0.3) * S),
-				wallJ, Enum.Material.Concrete)
-			newPart(mJ, "Window", Vector3.new(6, 4.5, 0.3) * S,
-				jSh * CFrame.new(sx * 8.95 * S, 6 * S, (-d / 2 + 0.1) * S),
-				Color3.fromRGB(120, 160, 180), Enum.Material.Glass, 0.35)
+			-- front wall with a real window opening (see in and out)
+			windowedWall(mJ, jSh, sx > 0 and 2.5 or -15.4, sx > 0 and 15.4 or -2.5, h, d,
+				{ sx * 8.95, 6, 6, 4.5 }, wallJ, Enum.Material.Concrete)
 			local doorJ = newPart(mJ, "AutoDoor", Vector3.new(2.5, 7, 0.25) * S,
 				jSh * CFrame.new(sx * 1.25 * S, 3.5 * S, (-d / 2 + 0.3) * S),
 				Color3.fromRGB(170, 200, 215), Enum.Material.Glass, 0.35)
@@ -2074,6 +2452,46 @@ local function buildPlaza()
 			jSh * CFrame.new(0, 7.5 * S, (d / 2 - 0.7) * S), Color3.fromRGB(25, 30, 40))
 		makeSign(rules, Enum.NormalId.Front, "STEP ON THE MAT · CLICK 7 BUTTONS · WIN $50",
 			Color3.fromRGB(25, 30, 40), Color3.fromRGB(255, 235, 200))
+		-- dojo dressing ----------------------------------------------------------------------
+		local RED = Color3.fromRGB(200, 40, 40)
+		shopFront(mJ, jSh, {
+			w = w, d = d, h = h, trim = Color3.fromRGB(25, 30, 40), doorW = 5, doorH = 7,
+			windows = { { -8.95, 6, 6, 4.5 }, { 8.95, 6, 6, 4.5 } },
+			awning = { RED, Color3.fromRGB(25, 30, 40) }, bench = -9,
+		})
+		-- hanging OSS banners either side of the sign
+		for _, sx in ipairs({ -1, 1 }) do
+			local ban = newPart(mJ, "Banner", Vector3.new(1.6, 4, 0.1) * S, jSh * CFrame.new(sx * 14 * S, 8.3 * S, (-d / 2 - 0.9) * S), RED, Enum.Material.Fabric)
+			makeSign(ban, Enum.NormalId.Front, "OSS", RED, Color3.new(1, 1, 1))
+			newPart(mJ, "BannerRod", Vector3.new(2, 0.15, 0.15) * S, jSh * CFrame.new(sx * 14 * S, 10.35 * S, (-d / 2 - 0.9) * S), Color3.fromRGB(40, 40, 45))
+			newPart(mJ, "BannerArm", Vector3.new(0.15, 0.15, 0.9) * S, jSh * CFrame.new(sx * 14 * S, 10.35 * S, (-d / 2 - 0.45) * S), Color3.fromRGB(40, 40, 45))
+		end
+		-- blue wall pads along both side walls
+		for _, sx in ipairs({ -1, 1 }) do
+			newPart(mJ, "WallPad", Vector3.new(0.35, 4, d - 3) * S, jSh * CFrame.new(sx * (w / 2 - 0.78) * S, 2.6 * S, 0), Color3.fromRGB(40, 80, 160), Enum.Material.Fabric)
+		end
+		-- belt rack: white to black
+		local rack = jSh * CFrame.new(11.5 * S, 0, (d / 2 - 0.75) * S)
+		newPart(mJ, "BeltRack", Vector3.new(4.6, 3.6, 0.3) * S, rack * CFrame.new(0, 7.6 * S, 0), Color3.fromRGB(110, 80, 55), Enum.Material.WoodPlanks)
+		for i, c in ipairs({ Color3.fromRGB(245, 245, 245), Color3.fromRGB(40, 90, 200), Color3.fromRGB(120, 50, 170), Color3.fromRGB(120, 75, 45), Color3.fromRGB(20, 20, 20) }) do
+			newPart(mJ, "Belt", Vector3.new(4, 0.35, 0.1) * S, rack * CFrame.new(0, (9 - i * 0.6) * S, -0.2 * S), c, Enum.Material.Fabric)
+		end
+		-- training mirror on the west wall above the pads
+		local mirror = newPart(mJ, "Mirror", Vector3.new(0.12, 5, 12) * S, jSh * CFrame.new((-w / 2 + 0.7) * S, 7.4 * S, -2 * S), Color3.fromRGB(210, 220, 225), Enum.Material.Glass)
+		mirror.Reflectance = 0.5
+		-- kettlebells, a stack of spare mats, water cooler
+		for i, kx in ipairs({ -9, -7.4 }) do
+			local kb = jSh * CFrame.new(kx * S, 0, 10 * S)
+			newBall(mJ, "Kettlebell", (1 + i * 0.2) * S, kb * CFrame.new(0, (0.9 + i * 0.1) * S, 0), Color3.fromRGB(30, 30, 32), Enum.Material.Metal)
+			newPart(mJ, "KettlebellHandle", Vector3.new(0.9, 0.25, 0.25) * S, kb * CFrame.new(0, (1.6 + i * 0.2) * S, 0), Color3.fromRGB(30, 30, 32), Enum.Material.Metal)
+		end
+		for k = 0, 2 do
+			newPart(mJ, "SpareMat", Vector3.new(4, 0.4, 3) * S, jSh * CFrame.new(-12 * S, (0.62 + k * 0.42) * S, -8 * S), Color3.fromRGB(40, 80, 160), Enum.Material.Fabric)
+		end
+		local wc = jSh * CFrame.new(13.6 * S, 0, -9 * S)
+		newPart(mJ, "WaterCooler", Vector3.new(1.4, 3, 1.4) * S, wc * CFrame.new(0, 1.9 * S, 0), Color3.fromRGB(240, 240, 240))
+		newBall(mJ, "WaterJug", 1.4 * S, wc * CFrame.new(0, 4.1 * S, 0), Color3.fromRGB(120, 180, 240), Enum.Material.Glass)
+
 		buildNPC(mJ, "Sensei", jSh * CFrame.new(12 * S, 0.4 * S, 8 * S),
 			{ face = "rbxassetid://161246543", hatAccessory = "242444317", shirtColor = Color3.fromRGB(20, 20, 20), pantsColor = Color3.fromRGB(20, 20, 20) },
 			"Step on the grey mat to begin your training. Seven buttons. Five seconds each. Miss and you PAY. Win, and you feast: $50.",
@@ -2082,9 +2500,22 @@ local function buildPlaza()
 	end
 	-- giant ice-cream prop by Callahan's
 	local ic = (rowCf * CFrame.new(-24 * S, 0, 2 * S)).Position
-	newColumn(m, "ConePole", 4.5 * S, 1.8 * S, CFrame.new(ic + Vector3.new(0, 2.25 * S, 0)),
-		Color3.fromRGB(190, 140, 90), Enum.Material.Wood)
-	newBall(m, "Scoop", 3 * S, CFrame.new(ic + Vector3.new(0, 5.6 * S, 0)), Color3.fromRGB(245, 170, 190))
+	-- a waffle cone (tapered from stacked rings, point down) with two scoops and a cherry
+	newDisc(m, "ConeBase", 3.4 * S, 0.6 * S, CFrame.new(ic + Vector3.new(0, 0.3 * S, 0)), Color3.fromRGB(150, 145, 138), Enum.Material.Slate)
+	for k, dia in ipairs({ 0.8, 1.4, 2.0, 2.6, 3.1 }) do
+		newColumn(m, "ConeWaffle", 1.15 * S, dia * S, CFrame.new(ic + Vector3.new(0, (0.6 + (k - 0.5) * 1.15) * S, 0)),
+			(k % 2 == 0) and Color3.fromRGB(205, 150, 85) or Color3.fromRGB(185, 130, 70), Enum.Material.Wood)
+	end
+	newBall(m, "Scoop", 3.4 * S, CFrame.new(ic + Vector3.new(0, 7.4 * S, 0)), Color3.fromRGB(245, 170, 190))
+	newBall(m, "Scoop", 2.9 * S, CFrame.new(ic + Vector3.new(0, 9.6 * S, 0)), Color3.fromRGB(160, 225, 180))
+	newBall(m, "Cherry", 0.9 * S, CFrame.new(ic + Vector3.new(0, 11.3 * S, 0)), Color3.fromRGB(210, 30, 40))
+	newPart(m, "CherryStem", Vector3.new(0.12, 0.8, 0.12) * S, CFrame.new(ic + Vector3.new(0.15 * S, 11.9 * S, 0)) * CFrame.Angles(0, 0, math.rad(-20)),
+		Color3.fromRGB(60, 110, 40))
+	-- sidewalk + curb along the whole shop row
+	newPart(m, "RowSidewalk", Vector3.new(172, 0.3, 5) * S, rowCf * CFrame.new(-70 * S, 0.15 * S, 3.5 * S),
+		Color3.fromRGB(196, 192, 184), Enum.Material.Concrete)
+	newPart(m, "RowCurb", Vector3.new(172.2, 0.5, 0.5) * S, rowCf * CFrame.new(-70 * S, 0.25 * S, 1.2 * S),
+		Color3.fromRGB(170, 166, 158), Enum.Material.Concrete)
 	-- shared parking + cars
 	local pk = rowCf * CFrame.new(-30 * S, 0, -16 * S)
 	newPart(m, "Parking", Vector3.new(92, 0.35, 34) * S, pk * CFrame.new(0, 0.18 * S, 0),
@@ -2127,7 +2558,7 @@ local function buildBigSchool(parent, lm)
 	
 	local w, d, h = 170, 100, 15
 	local wallS = Color3.fromRGB(222, 214, 196)
-	newPart(m, "Floor", Vector3.new(w, 0.4, d) * S, cf * CFrame.new(0, 0.22 * S, 0),
+	newPart(m, "Floor", Vector3.new(w - 0.2, 0.4, d - 0.2) * S, cf * CFrame.new(0, 0.22 * S, 0),
 		Color3.fromRGB(196, 190, 180), Enum.Material.Concrete)
 	newPart(m, "Back", Vector3.new(w, h, 0.8) * S, cf * CFrame.new(0, h / 2 * S, (d / 2 - 0.4) * S),
 		wallS, Enum.Material.Brick)
@@ -2365,15 +2796,15 @@ local function buildBloxway()
 		markBuilding(bx + off[1], bz + off[2])
 	end
 	local wallB = Color3.fromRGB(228, 224, 216)
-	newPart(m, "Floor", Vector3.new(w, 0.4, d) * S, cf * CFrame.new(0, 0.22 * S, 0),
+	newPart(m, "Floor", Vector3.new(w - 0.2, 0.4, d - 0.2) * S, cf * CFrame.new(0, 0.22 * S, 0),
 		Color3.fromRGB(205, 202, 196), Enum.Material.Concrete)
 	newPart(m, "Back", Vector3.new(w - 1.6, h, 0.8) * S, cf * CFrame.new(0, h / 2 * S, (d / 2 - 0.4) * S),
 		wallB, Enum.Material.Concrete)
 	for _, sx in ipairs({ -1, 1 }) do
 		newPart(m, "Side", Vector3.new(0.8, h, d) * S, cf * CFrame.new(sx * (w / 2 - 0.4) * S, h / 2 * S, 0),
 			wallB, Enum.Material.Concrete)
-		newPart(m, "FrontWall", Vector3.new((w - 15.6) / 2, h, 0.8) * S,
-			cf * CFrame.new(sx * ((w - 15.6) / 4 + 3.5) * S, h / 2 * S, (-d / 2 + 0.4) * S),
+		newPart(m, "FrontWall", Vector3.new(w / 2 - 4.3, h, 0.8) * S,
+			cf * CFrame.new(sx * (3.5 + (w / 2 - 4.3) / 2) * S, h / 2 * S, (-d / 2 + 0.4) * S),
 			wallB, Enum.Material.Concrete)
 		newPart(m, "FrontGlass", Vector3.new((w - 15.6) / 2 - 8, 6, 0.3) * S,
 			cf * CFrame.new(sx * ((w - 15.6) / 4 + 3.5) * S, 6 * S, (-d / 2 + 0.1) * S),
@@ -2384,7 +2815,7 @@ local function buildBloxway()
 		doorB:SetAttribute("AutoDoor", true)
 		doorB:SetAttribute("SlideDist", sx * 7.2 * S)
 	end
-	newPart(m, "DoorHeader", Vector3.new(14, h - 10, 0.8) * S,
+	newPart(m, "DoorHeader", Vector3.new(7, h - 10, 0.8) * S,
 		cf * CFrame.new(0, (10 + (h - 10) / 2) * S, (-d / 2 + 0.4) * S), wallB, Enum.Material.Concrete)
 	newPart(m, "Roof", Vector3.new(w + 2, 1.2, d + 2) * S, cf * CFrame.new(0, (h + 0.6) * S, 0),
 		Color3.fromRGB(180, 178, 170), Enum.Material.Concrete)
@@ -2410,6 +2841,45 @@ local function buildBloxway()
 		newPart(m, "Checkout", Vector3.new(6, 3, 2.2) * S,
 			cf * CFrame.new(cx * S, 1.9 * S, (-d / 2 + 14) * S), Color3.fromRGB(90, 110, 130))
 	end
+	-- storefront dressing (the empty inside is the joke: "we sold the aisles")
+	local fz = -d / 2
+	local BRED = Color3.fromRGB(200, 60, 55)
+	newPart(m, "BaseBand", Vector3.new(w, 1.4, 0.4) * S, cf * CFrame.new(0, 0.7 * S, (fz - 0.2) * S), BRED)
+	for _, px in ipairs({ -w / 2 + 0.8, -w / 4, -9, 9, w / 4, w / 2 - 0.8 }) do
+		newPart(m, "Pillar", Vector3.new(2, h, 1) * S, cf * CFrame.new(px * S, h / 2 * S, (fz - 0.5) * S), Color3.fromRGB(210, 206, 198), Enum.Material.Concrete)
+	end
+	-- entrance canopy on two columns
+	newPart(m, "EntranceCanopy", Vector3.new(19.6, 0.8, 8) * S, cf * CFrame.new(0, 11.6 * S, (fz - 4) * S), BRED)
+	newPart(m, "CanopyFascia", Vector3.new(20.4, 1.4, 0.3) * S, cf * CFrame.new(0, 11.2 * S, (fz - 8) * S), Color3.fromRGB(245, 245, 245))
+	for _, cx in ipairs({ -9, 9 }) do
+		newColumn(m, "CanopyColumn", 11.2 * S, 1 * S, cf * CFrame.new(cx * S, 5.6 * S, (fz - 7.4) * S), Color3.fromRGB(230, 228, 222), Enum.Material.Metal)
+	end
+	-- sale banners in the big windows
+	for _, sx in ipairs({ -1, 1 }) do
+		local sale = newPart(m, "SaleBanner", Vector3.new(12, 3, 0.12) * S, cf * CFrame.new(sx * 32 * S, 6 * S, (fz - 0.3) * S), Color3.fromRGB(250, 205, 30))
+		makeSign(sale, Enum.NormalId.Front, "BIG SALE!", Color3.fromRGB(250, 205, 30), BRED)
+	end
+	-- bollards in front of the doors
+	for _, bx in ipairs({ -14, -11, 11, 14 }) do
+		newColumn(m, "Bollard", 3 * S, 0.8 * S, cf * CFrame.new(bx * S, 1.5 * S, (fz - 3) * S), BRED)
+	end
+	-- cart corral with three carts
+	local corral = cf * CFrame.new(26 * S, 0, (fz - 14) * S)
+	for _, rz in ipairs({ -2, 2 }) do
+		newPart(m, "CorralRail", Vector3.new(10, 0.3, 0.3) * S, corral * CFrame.new(0, 2.6 * S, rz * S), Color3.fromRGB(190, 190, 195), Enum.Material.Metal)
+	end
+	for _, rx in ipairs({ -5, 5 }) do
+		newPart(m, "CorralPost", Vector3.new(0.3, 2.6, 4.3) * S, corral * CFrame.new(rx * S, 1.3 * S, 0), Color3.fromRGB(190, 190, 195), Enum.Material.Metal)
+	end
+	local corralSign = newPart(m, "CorralSign", Vector3.new(4, 1.2, 0.15) * S, corral * CFrame.new(0, 3.5 * S, -2.1 * S), BRED)
+	makeSign(corralSign, Enum.NormalId.Front, "CARTS", BRED, Color3.new(1, 1, 1))
+	for k = 0, 2 do
+		local cart = corral * CFrame.new((-3.1 + k * 3.1) * S, 0, 0) * CFrame.Angles(0, math.pi / 2, 0)
+		newPart(m, "CartBasket", Vector3.new(2, 1.5, 3) * S, cart * CFrame.new(0, 2.1 * S, 0), Color3.fromRGB(170, 175, 180), Enum.Material.Metal, 0.35)
+		newPart(m, "CartBase", Vector3.new(1.8, 0.2, 2.8) * S, cart * CFrame.new(0, 0.5 * S, 0), Color3.fromRGB(120, 120, 125), Enum.Material.Metal)
+		newPart(m, "CartHandle", Vector3.new(2, 0.2, 0.2) * S, cart * CFrame.new(0, 3.1 * S, 1.6 * S), BRED)
+	end
+
 	local bob = buildNPC(m, "Manager Bob", cf * CFrame.new(26 * S, 0.4 * S, (-d / 2 + 18) * S),
 		{ face = "rbxassetid://7074749", hairAccessory = "63690008", shirtTemplate = "rbxassetid://144076358", pantsTemplate = "rbxassetid://144076370" })
 end

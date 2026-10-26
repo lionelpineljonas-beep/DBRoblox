@@ -11,7 +11,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 
-local VERSION = "v112"
+local VERSION = "v119"
 local SPEED_PASS_ID = 0 -- paste the real Game Pass ID here (same one as in DiscoveryBayShop)
 local RunService = game:GetService("RunService")
 local Lighting = game:GetService("Lighting")
@@ -1602,7 +1602,8 @@ local function playTerrySodaCutscene(npcModel)
 	if char then
 		for _, d in ipairs(char:GetDescendants()) do
 			if d:IsA("Motor6D") then
-				d.C0 = getStandC0(d)
+				-- guarded: some joints refuse C0 writes, which would abort the cutscene mid-setup
+				pcall(function() d.C0 = getStandC0(d) end)
 				d.Transform = CFrame.new()
 			end
 		end
@@ -1669,7 +1670,7 @@ local function playTerrySodaCutscene(npcModel)
 				for _, d in ipairs(char:GetDescendants()) do
 					if d:IsA("Motor6D") then
 						local stand = d:GetAttribute("WalkOrigC0") or pBaseC0[d]
-						if stand then d.C0 = stand end
+						if stand then pcall(function() d.C0 = stand end) end
 						d.Transform = CFrame.new()
 					elseif d:IsA("AnimationConstraint") then
 						d.Transform = CFrame.new()
@@ -3690,14 +3691,30 @@ do
 		return cachedBase[motor]
 	end
 
+	-- Character joints are posed through .Transform (layered on top of the resting C0). On newer
+	-- rigs some joints (e.g. the IK-driven shoulders/elbows) refuse C0 writes, and one refused
+	-- write used to abort the whole frame, so the rider never leaned, crouched or kicked.
+	-- Welds (R6 arm grips) have no Transform, so they keep using C0. Every write is guarded.
+	local function pose(m, offset)
+		if not m or not m.Parent then return end
+		pcall(function()
+			if m:IsA("Motor6D") or m:IsA("AnimationConstraint") then
+				m.Transform = offset
+			else
+				m.C0 = getBaseC0(m) * offset
+			end
+		end)
+	end
+	local function setC0(m, cf)
+		if m and cf then pcall(function() m.C0 = cf end) end
+	end
+
 	local function restoreWalkC0(char)
 		if not char then return end
 		for _, d in ipairs(char:GetDescendants()) do
 			if d:IsA("Motor6D") or d.Name == "LeftArmGrip" or d.Name == "RightArmGrip" then
-				local walkC0 = d:GetAttribute("WalkOrigC0") or cachedBase[d]
-				if walkC0 then
-					d.C0 = walkC0
-				end
+				setC0(d, d:GetAttribute("WalkOrigC0") or cachedBase[d])
+				if d:IsA("Motor6D") then d.Transform = CFrame.new() end
 			end
 		end
 	end
@@ -3758,6 +3775,8 @@ do
 			isR6Hip = (lUpperLeg == nil),
 			lKnee = lKnee,
 			rKnee = rKnee,
+			lWrist = char:FindFirstChild("LeftHand") and char.LeftHand:FindFirstChild("LeftWrist"),
+			rWrist = char:FindFirstChild("RightHand") and char.RightHand:FindFirstChild("RightWrist"),
 		}
 	end
 
@@ -3771,6 +3790,72 @@ do
 		end
 	end
 
+	-- Hands on the handlebar, solved here instead of by the server's IKControl: with no pole the
+	-- IK twisted each upper arm ~95 degrees (arms jutting sideways, shoulders hunched). This is a
+	-- plain two-bone solve: yaw + pitch the shoulder at the grip, bend the elbow (back and down)
+	-- just enough for the hand to land on it.
+	-- a joint's two frames: in Part0's space and in Part1's space (works for both joint types)
+	local function jointFrames(m)
+		if m:IsA("AnimationConstraint") then
+			if m.Attachment0 and m.Attachment1 then
+				return m.Attachment0.CFrame, m.Attachment1.CFrame, m.Attachment0.Parent
+			end
+		elseif m:IsA("Motor6D") then
+			return m.C0, m.C1, m.Part0
+		end
+		return nil
+	end
+	-- smallest rotation that turns direction a into direction b
+	local function rotBetween(a, b)
+		a, b = a.Unit, b.Unit
+		local dot = math.clamp(a:Dot(b), -1, 1)
+		local axis = a:Cross(b)
+		if axis.Magnitude < 1e-5 then
+			if dot > 0 then return CFrame.new() end
+			local perp = math.abs(a.X) < 0.9 and Vector3.xAxis or Vector3.yAxis
+			return CFrame.fromAxisAngle(a:Cross(perp).Unit, math.pi)
+		end
+		return CFrame.fromAxisAngle(axis.Unit, math.acos(dot))
+	end
+	-- the real bone vectors come from the rig's own joint frames (the resting arm is NOT a straight
+	-- drop below the shoulder pivot on every avatar), then each bone is rotated onto its solved direction
+	local function aimArm(shoulder, elbow, wrist, target)
+		if not (shoulder and elbow and wrist and target) then return end
+		local sh0, sh1, torso = jointFrames(shoulder)
+		local el0, el1 = jointFrames(elbow)
+		local wr0, wr1 = jointFrames(wrist)
+		if not (sh0 and el0 and wr0 and torso) then return end
+		local sp = torso.CFrame * sh0                               -- shoulder pivot, world
+		local u0 = sh1:PointToObjectSpace(el0.Position)             -- shoulder -> elbow at rest
+		local f0 = el1:PointToObjectSpace((wr0 * wr1:Inverse()).Position) -- elbow -> hand centre at rest
+		local L1, L2 = u0.Magnitude, f0.Magnitude
+		local t = sp:PointToObjectSpace(target)
+		local D = math.clamp(t.Magnitude, math.abs(L1 - L2) + 0.05, L1 + L2 - 0.001)
+		local n = t.Unit
+		-- elbows bend down, back and a little outward
+		local side = sh0.Position.X >= 0 and 1 or -1
+		local hint = Vector3.new(side * 0.35, -1, 0.8)
+		local m = hint - n * hint:Dot(n)
+		if m.Magnitude < 1e-4 then return end
+		m = m.Unit
+		local cosA = math.clamp((L1 * L1 + D * D - L2 * L2) / (2 * L1 * D), -1, 1)
+		local e = n * (L1 * cosA) + m * (L1 * math.sqrt(1 - cosA * cosA)) -- elbow, shoulder frame
+		local Ts = rotBetween(u0, e)
+		pose(shoulder, Ts)
+		local elbowFrame = Ts * sh1:Inverse() * el0
+		local Te = rotBetween(f0, elbowFrame:VectorToObjectSpace(n * D - e))
+		pose(elbow, Te)
+	end
+	local function gripTarget(hum, name)
+		local ik = hum and hum:FindFirstChild(name)
+		local att = ik and ik:IsA("IKControl") and ik.Target
+		return att and att:IsA("Attachment") and att.WorldPosition or nil
+	end
+	local function aimArmsAtGrips(j)
+		aimArm(j.lShoulder, j.lElbow, j.lWrist, gripTarget(j.hum, "LeftHandGrip"))
+		aimArm(j.rShoulder, j.rElbow, j.rWrist, gripTarget(j.hum, "RightHandGrip"))
+	end
+
 	local function resetAllToBase(j)
 		for _, k in ipairs({
 			"deckMount", "barMount", "root", "waist", "neck",
@@ -3778,12 +3863,13 @@ do
 			"lHip", "rHip", "lKnee", "rKnee",
 		}) do
 			local m = j[k]
-			if m and m.Parent then
-				local base = getBaseC0(m)
-				if base then m.C0 = base end
+			if k == "deckMount" or k == "barMount" then
+				setC0(m, m and getBaseC0(m))
+			else
+				pose(m, CFrame.new())
 			end
 		end
-		setIKEnabled(j.hum, true)
+		setIKEnabled(j.hum, false)
 	end
 
 	_G.StartScooterTrickAnim = function(char, trickName)
@@ -3800,7 +3886,9 @@ do
 		}
 	end
 
-	RunService.RenderStepped:Connect(function(dt)
+	-- PreSimulation runs after the Animator and IKControl have written this frame's Transforms,
+	-- so our poses are the ones that get drawn (in RenderStepped the Animator would overwrite them)
+	RunService.PreSimulation:Connect(function(dt)
 		if inTerryCutscene then return end
 		local char = plr.Character
 		if not char then return end
@@ -3832,7 +3920,7 @@ do
 			-- Only release hand IK during No-Hander and Kickflip; for Tailwhip, 360 Spin, Backflip,
 			-- and Frontflip, keep hands holding the handlebars as the scooter flips/spins with you!
 			local releaseHands = (name == "No-Hander" or name == "Kickflip")
-			setIKEnabled(j.hum, not releaseHands)
+			setIKEnabled(j.hum, false)
 
 			-- Clear default R15/R6 Animate Transform on legs/torso (and arms only when IK is released)
 			local clearKeys = releaseHands and {
@@ -3852,148 +3940,142 @@ do
 				local pivot = CFrame.new(0, j.deckY, -2.2)
 				local deckRot = CFrame.Angles(0, ang, 0)
 				if j.deckMount then
-					j.deckMount.C0 = getBaseC0(j.deckMount) * pivot * deckRot * pivot:Inverse()
+					setC0(j.deckMount, getBaseC0(j.deckMount) * pivot * deckRot * pivot:Inverse())
 				end
 				if j.barMount then
-					j.barMount.C0 = getBaseC0(j.barMount) * CFrame.Angles(math.rad(-10 * wave), math.rad(22 * math.sin(ang)), math.rad(12 * math.sin(ang)))
+					setC0(j.barMount, getBaseC0(j.barMount) * CFrame.Angles(math.rad(-10 * wave), math.rad(22 * math.sin(ang)), math.rad(12 * math.sin(ang))))
 				end
 				if j.root then
-					j.root.C0 = getBaseC0(j.root) * CFrame.new(0, 0.85 * wave, 0) * CFrame.Angles(math.rad(-10 * wave), 0, 0)
+					pose(j.root, CFrame.new(0, 0.85 * wave, 0) * CFrame.Angles(math.rad(-10 * wave), 0, 0))
 				end
 				if j.waist then
-					j.waist.C0 = getBaseC0(j.waist) * CFrame.Angles(math.rad(-20 * wave), 0, 0)
+					pose(j.waist, CFrame.Angles(math.rad(-20 * wave), 0, 0))
 				end
 				if j.lHip and not j.isR6Hip then
-					j.lHip.C0 = getBaseC0(j.lHip) * CFrame.Angles(math.rad(65 * wave), 0, math.rad(10 * wave))
+					pose(j.lHip, CFrame.Angles(math.rad(65 * wave), 0, math.rad(10 * wave)))
 				end
 				if j.rHip and not j.isR6Hip then
-					j.rHip.C0 = getBaseC0(j.rHip) * CFrame.Angles(math.rad(65 * wave), 0, math.rad(-10 * wave))
+					pose(j.rHip, CFrame.Angles(math.rad(65 * wave), 0, math.rad(-10 * wave)))
 				end
-				if j.lKnee then j.lKnee.C0 = getBaseC0(j.lKnee) * CFrame.Angles(math.rad(-65 * wave), 0, 0) end
-				if j.rKnee then j.rKnee.C0 = getBaseC0(j.rKnee) * CFrame.Angles(math.rad(-65 * wave), 0, 0) end
+				if j.lKnee then pose(j.lKnee, CFrame.Angles(math.rad(-65 * wave), 0, 0)) end
+				if j.rKnee then pose(j.rKnee, CFrame.Angles(math.rad(-65 * wave), 0, 0)) end
 
 			elseif name == "Kickflip" then
 				local pivot = CFrame.new(0, j.deckY + 1.1, -0.4)
 				local rollRot = CFrame.Angles(0, 0, ang)
 				if j.deckMount then
-					j.deckMount.C0 = getBaseC0(j.deckMount) * pivot * rollRot * pivot:Inverse()
+					setC0(j.deckMount, getBaseC0(j.deckMount) * pivot * rollRot * pivot:Inverse())
 				end
 				if j.barMount then
-					j.barMount.C0 = getBaseC0(j.barMount) * pivot * rollRot * pivot:Inverse()
+					setC0(j.barMount, getBaseC0(j.barMount) * pivot * rollRot * pivot:Inverse())
 				end
 				if j.root then
-					j.root.C0 = getBaseC0(j.root) * CFrame.new(0, 0.95 * wave, 0) * CFrame.Angles(math.rad(10 * wave), 0, math.rad(16 * wave))
+					pose(j.root, CFrame.new(0, 0.95 * wave, 0) * CFrame.Angles(math.rad(10 * wave), 0, math.rad(16 * wave)))
 				end
 				if j.waist then
-					j.waist.C0 = getBaseC0(j.waist) * CFrame.Angles(0, 0, math.rad(-20 * wave))
+					pose(j.waist, CFrame.Angles(0, 0, math.rad(-20 * wave)))
 				end
 				if j.lHip and not j.isR6Hip then
-					j.lHip.C0 = getBaseC0(j.lHip) * CFrame.Angles(math.rad(58 * wave), 0, math.rad(25 * wave))
+					pose(j.lHip, CFrame.Angles(math.rad(58 * wave), 0, math.rad(25 * wave)))
 				end
 				if j.rHip and not j.isR6Hip then
-					j.rHip.C0 = getBaseC0(j.rHip) * CFrame.Angles(math.rad(-35 * wave), math.rad(-15 * wave), math.rad(-68 * wave))
+					pose(j.rHip, CFrame.Angles(math.rad(-35 * wave), math.rad(-15 * wave), math.rad(-68 * wave)))
 				end
-				if j.lKnee then j.lKnee.C0 = getBaseC0(j.lKnee) * CFrame.Angles(math.rad(-55 * wave), 0, 0) end
-				if j.rKnee then j.rKnee.C0 = getBaseC0(j.rKnee) * CFrame.Angles(math.rad(-20 * wave), 0, 0) end
+				if j.lKnee then pose(j.lKnee, CFrame.Angles(math.rad(-55 * wave), 0, 0)) end
+				if j.rKnee then pose(j.rKnee, CFrame.Angles(math.rad(-20 * wave), 0, 0)) end
 				if j.lShoulder then
-					j.lShoulder.C0 = getBaseC0(j.lShoulder) * CFrame.Angles(math.rad(55 * wave), 0, math.rad(-42 * wave))
+					pose(j.lShoulder, CFrame.Angles(math.rad(55 * wave), 0, math.rad(-42 * wave)))
 				end
 				if j.rShoulder then
-					j.rShoulder.C0 = getBaseC0(j.rShoulder) * CFrame.Angles(math.rad(55 * wave), 0, math.rad(42 * wave))
+					pose(j.rShoulder, CFrame.Angles(math.rad(55 * wave), 0, math.rad(42 * wave)))
 				end
 
 			elseif name == "360 Spin" then
 				local dir = activeTrick.spinDir
 				local spinCF = CFrame.new(0, 0.75 * wave, 0) * CFrame.Angles(0, ang * dir, math.rad(14 * wave * dir))
 				if j.root then
-					j.root.C0 = getBaseC0(j.root) * spinCF
+					pose(j.root, spinCF)
 				end
 				if j.deckMount then
-					j.deckMount.C0 = getBaseC0(j.deckMount) * spinCF
+					setC0(j.deckMount, getBaseC0(j.deckMount) * spinCF)
 				end
 				if j.barMount then
-					j.barMount.C0 = getBaseC0(j.barMount) * spinCF * CFrame.Angles(0, math.rad(45 * wave * dir), 0)
+					setC0(j.barMount, getBaseC0(j.barMount) * spinCF * CFrame.Angles(0, math.rad(45 * wave * dir), 0))
 				end
 				if j.waist then
-					j.waist.C0 = getBaseC0(j.waist) * CFrame.Angles(math.rad(-14 * wave), math.rad(25 * wave * dir), 0)
+					pose(j.waist, CFrame.Angles(math.rad(-14 * wave), math.rad(25 * wave * dir), 0))
 				end
 				if j.neck then
-					j.neck.C0 = getBaseC0(j.neck) * CFrame.Angles(0, math.rad(30 * wave * dir), 0)
+					pose(j.neck, CFrame.Angles(0, math.rad(30 * wave * dir), 0))
 				end
-				if j.lHip and not j.isR6Hip then j.lHip.C0 = getBaseC0(j.lHip) * CFrame.Angles(math.rad(48 * wave), 0, 0) end
-				if j.rHip and not j.isR6Hip then j.rHip.C0 = getBaseC0(j.rHip) * CFrame.Angles(math.rad(48 * wave), 0, 0) end
-				if j.lKnee then j.lKnee.C0 = getBaseC0(j.lKnee) * CFrame.Angles(math.rad(-52 * wave), 0, 0) end
-				if j.rKnee then j.rKnee.C0 = getBaseC0(j.rKnee) * CFrame.Angles(math.rad(-52 * wave), 0, 0) end
+				if j.lHip and not j.isR6Hip then pose(j.lHip, CFrame.Angles(math.rad(48 * wave), 0, 0)) end
+				if j.rHip and not j.isR6Hip then pose(j.rHip, CFrame.Angles(math.rad(48 * wave), 0, 0)) end
+				if j.lKnee then pose(j.lKnee, CFrame.Angles(math.rad(-52 * wave), 0, 0)) end
+				if j.rKnee then pose(j.rKnee, CFrame.Angles(math.rad(-52 * wave), 0, 0)) end
 
 			elseif name == "Backflip" or name == "Frontflip" then
 				local sign = (name == "Backflip") and 1 or -1
 				local flipCF = CFrame.new(0, 1.3 * wave, 0) * CFrame.Angles(ang * sign, 0, 0)
 				if j.root then
-					j.root.C0 = getBaseC0(j.root) * flipCF
+					pose(j.root, flipCF)
 				end
 				if j.deckMount then
-					j.deckMount.C0 = getBaseC0(j.deckMount) * flipCF
+					setC0(j.deckMount, getBaseC0(j.deckMount) * flipCF)
 				end
 				if j.barMount then
-					j.barMount.C0 = getBaseC0(j.barMount) * flipCF
+					setC0(j.barMount, getBaseC0(j.barMount) * flipCF)
 				end
 				if j.waist then
-					j.waist.C0 = getBaseC0(j.waist) * CFrame.Angles(math.rad(26 * wave * sign), 0, 0)
+					pose(j.waist, CFrame.Angles(math.rad(26 * wave * sign), 0, 0))
 				end
 				if j.neck then
-					j.neck.C0 = getBaseC0(j.neck) * CFrame.Angles(math.rad(30 * wave * sign), 0, 0)
+					pose(j.neck, CFrame.Angles(math.rad(30 * wave * sign), 0, 0))
 				end
-				if j.lHip and not j.isR6Hip then j.lHip.C0 = getBaseC0(j.lHip) * CFrame.Angles(math.rad(62 * wave), 0, 0) end
-				if j.rHip and not j.isR6Hip then j.rHip.C0 = getBaseC0(j.rHip) * CFrame.Angles(math.rad(62 * wave), 0, 0) end
-				if j.lKnee then j.lKnee.C0 = getBaseC0(j.lKnee) * CFrame.Angles(math.rad(-72 * wave), 0, 0) end
-				if j.rKnee then j.rKnee.C0 = getBaseC0(j.rKnee) * CFrame.Angles(math.rad(-72 * wave), 0, 0) end
+				if j.lHip and not j.isR6Hip then pose(j.lHip, CFrame.Angles(math.rad(62 * wave), 0, 0)) end
+				if j.rHip and not j.isR6Hip then pose(j.rHip, CFrame.Angles(math.rad(62 * wave), 0, 0)) end
+				if j.lKnee then pose(j.lKnee, CFrame.Angles(math.rad(-72 * wave), 0, 0)) end
+				if j.rKnee then pose(j.rKnee, CFrame.Angles(math.rad(-72 * wave), 0, 0)) end
 
 			elseif name == "No-Hander" then
 				local scooterTilt = CFrame.new(0, 0.5 * wave, 0) * CFrame.Angles(math.rad(22 * wave), 0, 0)
-				if j.deckMount then j.deckMount.C0 = getBaseC0(j.deckMount) * scooterTilt end
-				if j.barMount then j.barMount.C0 = getBaseC0(j.barMount) * scooterTilt end
+				if j.deckMount then setC0(j.deckMount, getBaseC0(j.deckMount) * scooterTilt) end
+				if j.barMount then setC0(j.barMount, getBaseC0(j.barMount) * scooterTilt) end
 				if j.root then
-					j.root.C0 = getBaseC0(j.root) * CFrame.new(0, 0.65 * wave, 0) * CFrame.Angles(math.rad(14 * wave), 0, 0)
+					pose(j.root, CFrame.new(0, 0.65 * wave, 0) * CFrame.Angles(math.rad(14 * wave), 0, 0))
 				end
 				if j.waist then
-					j.waist.C0 = getBaseC0(j.waist) * CFrame.Angles(math.rad(28 * wave), 0, 0)
+					pose(j.waist, CFrame.Angles(math.rad(28 * wave), 0, 0))
 				end
 				if j.neck then
-					j.neck.C0 = getBaseC0(j.neck) * CFrame.Angles(math.rad(18 * wave), 0, 0)
+					pose(j.neck, CFrame.Angles(math.rad(18 * wave), 0, 0))
 				end
 				if j.lShoulder then
-					j.lShoulder.C0 = getBaseC0(j.lShoulder) * CFrame.Angles(math.rad(120 * wave), 0, math.rad(-62 * wave))
+					pose(j.lShoulder, CFrame.Angles(math.rad(120 * wave), 0, math.rad(-62 * wave)))
 				end
 				if j.rShoulder then
-					j.rShoulder.C0 = getBaseC0(j.rShoulder) * CFrame.Angles(math.rad(120 * wave), 0, math.rad(62 * wave))
+					pose(j.rShoulder, CFrame.Angles(math.rad(120 * wave), 0, math.rad(62 * wave)))
 				end
-				if j.lElbow then j.lElbow.C0 = getBaseC0(j.lElbow) * CFrame.Angles(math.rad(24 * wave), 0, 0) end
-				if j.rElbow then j.rElbow.C0 = getBaseC0(j.rElbow) * CFrame.Angles(math.rad(24 * wave), 0, 0) end
-				if j.lHip and not j.isR6Hip then j.lHip.C0 = getBaseC0(j.lHip) * CFrame.Angles(math.rad(24 * wave), 0, math.rad(-10 * wave)) end
-				if j.rHip and not j.isR6Hip then j.rHip.C0 = getBaseC0(j.rHip) * CFrame.Angles(math.rad(24 * wave), 0, math.rad(10 * wave)) end
+				if j.lElbow then pose(j.lElbow, CFrame.Angles(math.rad(24 * wave), 0, 0)) end
+				if j.rElbow then pose(j.rElbow, CFrame.Angles(math.rad(24 * wave), 0, 0)) end
+				if j.lHip and not j.isR6Hip then pose(j.lHip, CFrame.Angles(math.rad(24 * wave), 0, math.rad(-10 * wave))) end
+				if j.rHip and not j.isR6Hip then pose(j.rHip, CFrame.Angles(math.rad(24 * wave), 0, math.rad(10 * wave))) end
 			end
 
+			if not releaseHands then
+				aimArmsAtGrips(j)
+			end
 			if p >= 1 then
 				resetAllToBase(j)
 				smoothCrouch = 0.7
 				activeTrick = nil
 			end
 		else
-			-- Keep hand IK grips locked onto the handlebars at all times while riding!
-			-- NEVER zero Transform on lShoulder/rShoulder/lElbow/rElbow here because IKControl writes its solution to Transform!
-			setIKEnabled(j.hum, true)
+			-- hands stay on the handlebar grips (solved at the end of this frame by aimArmsAtGrips)
+			setIKEnabled(j.hum, false)
 			for _, k in ipairs({ "root", "waist", "neck", "lHip", "rHip", "lKnee", "rKnee" }) do
 				local m = j[k]
 				if m and m:IsA("Motor6D") then
 					m.Transform = CFrame.new()
-				end
-			end
-			-- Ensure shoulder/elbow C0 stays at base so IKControl solves cleanly to the handlebars
-			for _, k in ipairs({ "lShoulder", "rShoulder", "lElbow", "rElbow" }) do
-				local m = j[k]
-				if m and m.Parent then
-					local base = getBaseC0(m)
-					if base then m.C0 = base end
 				end
 			end
 
@@ -4025,42 +4107,44 @@ do
 				and math.sin((pushCycle / 0.42) * math.pi) * smoothSpeed or 0
 
 			if j.root then
-				j.root.C0 = getBaseC0(j.root) * leanCF
+				-- body a third of a stud forward on the deck so the hands reach the grips
+				pose(j.root, CFrame.new(0, 0, -0.35) * leanCF)
 			end
 			if j.deckMount then
-				j.deckMount.C0 = getBaseC0(j.deckMount) * leanCF
+				setC0(j.deckMount, getBaseC0(j.deckMount) * leanCF)
 			end
 			if j.barMount then
-				j.barMount.C0 = getBaseC0(j.barMount) * leanCF * CFrame.Angles(0, barYaw, 0)
+				setC0(j.barMount, getBaseC0(j.barMount) * leanCF * CFrame.Angles(0, barYaw, 0))
 			end
 			if j.waist then
-				local waistPitch = math.rad(-8 * smoothSpeed - 12 * smoothCrouch - 5 * pushWave)
-				j.waist.C0 = getBaseC0(j.waist) * CFrame.Angles(waistPitch, math.rad(10 * smoothSteer), 0)
+				local waistPitch = math.rad(-16 - 6 * smoothSpeed - 12 * smoothCrouch - 5 * pushWave) -- riders lean in over the bar
+				pose(j.waist, CFrame.Angles(waistPitch, math.rad(10 * smoothSteer), 0))
 			end
 			if j.neck then
-				local neckPitch = math.rad(8 * smoothSpeed + 10 * smoothCrouch)
-				j.neck.C0 = getBaseC0(j.neck) * CFrame.Angles(neckPitch, math.rad(14 * smoothSteer), 0)
+				local neckPitch = math.rad(12 + 6 * smoothSpeed + 10 * smoothCrouch) -- head up to look ahead past the lean
+				pose(j.neck, CFrame.Angles(neckPitch, math.rad(14 * smoothSteer), 0))
 			end
 			if j.lHip then
 				if not j.isR6Hip then
-					j.lHip.C0 = getBaseC0(j.lHip) * CFrame.Angles(math.rad(16 * smoothCrouch), 0, 0)
+					pose(j.lHip, CFrame.Angles(math.rad(16 * smoothCrouch), 0, 0))
 				else
-					j.lHip.C0 = getBaseC0(j.lHip) * CFrame.Angles(0, 0, math.rad(16 * smoothCrouch))
+					pose(j.lHip, CFrame.Angles(0, 0, math.rad(16 * smoothCrouch)))
 				end
 			end
 			if j.rHip then
 				if not j.isR6Hip then
-					j.rHip.C0 = getBaseC0(j.rHip) * CFrame.Angles(math.rad(16 * smoothCrouch - 28 * pushWave), 0, math.rad(-8 * pushWave))
+					pose(j.rHip, CFrame.Angles(math.rad(16 * smoothCrouch - 28 * pushWave), 0, math.rad(-8 * pushWave)))
 				else
-					j.rHip.C0 = getBaseC0(j.rHip) * CFrame.Angles(0, 0, math.rad(-16 * smoothCrouch + 24 * pushWave))
+					pose(j.rHip, CFrame.Angles(0, 0, math.rad(-16 * smoothCrouch + 24 * pushWave)))
 				end
 			end
 			if j.lKnee then
-				j.lKnee.C0 = getBaseC0(j.lKnee) * CFrame.Angles(math.rad(-18 * smoothCrouch), 0, 0)
+				pose(j.lKnee, CFrame.Angles(math.rad(-18 * smoothCrouch), 0, 0))
 			end
 			if j.rKnee then
-				j.rKnee.C0 = getBaseC0(j.rKnee) * CFrame.Angles(math.rad(-18 * smoothCrouch - 22 * pushWave), 0, 0)
+				pose(j.rKnee, CFrame.Angles(math.rad(-18 * smoothCrouch - 22 * pushWave), 0, 0))
 			end
+			aimArmsAtGrips(j)
 		end
 	end)
 end
