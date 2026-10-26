@@ -13,7 +13,7 @@
       <Properties>
         <string name="Name">DiscoveryBayBuild</string>
         <token name="RunContext">0</token>
-        <string name="Source"><![CDATA[-- DISCOVERY BAY, CALIFORNIA — OSM-accurate procedural Roblox build (v123)
+        <string name="Source"><![CDATA[-- DISCOVERY BAY, CALIFORNIA — OSM-accurate procedural Roblox build (v132)
 --==============================================================================================
 -- Builds the real Discovery Bay from OpenStreetMap geometry (© OpenStreetMap contributors):
 --   * real terrain raster: every lagoon/bay polygon, Old River, golf fairways/greens/
@@ -4035,7 +4035,7 @@ local DAY_LENGTH = 600
 local START_CASH = 100
 local WALK_SPEED = 16
 local SCOOTER_SPEED = 30
-local VERSION = "v123"
+local VERSION = "v132"
 
 -- ==============================================================================================
 -- LIGHTING, DYNAMIC SUNSET & STARRY NIGHT SKY SYSTEM
@@ -4048,7 +4048,7 @@ local function lerpColor(a, b, t)
 	)
 end
 
-local sky, atmo, bloom, cc, sunRays, dof
+local sky, atmo, bloom, cc, sunRays, dof, clouds
 
 local function initializeLighting()
 	pcall(function()
@@ -4102,8 +4102,8 @@ local function initializeLighting()
 		-- Color Correction
 		cc = Instance.new("ColorCorrectionEffect")
 		cc.Name = "DiscoveryBayColorCorrection"
-		cc.Contrast = 0.22
-		cc.Saturation = 0.28
+		cc.Contrast = 0.2
+		cc.Saturation = 0.38
 		cc.TintColor = Color3.fromRGB(255, 250, 244)
 		cc.Parent = Lighting
 
@@ -4122,76 +4122,129 @@ local function initializeLighting()
 		dof.NearIntensity = 0
 		dof.FarIntensity = 0.12
 		dof.Parent = Lighting
+
+		-- Drifting clouds that take on the sky's colours: white noon, gold, pink sunset, blue night
+		local old = workspace.Terrain:FindFirstChildOfClass("Clouds")
+		if old then old:Destroy() end
+		clouds = Instance.new("Clouds")
+		clouds.Name = "DiscoveryBayClouds"
+		clouds.Cover = 0.55
+		clouds.Density = 0.6
+		clouds.Color = Color3.fromRGB(255, 255, 255)
+		clouds.Parent = workspace.Terrain
 	end)
 end
 
 local weatherActive = false
 
+local function smoothstep(a, b, x)
+	local t = math.clamp((x - a) / (b - a), 0, 1)
+	return t * t * (3 - 2 * t)
+end
+local function bump(a, b, x) -- 0 outside a..b, rising to 1 in the middle
+	if x <= a or x >= b then return 0 end
+	return math.sin((x - a) / (b - a) * math.pi)
+end
+
+-- The look of each part of the day. Blended in order: day -> golden hour -> night, then the
+-- dusk / dawn colours on top, so evenings run golden -> orange-pink sunset -> purple twilight -> stars.
+local SKY = {
+	day = {
+		atmo = Color3.fromRGB(160, 205, 255), decay = Color3.fromRGB(110, 150, 215),
+		oa = Color3.fromRGB(112, 124, 142), amb = Color3.fromRGB(38, 42, 56),
+		top = Color3.fromRGB(255, 244, 225), bottom = Color3.fromRGB(165, 175, 190),
+		tint = Color3.fromRGB(255, 250, 244), cloud = Color3.fromRGB(255, 255, 255),
+	},
+	golden = {
+		atmo = Color3.fromRGB(255, 222, 170), decay = Color3.fromRGB(150, 160, 200),
+		oa = Color3.fromRGB(104, 116, 146), amb = Color3.fromRGB(40, 42, 56),
+		top = Color3.fromRGB(255, 210, 145), bottom = Color3.fromRGB(86, 104, 146),
+		tint = Color3.fromRGB(255, 240, 216), cloud = Color3.fromRGB(255, 228, 182),
+	},
+	dusk = {
+		atmo = Color3.fromRGB(255, 196, 120), decay = Color3.fromRGB(104, 116, 168),
+		oa = Color3.fromRGB(92, 100, 136), amb = Color3.fromRGB(36, 38, 56),
+		top = Color3.fromRGB(255, 176, 92), bottom = Color3.fromRGB(70, 86, 132),
+		tint = Color3.fromRGB(255, 234, 204), cloud = Color3.fromRGB(255, 212, 150),
+	},
+	dawn = {
+		atmo = Color3.fromRGB(255, 172, 175), decay = Color3.fromRGB(175, 120, 205),
+		oa = Color3.fromRGB(162, 130, 162), amb = Color3.fromRGB(50, 40, 64),
+		top = Color3.fromRGB(255, 192, 160), bottom = Color3.fromRGB(175, 135, 185),
+		tint = Color3.fromRGB(255, 236, 236), cloud = Color3.fromRGB(255, 186, 196),
+	},
+	afterglow = {
+		atmo = Color3.fromRGB(220, 130, 150), decay = Color3.fromRGB(90, 60, 150),
+		oa = Color3.fromRGB(110, 92, 140), amb = Color3.fromRGB(40, 34, 64),
+		top = Color3.fromRGB(240, 150, 140), bottom = Color3.fromRGB(80, 64, 130),
+		tint = Color3.fromRGB(255, 230, 236), cloud = Color3.fromRGB(240, 150, 165),
+	},
+	night = {
+		atmo = Color3.fromRGB(58, 50, 135), decay = Color3.fromRGB(12, 14, 52),
+		oa = Color3.fromRGB(62, 80, 145), amb = Color3.fromRGB(32, 38, 84),
+		top = Color3.fromRGB(140, 172, 255), bottom = Color3.fromRGB(44, 32, 86),
+		tint = Color3.fromRGB(214, 228, 255), cloud = Color3.fromRGB(58, 66, 120),
+	},
+}
+
 local function updateSkyForClock(ct)
 	if not atmo or not atmo.Parent then return end
-	-- Compute day (0..1), sunset/sunrise (0..1), and night (0..1) weights
-	-- Sunrise ~ 5.5..7.5, Day ~ 7.5..16.5, Sunset ~ 16.5..18.8, Night ~ 18.8..5.5
-	local nightW = 0
-	local sunsetW = 0
-	if ct >= 18.8 or ct <= 5.2 then
-		nightW = 1
-	elseif ct > 16.5 and ct < 18.8 then
-		local u = (ct - 16.5) / (18.8 - 16.5)
-		nightW = math.clamp((u - 0.35) / 0.65, 0, 1)
-		sunsetW = math.sin(u * math.pi)
-	elseif ct > 5.2 and ct < 7.5 then
-		local u = (ct - 5.2) / (7.5 - 5.2)
-		nightW = math.clamp(1 - u / 0.65, 0, 1)
-		sunsetW = math.sin(u * math.pi)
+	-- Night 19.6..4.6 (fading in/out over ~1.2h), dusk centred ~18:00, dawn ~6:00,
+	-- golden hour building through the late afternoon
+	local nightW = math.max(smoothstep(18.4, 19.6, ct), 1 - smoothstep(4.6, 5.8, ct))
+	local duskW = bump(16.6, 19.6, ct)
+	local dawnW = bump(4.6, 7.4, ct)
+	local goldenW = smoothstep(14.8, 17.2, ct) * (1 - smoothstep(18.2, 19.2, ct))
+
+	local afterglowW = bump(18.5, 19.8, ct) -- just after sunset: a brief pink-purple afterglow
+	local function mix(key)
+		local c = SKY.day[key]
+		c = lerpColor(c, SKY.golden[key], goldenW)
+		c = lerpColor(c, SKY.night[key], nightW)
+		c = lerpColor(c, SKY.dusk[key], duskW * 0.9)
+		c = lerpColor(c, SKY.dawn[key], dawnW * 0.9)
+		c = lerpColor(c, SKY.afterglow[key], afterglowW * 0.55)
+		return c
+	end
+	local glowW = math.max(duskW, dawnW) -- either end of the day: the colourful sky
+
+	atmo.Color = mix("atmo")
+	atmo.Decay = mix("decay")
+	-- thicker, glowier air at sunset; thin at night so the stars and moon stay crisp
+	atmo.Density = 0.16 * (1 - nightW) + 0.07 * nightW + 0.04 * glowW
+	atmo.Haze = 1.4 * (1 - nightW) + 0.4 * nightW + 0.6 * glowW
+	atmo.Glare = 0.8 * (1 - nightW) + 2.6 * glowW * (1 - nightW)
+	atmo.Offset = 0.25 * (1 - nightW) + 0.1 * nightW
+
+	if sky then
+		sky.SunAngularSize = 16 + 10 * glowW  -- a big low sun at sunrise / sunset
+		sky.MoonAngularSize = 20 + 8 * nightW -- and a big moon at night
+	end
+	if clouds and clouds.Parent then
+		clouds.Color = mix("cloud")
+		clouds.Cover = 0.55 + 0.1 * glowW - 0.12 * nightW
 	end
 
-	-- Blend Day -> Sunset -> Starry Night
-	local dayAtmoColor = Color3.fromRGB(185, 215, 250)
-	local sunsetAtmoColor = Color3.fromRGB(255, 125, 95)
-	local nightAtmoColor = Color3.fromRGB(20, 34, 86)
-
-	local dayDecay = Color3.fromRGB(120, 145, 185)
-	local sunsetDecay = Color3.fromRGB(135, 55, 165)
-	local nightDecay = Color3.fromRGB(10, 16, 48)
-
-	local targetAtmoColor = lerpColor(lerpColor(dayAtmoColor, nightAtmoColor, nightW), sunsetAtmoColor, sunsetW * 0.85)
-	local targetDecay = lerpColor(lerpColor(dayDecay, nightDecay, nightW), sunsetDecay, sunsetW * 0.85)
-
-	atmo.Color = targetAtmoColor
-	atmo.Decay = targetDecay
-	-- Drop Density & Haze at night so all 5,000 stars and the Moon are crystal-clear!
-	atmo.Density = 0.16 * (1 - nightW) + 0.045 * nightW + 0.04 * sunsetW
-	atmo.Haze = 1.4 * (1 - nightW) + 0.0 * nightW + 1.8 * sunsetW
-	atmo.Glare = 0.8 * (1 - nightW) + 0.0 * nightW + 1.6 * sunsetW
-	atmo.Offset = 0.25 * (1 - nightW) + 0.05 * nightW
-
 	if not weatherActive then
-		local dayOA = Color3.fromRGB(105, 115, 132)
-		local sunsetOA = Color3.fromRGB(155, 95, 115)
-		local nightOA = Color3.fromRGB(56, 74, 128)
-		Lighting.OutdoorAmbient = lerpColor(lerpColor(dayOA, nightOA, nightW), sunsetOA, sunsetW * 0.7)
-
-		local dayAmb = Color3.fromRGB(38, 42, 55)
-		local nightAmb = Color3.fromRGB(30, 40, 76)
-		Lighting.Ambient = lerpColor(dayAmb, nightAmb, nightW)
-
-		local dayTop = Color3.fromRGB(255, 240, 215)
-		local sunsetTop = Color3.fromRGB(255, 160, 110)
-		local nightTop = Color3.fromRGB(130, 180, 255)
-		Lighting.ColorShift_Top = lerpColor(lerpColor(dayTop, nightTop, nightW), sunsetTop, sunsetW * 0.85)
-		Lighting.Brightness = 3.2 * (1 - nightW) + 1.85 * nightW
+		Lighting.OutdoorAmbient = mix("oa")
+		Lighting.Ambient = mix("amb")
+		Lighting.ColorShift_Top = mix("top")
+		Lighting.ColorShift_Bottom = mix("bottom")
+		Lighting.Brightness = 3.2 * (1 - nightW) - 0.6 * glowW * (1 - nightW) + 1.7 * nightW
 	end
 
 	if bloom then
-		bloom.Intensity = 1.0 * (1 - nightW) + 1.65 * nightW
-		bloom.Threshold = 1.45 * (1 - nightW) + 1.05 * nightW
+		bloom.Intensity = 1.0 * (1 - nightW) + 1.8 * nightW + 0.3 * glowW
+		bloom.Threshold = 1.45 * (1 - nightW) + 1.0 * nightW
+	end
+	if sunRays then
+		sunRays.Intensity = 0.12 * (1 - nightW) + 0.32 * glowW * (1 - nightW)
+		sunRays.Spread = 0.85 - 0.25 * glowW
 	end
 	if cc then
-		local dayTint = Color3.fromRGB(255, 250, 244)
-		local sunsetTint = Color3.fromRGB(255, 232, 220)
-		local nightTint = Color3.fromRGB(222, 234, 255)
-		cc.TintColor = lerpColor(lerpColor(dayTint, nightTint, nightW), sunsetTint, sunsetW * 0.6)
-		cc.Saturation = 0.28 + 0.06 * nightW + 0.08 * sunsetW
+		cc.TintColor = mix("tint")
+		cc.Saturation = 0.38 + 0.1 * glowW + 0.06 * nightW
+		cc.Contrast = 0.2 + 0.14 * glowW -- punchy, near-silhouette look into the sun
 	end
 end
 
@@ -5037,44 +5090,72 @@ PianoDrop.OnServerEvent:Connect(function(plr, npc)
 		end
 		
 		local startCF = npc:GetPivot()
-		print("StartCF:", startCF)
-		
-		local totalTime = 1.8
-		local distance = 28
+
+		-- the pedestrian struts out into the road...
+		local totalTime = 1.3
+		local distance = 12
 		
 		local animConn
 		-- Start piano drop halfway
 		task.spawn(function()
-			task.wait(0.9)
-			
+			-- ...and a car comes flying down the road and hits them right where they stop
 			local finalCF = startCF * CFrame.new(0, 0, -distance)
-			local piano = Instance.new("Part")
-			piano.Name = "Piano"
-			piano.Size = Vector3.new(4, 4, 4)
-			piano.Position = finalCF.Position + Vector3.new(0, 90, 0)
-			piano.Anchored = false
-			piano.CanCollide = true
-			
-			local pmesh = Instance.new("SpecialMesh")
-			pmesh.MeshType = Enum.MeshType.FileMesh
-			pmesh.MeshId = "rbxassetid://113221356"
-			pmesh.TextureId = "rbxassetid://113221332"
-			pmesh.Scale = Vector3.new(2, 2, 2)
-			pmesh.Parent = piano
-			
-			piano.Parent = workspace
-			
+			local hitPos = finalCF.Position
+			local flat = startCF.RightVector
+			local roadDir = Vector3.new(flat.X, 0, flat.Z).Unit -- along the road (they face across it)
+			local rayParams = RaycastParams.new()
+			rayParams.FilterType = Enum.RaycastFilterType.Exclude
+			rayParams.FilterDescendantsInstances = { npc }
+			local down = workspace:Raycast(hitPos + Vector3.new(0, 4, 0), Vector3.new(0, -20, 0), rayParams)
+			local groundY = down and down.Position.Y or (hitPos.Y - 3)
+			local carHit = Vector3.new(hitPos.X, groundY, hitPos.Z)
+			local CAR_SPEED = 95
+			local LEAD = 1.0 -- seconds of the car racing in before impact
+			local carStart = carHit + roadDir * CAR_SPEED * LEAD
+			local kit = ReplicatedStorage:FindFirstChild("DiscoveryBayKit")
+			local tpl = kit and kit:FindFirstChild("car")
+			local piano = tpl and tpl:Clone() -- (named piano so the cleanup below still removes it)
+			if piano then
+				piano.Name = "HitCar"
+				for _, cp in ipairs(piano:GetDescendants()) do
+					if cp:IsA("BasePart") then
+						cp.Anchored = true
+						cp.CanCollide = false
+						if cp.Name == "Body" then
+							cp.Color = ({ Color3.fromRGB(200, 40, 40), Color3.fromRGB(40, 90, 200), Color3.fromRGB(240, 190, 30) })[math.random(1, 3)]
+						end
+					end
+				end
+				piano:PivotTo(CFrame.lookAt(carStart, carHit))
+				piano.Parent = workspace
+			end
+			local carPart = piano and (piano.PrimaryPart or piano:FindFirstChildWhichIsA("BasePart"))
+
 			local sound = Instance.new("Sound")
-			sound.SoundId = "rbxassetid://9117314405"
+			sound.SoundId = "rbxasset://sounds/uuhhh.mp3" -- the classic oof
 			local crashSound = Instance.new("Sound")
 			crashSound.SoundId = "rbxasset://sounds/impact_explosion_03.mp3"
 			crashSound.PlaybackSpeed = 1.15
 			crashSound.Volume = 1.8
-			crashSound.Parent = piano
+			crashSound.Parent = carPart or npc.PrimaryPart
 			sound.Volume = 2
-			sound.Parent = piano
-			
-			task.wait(0.95) -- wait for impact
+			sound.Parent = npc.PrimaryPart
+
+			task.wait(math.max(totalTime - LEAD, 0))
+			-- drive: race in, hit, keep going and vanish down the road
+			if piano then
+				task.spawn(function()
+					local t0 = os.clock()
+					while piano.Parent do
+						local t = os.clock() - t0
+						local pos = carStart - roadDir * CAR_SPEED * t
+						piano:PivotTo(CFrame.lookAt(pos, pos - roadDir))
+						if t > LEAD + 1.4 then piano:Destroy() break end
+						task.wait()
+					end
+				end)
+			end
+			task.wait(LEAD) -- impact
 			
 			sound:Play()
 			crashSound:Play()
@@ -5082,39 +5163,88 @@ PianoDrop.OnServerEvent:Connect(function(plr, npc)
 			if npc and npc.Parent then
 				-- Smash!
 				if animConn then animConn:Disconnect() end
-				if hum then hum.Health = 0 end
+				-- keep the body in ONE piece (the walking motors hold the limbs to the torso) so the
+				-- whole pedestrian gets launched down the road, tumbling, instead of falling apart
+				if hum then
+					hum.BreakJointsOnDeath = false
+					hum.Health = 0
+				end
 				for _, part in ipairs(npc:GetDescendants()) do
-					if part:IsA("Motor6D") then part:Destroy() end
 					if part:IsA("BasePart") then
 						part.Anchored = false
-						part.CanCollide = true
+						part.CanCollide = part == npc.PrimaryPart
 					end
+				end
+				local body = npc.PrimaryPart
+				if body then
+					-- keep the physics on the server, or ownership hops to the nearest player
+					-- mid-launch and most of the hit gets lost
+					pcall(function() body:SetNetworkOwner(nil) end)
+					body.AssemblyLinearVelocity = -roadDir * 90 + Vector3.new(0, 75, 0)
+					body.AssemblyAngularVelocity = Vector3.new(math.random(-14, 14), math.random(-8, 8), math.random(-14, 14))
 				end
 				
 				-- Spawn a burst of 10 gold coins (Pet Sim X style)
 				for i = 1, 10 do
+					-- big glowing gold coins: they burst out, land, then hover upright and spin
+					-- (with a light, sparkles and a "$" tag) until you run close enough to grab them
 					local coin = Instance.new("Part")
 					coin.Name = "MoneyDrop"
 					coin.Shape = Enum.PartType.Cylinder
-					coin.Size = Vector3.new(0.15, 0.8, 0.8) -- Thin cylinder acts like a coin
-					coin.Orientation = Vector3.new(0, 0, 90) -- Lay flat
-					coin.Color = Color3.fromRGB(255, 215, 0) -- Gold
-					coin.Material = Enum.Material.Metal
+					coin.Size = Vector3.new(0.35, 2.2, 2.2)
+					coin.Color = Color3.fromRGB(255, 205, 40)
+					coin.Material = Enum.Material.Neon
+					coin.CastShadow = false
 					coin.Position = finalCF.Position + Vector3.new(math.random(-2, 2), 4 + (i * 0.2), math.random(-2, 2))
 					coin.Velocity = Vector3.new(math.random(-20, 20), math.random(30, 50), math.random(-20, 20))
+					local glow = Instance.new("PointLight")
+					glow.Color = Color3.fromRGB(255, 210, 80)
+					glow.Range = 9
+					glow.Brightness = 1.6
+					glow.Parent = coin
+					local sparkle = Instance.new("Sparkles")
+					sparkle.SparkleColor = Color3.fromRGB(255, 230, 120)
+					sparkle.Parent = coin
+					local tag = Instance.new("BillboardGui")
+					tag.Size = UDim2.fromOffset(60, 26)
+					tag.StudsOffset = Vector3.new(0, 2.2, 0)
+					tag.MaxDistance = 120
+					tag.Parent = coin
+					local tagText = Instance.new("TextLabel")
+					tagText.Size = UDim2.fromScale(1, 1)
+					tagText.BackgroundTransparency = 1
+					tagText.Font = Enum.Font.LuckiestGuy
+					tagText.TextScaled = true
+					tagText.TextColor3 = Color3.fromRGB(255, 225, 80)
+					tagText.TextStrokeTransparency = 0.2
+					tagText.Text = "$" .. math.floor(10 * getMult(plr))
+					tagText.Parent = tag
 					coin.Parent = workspace
-					
+
 					local pickedUp = false
+					local hoverAt = nil -- set once the coin has landed: it then floats here and spins
+					local born = os.clock()
 					local dropConn
 					dropConn = game:GetService("RunService").Heartbeat:Connect(function()
 						if pickedUp or not coin.Parent then 
 							if dropConn then dropConn:Disconnect() end
 							return 
 						end
+						local age = os.clock() - born
+						if not hoverAt and age > 1.3 then
+							coin.Anchored = true
+							coin.CanCollide = false
+							hoverAt = coin.Position + Vector3.new(0, 1.6, 0)
+						end
+						if hoverAt then
+							-- upright (the cylinder's flat faces point sideways), spinning, gently bobbing
+							coin.CFrame = CFrame.new(hoverAt + Vector3.new(0, math.sin(age * 3 + i) * 0.35, 0))
+								* CFrame.Angles(0, age * 3 + i, 0)
+						end
 						local char = plr.Character
 						if char and char.PrimaryPart then
 							local dist = (coin.Position - char.PrimaryPart.Position).Magnitude
-							if dist < 12 then -- Magnet pull radius
+							if dist < 16 then -- Magnet pull radius
 								pickedUp = true
 								coin.Anchored = true
 								coin.CanCollide = false
@@ -5135,7 +5265,7 @@ PianoDrop.OnServerEvent:Connect(function(plr, npc)
 								
 								-- Soft pop/absorb sound so 10 of them don't deafen the player
 								local sfx = Instance.new("Sound")
-								sfx.SoundId = "rbxassetid://9061556942" -- Verified public chime / coin pop sound
+								sfx.SoundId = "rbxasset://sounds/electronicpingshort.wav" -- built-in ping (always loads)
 								sfx.Volume = 0.5
 								sfx.Pitch = math.random(90, 110) / 100 -- slightly randomize pitch for satisfying effect
 								sfx.Parent = char.PrimaryPart
@@ -8070,7 +8200,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 
-local VERSION = "v123"
+local VERSION = "v132"
 local SPEED_PASS_ID = 0 -- paste the real Game Pass ID here (same one as in DiscoveryBayShop)
 local RunService = game:GetService("RunService")
 local Lighting = game:GetService("Lighting")
@@ -9343,8 +9473,21 @@ local function startNPCAnimLoop()
 	end)
 end
 
+-- While talking, the NPC turns to face you, so the camera's spot in front of its face is right
+-- where you're standing: hide your own character (on your screen only) so it doesn't block the shot.
+local function setLocalCharacterHidden(hidden)
+	local char = plr.Character
+	if not char then return end
+	for _, d in ipairs(char:GetDescendants()) do
+		if d:IsA("BasePart") or d:IsA("Decal") then
+			d.LocalTransparencyModifier = hidden and 1 or 0
+		end
+	end
+end
+
 local function endCutscene()
 	activeTypewriter = nil
+	setLocalCharacterHidden(false)
 	stopNPCAnimLoop()
 	dlgFrame.Visible = false
 	hotbar.Visible = true
@@ -9368,10 +9511,13 @@ local function endCutscene()
 	end
 end
 
+local npcHomeCF = setmetatable({}, { __mode = "k" }) -- NPC torso CFrame before it ever turned to you
+
 local function focusCameraOnNPC(npcModel, wideShot)
 	local cam = workspace.CurrentCamera
 	local head = npcModel and npcModel:FindFirstChild("Head")
 	if not cam or not head then return end
+	setLocalCharacterHidden(true)
 	local tp = head:FindFirstChild("TalkPrompt")
 	if tp then tp.Enabled = false end
 	hotbar.Visible = false
@@ -9382,6 +9528,25 @@ local function focusCameraOnNPC(npcModel, wideShot)
 		postTalkConns[npcModel]:Disconnect()
 		postTalkConns[npcModel] = nil
 		restoreNPCPose(npcModel)
+	end
+	-- turn to face the player (yaw only, about the torso so they stay on the spot). Only on this
+	-- player's screen; the saved pose is re-captured below so the talk animation uses the new facing
+	local torso0 = npcModel:FindFirstChild("Torso")
+	local myRoot = plr.Character and plr.Character:FindFirstChild("HumanoidRootPart")
+	if torso0 and not npcHomeCF[npcModel] then npcHomeCF[npcModel] = torso0.CFrame end
+	if torso0 and myRoot and not npcModel:GetAttribute("PianoDropping") then
+		local c = torso0.Position
+		local dir = Vector3.new(myRoot.Position.X - c.X, 0, myRoot.Position.Z - c.Z)
+		local f = torso0.CFrame.LookVector
+		f = Vector3.new(f.X, 0, f.Z)
+		if dir.Magnitude > 0.5 and f.Magnitude > 0.1 then
+			dir, f = dir.Unit, f.Unit
+			local ang = math.atan2(f:Cross(dir).Y, f:Dot(dir))
+			if math.abs(ang) > math.rad(5) then
+				npcModel:PivotTo(CFrame.new(c) * CFrame.Angles(0, ang, 0) * CFrame.new(-c) * npcModel:GetPivot())
+				savedNPCJoints[npcModel] = nil
+			end
+		end
 	end
 	local torso = npcModel:FindFirstChild("Torso")
 	local rArm = npcModel:FindFirstChild("Right Arm")
@@ -9451,12 +9616,15 @@ local function focusCameraOnNPC(npcModel, wideShot)
 	local targetCF
 	local targetFOV = 50
 	if wideShot then
-		local lookTarget = (baseHeadCF * CFrame.new(0, 0, -14)).Position
-		local camPos = (baseHeadCF * CFrame.new(10, 4.5, -6)).Position
+		-- hit by a car: they walk ~12 studs out into the road (their original facing) and the car
+		-- comes along it from their right, so watch from their left side, looking at the hit spot
+		local home = npcHomeCF[npcModel] or baseHeadCF
+		local lookTarget = (home * CFrame.new(0, 0, -9)).Position
+		local camPos = (home * CFrame.new(-16, 7, -3)).Position
 		targetCF = CFrame.lookAt(camPos, lookTarget)
 		targetFOV = 65
 	else
-		local camPos = (baseHeadCF * CFrame.new(0.65, 0.15, -4.5)).Position
+		local camPos = (baseHeadCF * CFrame.new(1.4, 0.3, -4.8)).Position
 		local lookTarget = baseHeadCF.Position + Vector3.new(0, -0.35, 0)
 		targetCF = CFrame.lookAt(camPos, lookTarget)
 	end
@@ -9543,6 +9711,7 @@ end
 
 local function playTerrySodaCutscene(npcModel)
 	if not npcModel then return end
+	setLocalCharacterHidden(false)
 	stopNPCAnimLoop()
 	local pose = savedNPCJoints[npcModel]
 	if not pose then return end
@@ -10220,14 +10389,14 @@ local function hookNPC(prompt)
 			}, function(choiceId)
 				if choiceId == "smart" then
 					focusCameraOnNPC(prompt.Parent and prompt.Parent.Parent, true)
-					showDialogue("Pedestrian", "I am very smart, watch this!", {}, nil)
+					showDialogue("Pedestrian", "I am very smart. I NEVER look both ways!", {}, nil)
 					task.delay(1.1, function()
 						if npcModel and npcModel.Parent then setNPCFaceState(npcModel, "panic") end
 					end)
 					task.delay(4.2, function()
 						if npcModel and npcModel.Parent then setNPCFaceState(npcModel, "idle") end
 					end)
-					task.delay(2.5, function()
+					task.delay(3.4, function()
 						if currentCutsceneNPC == (prompt.Parent and prompt.Parent.Parent) then
 							endCutscene()
 						end

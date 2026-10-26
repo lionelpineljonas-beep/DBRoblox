@@ -11,7 +11,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 
-local VERSION = "v123"
+local VERSION = "v132"
 local SPEED_PASS_ID = 0 -- paste the real Game Pass ID here (same one as in DiscoveryBayShop)
 local RunService = game:GetService("RunService")
 local Lighting = game:GetService("Lighting")
@@ -1284,8 +1284,21 @@ local function startNPCAnimLoop()
 	end)
 end
 
+-- While talking, the NPC turns to face you, so the camera's spot in front of its face is right
+-- where you're standing: hide your own character (on your screen only) so it doesn't block the shot.
+local function setLocalCharacterHidden(hidden)
+	local char = plr.Character
+	if not char then return end
+	for _, d in ipairs(char:GetDescendants()) do
+		if d:IsA("BasePart") or d:IsA("Decal") then
+			d.LocalTransparencyModifier = hidden and 1 or 0
+		end
+	end
+end
+
 local function endCutscene()
 	activeTypewriter = nil
+	setLocalCharacterHidden(false)
 	stopNPCAnimLoop()
 	dlgFrame.Visible = false
 	hotbar.Visible = true
@@ -1309,10 +1322,13 @@ local function endCutscene()
 	end
 end
 
+local npcHomeCF = setmetatable({}, { __mode = "k" }) -- NPC torso CFrame before it ever turned to you
+
 local function focusCameraOnNPC(npcModel, wideShot)
 	local cam = workspace.CurrentCamera
 	local head = npcModel and npcModel:FindFirstChild("Head")
 	if not cam or not head then return end
+	setLocalCharacterHidden(true)
 	local tp = head:FindFirstChild("TalkPrompt")
 	if tp then tp.Enabled = false end
 	hotbar.Visible = false
@@ -1323,6 +1339,25 @@ local function focusCameraOnNPC(npcModel, wideShot)
 		postTalkConns[npcModel]:Disconnect()
 		postTalkConns[npcModel] = nil
 		restoreNPCPose(npcModel)
+	end
+	-- turn to face the player (yaw only, about the torso so they stay on the spot). Only on this
+	-- player's screen; the saved pose is re-captured below so the talk animation uses the new facing
+	local torso0 = npcModel:FindFirstChild("Torso")
+	local myRoot = plr.Character and plr.Character:FindFirstChild("HumanoidRootPart")
+	if torso0 and not npcHomeCF[npcModel] then npcHomeCF[npcModel] = torso0.CFrame end
+	if torso0 and myRoot and not npcModel:GetAttribute("PianoDropping") then
+		local c = torso0.Position
+		local dir = Vector3.new(myRoot.Position.X - c.X, 0, myRoot.Position.Z - c.Z)
+		local f = torso0.CFrame.LookVector
+		f = Vector3.new(f.X, 0, f.Z)
+		if dir.Magnitude > 0.5 and f.Magnitude > 0.1 then
+			dir, f = dir.Unit, f.Unit
+			local ang = math.atan2(f:Cross(dir).Y, f:Dot(dir))
+			if math.abs(ang) > math.rad(5) then
+				npcModel:PivotTo(CFrame.new(c) * CFrame.Angles(0, ang, 0) * CFrame.new(-c) * npcModel:GetPivot())
+				savedNPCJoints[npcModel] = nil
+			end
+		end
 	end
 	local torso = npcModel:FindFirstChild("Torso")
 	local rArm = npcModel:FindFirstChild("Right Arm")
@@ -1392,12 +1427,15 @@ local function focusCameraOnNPC(npcModel, wideShot)
 	local targetCF
 	local targetFOV = 50
 	if wideShot then
-		local lookTarget = (baseHeadCF * CFrame.new(0, 0, -14)).Position
-		local camPos = (baseHeadCF * CFrame.new(10, 4.5, -6)).Position
+		-- hit by a car: they walk ~12 studs out into the road (their original facing) and the car
+		-- comes along it from their right, so watch from their left side, looking at the hit spot
+		local home = npcHomeCF[npcModel] or baseHeadCF
+		local lookTarget = (home * CFrame.new(0, 0, -9)).Position
+		local camPos = (home * CFrame.new(-16, 7, -3)).Position
 		targetCF = CFrame.lookAt(camPos, lookTarget)
 		targetFOV = 65
 	else
-		local camPos = (baseHeadCF * CFrame.new(0.65, 0.15, -4.5)).Position
+		local camPos = (baseHeadCF * CFrame.new(1.4, 0.3, -4.8)).Position
 		local lookTarget = baseHeadCF.Position + Vector3.new(0, -0.35, 0)
 		targetCF = CFrame.lookAt(camPos, lookTarget)
 	end
@@ -1484,6 +1522,7 @@ end
 
 local function playTerrySodaCutscene(npcModel)
 	if not npcModel then return end
+	setLocalCharacterHidden(false)
 	stopNPCAnimLoop()
 	local pose = savedNPCJoints[npcModel]
 	if not pose then return end
@@ -2161,14 +2200,14 @@ local function hookNPC(prompt)
 			}, function(choiceId)
 				if choiceId == "smart" then
 					focusCameraOnNPC(prompt.Parent and prompt.Parent.Parent, true)
-					showDialogue("Pedestrian", "I am very smart, watch this!", {}, nil)
+					showDialogue("Pedestrian", "I am very smart. I NEVER look both ways!", {}, nil)
 					task.delay(1.1, function()
 						if npcModel and npcModel.Parent then setNPCFaceState(npcModel, "panic") end
 					end)
 					task.delay(4.2, function()
 						if npcModel and npcModel.Parent then setNPCFaceState(npcModel, "idle") end
 					end)
-					task.delay(2.5, function()
+					task.delay(3.4, function()
 						if currentCutsceneNPC == (prompt.Parent and prompt.Parent.Parent) then
 							endCutscene()
 						end
