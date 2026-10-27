@@ -25,7 +25,7 @@
       <Properties>
         <string name="Name">DiscoveryBayBuild</string>
         <token name="RunContext">0</token>
-        <string name="Source"><![CDATA[-- DISCOVERY BAY, CALIFORNIA — OSM-accurate procedural Roblox build (v160)
+        <string name="Source"><![CDATA[-- DISCOVERY BAY, CALIFORNIA — OSM-accurate procedural Roblox build (v164)
 --==============================================================================================
 -- Builds the real Discovery Bay from OpenStreetMap geometry (© OpenStreetMap contributors):
 --   * real terrain raster: every lagoon/bay polygon, Old River, golf fairways/greens/
@@ -404,13 +404,22 @@ local function newBall(parent, name, diameter, cframe, color, material)
 	return p
 end
 
+-- red / orange / terracotta roofs get Spanish clay tiles (very California), the rest asphalt shingles
+local function roofMaterial(color)
+	if color.R > color.G * 1.3 and color.R > color.B * 1.3 then
+		return Enum.Material.ClayRoofTiles
+	end
+	return Enum.Material.RoofShingles
+end
+
 -- gable roof, ridge along local X. WedgePart's vertical face is on its +Z side.
 local function gableRoof(parent, cf, width, depth, height, color)
 	local halfD = depth / 2
+	local mat = roofMaterial(color)
 	newWedge(parent, "RoofA", Vector3.new(width, height, halfD),
-		cf * CFrame.new(0, height / 2, -halfD / 2), color)
+		cf * CFrame.new(0, height / 2, -halfD / 2), color, mat)
 	newWedge(parent, "RoofB", Vector3.new(width, height, halfD),
-		cf * CFrame.new(0, height / 2, halfD / 2) * CFrame.Angles(0, math.pi, 0), color)
+		cf * CFrame.new(0, height / 2, halfD / 2) * CFrame.Angles(0, math.pi, 0), color, mat)
 end
 
 local function makeSign(part, face, text, bg, fg)
@@ -672,7 +681,7 @@ local function buildSailboat()
 	newColumn(m, "Mast", 15 * S, 0.35 * S, CFrame.new(0, 9 * S, -1 * S),
 		Color3.fromRGB(180, 180, 185), Enum.Material.Metal)
 	newPart(m, "Sail", Vector3.new(0.15, 10, 5) * S, CFrame.new(0, 9.5 * S, 1.7 * S),
-		Color3.fromRGB(250, 248, 240))
+		Color3.fromRGB(250, 248, 240), Enum.Material.Fabric)
 	return addRoot(m, "boat_sailboat")
 end
 
@@ -1240,7 +1249,8 @@ end
 -- Residential builder with real variety: gable ranch / L-shaped / modern flat-roof
 -- styles, mixed wall materials, porches, balconies, chimneys, shutters, driveways.
 -- All rng draws come from the shared seeded stream, so rebuilds are identical.
-local WALL_MATS = { Enum.Material.Brick, Enum.Material.WoodPlanks, Enum.Material.Concrete, Enum.Material.SmoothPlastic }
+-- (plaster = the painted stucco most Discovery Bay houses actually have)
+local WALL_MATS = { Enum.Material.Brick, Enum.Material.WoodPlanks, Enum.Material.Plaster, Enum.Material.Plaster }
 
 local function buildResidential(m, cf, b)
 	local w, d = b.w, b.d
@@ -1295,7 +1305,7 @@ local function buildResidential(m, cf, b)
 
 	if style == "modern" then
 		newPart(m, "Body", Vector3.new(w, h, d) * S, cf * CFrame.new(0, (0.5 + h / 2) * S, 0),
-			wall, Enum.Material.Concrete)
+			wall, Enum.Material.Plaster)
 		newPart(m, "Parapet", Vector3.new(w + 1, 1.2, d + 1) * S,
 			cf * CFrame.new(0, (0.5 + h + 0.6) * S, 0), trim, Enum.Material.Concrete)
 		-- wood accent panel fills the wall right of the door; glass band fills the left
@@ -1340,14 +1350,15 @@ local function buildResidential(m, cf, b)
 		local roofH = math.clamp(d * 0.28, 4, 9)
 		gableRoof(m, cf * CFrame.new(0, (0.5 + h) * S, 0), (w + 1.5) * S, (d + 1.5) * S, roofH * S, roof)
 		newPart(m, "RidgeCap", Vector3.new(w + 1.9, 0.5, 0.9) * S, cf * CFrame.new(0, (0.5 + h + roofH) * S, 0),
-			roof:Lerp(Color3.new(0, 0, 0), 0.35))
+			roof:Lerp(Color3.new(0, 0, 0), 0.35), roofMaterial(roof))
 		if rng:NextNumber() < 0.28 then
 			-- front porch
 			newPart(m, "PorchRoof", Vector3.new(10, 0.4, 4.5) * S,
-				cf * CFrame.new(doorX * S, (0.5 + 7.6) * S, (frontZ - 2.2) * S), roof)
+				cf * CFrame.new(doorX * S, (0.5 + 7.6) * S, (frontZ - 2.2) * S), roof, roofMaterial(roof))
 			for _, px in ipairs({ doorX - 4.2, doorX + 4.2 }) do
 				newColumn(m, "PorchPost", 7.4 * S, 0.7 * S,
-					cf * CFrame.new(px * S, (0.5 + 3.7) * S, (frontZ - 3.8) * S), Color3.fromRGB(235, 232, 225))
+					cf * CFrame.new(px * S, (0.5 + 3.7) * S, (frontZ - 3.8) * S), Color3.fromRGB(235, 232, 225),
+					Enum.Material.Wood)
 			end
 		end
 		if stories == 2 and rng:NextNumber() < 0.35 then
@@ -1394,7 +1405,7 @@ local function buildResidential(m, cf, b)
 			if rng:NextNumber() < 0.4 then
 				for _, sxo in ipairs({ -3.1, 3.1 }) do
 					newPart(m, "Shutter", Vector3.new(1, 3.4, 0.2) * S,
-						cf * CFrame.new((wx + sxo) * S, (0.5 + 5) * S, (frontZ - 0.08) * S), trim)
+						cf * CFrame.new((wx + sxo) * S, (0.5 + 5) * S, (frontZ - 0.08) * S), trim, Enum.Material.Wood)
 				end
 			end
 		end
@@ -1410,7 +1421,7 @@ local function buildResidential(m, cf, b)
 	if hasGarage then
 		newPart(m, "Garage", Vector3.new(9, 6.4, 0.3) * S,
 			cf * CFrame.new(-w * 0.3 * S, (0.5 + 3.2) * S, (frontZ - 0.12) * S),
-			Color3.fromRGB(220, 215, 205))
+			Color3.fromRGB(220, 215, 205), Enum.Material.WoodPlanks) -- planks read as a paneled door
 		newPart(m, "GarageTrim", Vector3.new(9.8, 0.5, 0.45) * S,
 			cf * CFrame.new(-w * 0.3 * S, (0.5 + 6.6) * S, (frontZ - 0.2) * S), trim, Enum.Material.Concrete)
 		newPart(m, "Driveway", Vector3.new(10, 0.25, 12) * S,
@@ -2217,14 +2228,14 @@ local function buildPlaza()
 		newPart(mS, "Floor", Vector3.new(w - 0.2, 0.5, d - 0.2) * S, sSh * CFrame.new(0, 0.22 * S, 0),
 			Color3.fromRGB(220, 220, 225), Enum.Material.Marble)
 		newPart(mS, "Back", Vector3.new(w - 1.2, h, 0.6) * S, sSh * CFrame.new(0, h / 2 * S, (d / 2 - 0.3) * S),
-			wallS, Enum.Material.Concrete)
+			wallS, Enum.Material.Plaster)
 		for _, sx in ipairs({ -1, 1 }) do
 			newPart(mS, "Side", Vector3.new(0.6, h, d) * S,
-				sSh * CFrame.new(sx * (w / 2 - 0.3) * S, h / 2 * S, 0), wallS, Enum.Material.Concrete)
+				sSh * CFrame.new(sx * (w / 2 - 0.3) * S, h / 2 * S, 0), wallS, Enum.Material.Plaster)
 			-- front wall segments beside a central door opening
 			-- front wall with a real window opening (see in and out)
 			windowedWall(mS, sSh, sx > 0 and 2.5 or -14.4, sx > 0 and 14.4 or -2.5, h, d,
-				{ sx * 8.45, 5.6, 7, 4.5 }, wallS, Enum.Material.Concrete)
+				{ sx * 8.45, 5.6, 7, 4.5 }, wallS, Enum.Material.Plaster)
 		end
 		local sDoor = newPart(mS, "AutoDoor", Vector3.new(4.6, 8, 0.25) * S,
 			sSh * CFrame.new(0, 4 * S, (-d / 2 + 0.3) * S),
@@ -2232,7 +2243,7 @@ local function buildPlaza()
 		sDoor:SetAttribute("AutoDoor", true)
 		sDoor:SetAttribute("SlideDist", 4.6 * S)
 		newPart(mS, "Header", Vector3.new(5, h - 8, 0.6) * S,
-			sSh * CFrame.new(0, (8 + (h - 8) / 2) * S, (-d / 2 + 0.3) * S), wallS, Enum.Material.Concrete)
+			sSh * CFrame.new(0, (8 + (h - 8) / 2) * S, (-d / 2 + 0.3) * S), wallS, Enum.Material.Plaster)
 		newPart(mS, "Roof", Vector3.new(w + 1.5, 1, d + 1.5) * S, sSh * CFrame.new(0, (h + 0.5) * S, 0),
 			Color3.fromRGB(20, 20, 25))
 		local sBoard = newPart(mS, "SignBoard", Vector3.new(w * 0.88, 2.8, 0.4) * S,
@@ -2451,13 +2462,13 @@ local function buildPlaza()
 		newPart(mJ, "Floor", Vector3.new(w - 0.2, 0.5, d - 0.2) * S, jSh * CFrame.new(0, 0.22 * S, 0),
 			Color3.fromRGB(120, 90, 65), Enum.Material.WoodPlanks)
 		newPart(mJ, "Back", Vector3.new(w - 1.2, h, 0.6) * S, jSh * CFrame.new(0, h / 2 * S, (d / 2 - 0.3) * S),
-			wallJ, Enum.Material.Concrete)
+			wallJ, Enum.Material.Plaster)
 		for _, sx in ipairs({ -1, 1 }) do
 			newPart(mJ, "Side", Vector3.new(0.6, h, d) * S, jSh * CFrame.new(sx * (w / 2 - 0.3) * S, h / 2 * S, 0),
-				wallJ, Enum.Material.Concrete)
+				wallJ, Enum.Material.Plaster)
 			-- front wall with a real window opening (see in and out)
 			windowedWall(mJ, jSh, sx > 0 and 2.5 or -15.4, sx > 0 and 15.4 or -2.5, h, d,
-				{ sx * 8.95, 6, 6, 4.5 }, wallJ, Enum.Material.Concrete)
+				{ sx * 8.95, 6, 6, 4.5 }, wallJ, Enum.Material.Plaster)
 			local doorJ = newPart(mJ, "AutoDoor", Vector3.new(2.5, 7, 0.25) * S,
 				jSh * CFrame.new(sx * 1.25 * S, 3.5 * S, (-d / 2 + 0.3) * S),
 				Color3.fromRGB(170, 200, 215), Enum.Material.Glass, 0.35)
@@ -2465,7 +2476,7 @@ local function buildPlaza()
 			doorJ:SetAttribute("SlideDist", sx * 2.6 * S)
 		end
 		newPart(mJ, "DoorHeader", Vector3.new(5, h - 7, 0.6) * S,
-			jSh * CFrame.new(0, (7 + (h - 7) / 2) * S, (-d / 2 + 0.3) * S), wallJ, Enum.Material.Concrete)
+			jSh * CFrame.new(0, (7 + (h - 7) / 2) * S, (-d / 2 + 0.3) * S), wallJ, Enum.Material.Plaster)
 		newPart(mJ, "Roof", Vector3.new(w + 1, 1, d + 1) * S, jSh * CFrame.new(0, (h + 0.5) * S, 0),
 			Color3.fromRGB(35, 38, 45))
 		local jSign = newPart(mJ, "SignBoard", Vector3.new(w * 0.9, 2.6, 0.4) * S,
@@ -2837,13 +2848,13 @@ local function buildBloxway()
 	newPart(m, "Floor", Vector3.new(w - 0.2, 0.4, d - 0.2) * S, cf * CFrame.new(0, 0.22 * S, 0),
 		Color3.fromRGB(205, 202, 196), Enum.Material.Concrete)
 	newPart(m, "Back", Vector3.new(w - 1.6, h, 0.8) * S, cf * CFrame.new(0, h / 2 * S, (d / 2 - 0.4) * S),
-		wallB, Enum.Material.Concrete)
+		wallB, Enum.Material.Plaster)
 	for _, sx in ipairs({ -1, 1 }) do
 		newPart(m, "Side", Vector3.new(0.8, h, d) * S, cf * CFrame.new(sx * (w / 2 - 0.4) * S, h / 2 * S, 0),
-			wallB, Enum.Material.Concrete)
+			wallB, Enum.Material.Plaster)
 		newPart(m, "FrontWall", Vector3.new(w / 2 - 4.3, h, 0.8) * S,
 			cf * CFrame.new(sx * (3.5 + (w / 2 - 4.3) / 2) * S, h / 2 * S, (-d / 2 + 0.4) * S),
-			wallB, Enum.Material.Concrete)
+			wallB, Enum.Material.Plaster)
 		newPart(m, "FrontGlass", Vector3.new((w - 15.6) / 2 - 8, 6, 0.3) * S,
 			cf * CFrame.new(sx * ((w - 15.6) / 4 + 3.5) * S, 6 * S, (-d / 2 + 0.1) * S),
 			Color3.fromRGB(140, 195, 215), Enum.Material.Glass, 0.3)
@@ -2854,7 +2865,7 @@ local function buildBloxway()
 		doorB:SetAttribute("SlideDist", sx * 7.2 * S)
 	end
 	newPart(m, "DoorHeader", Vector3.new(7, h - 10, 0.8) * S,
-		cf * CFrame.new(0, (10 + (h - 10) / 2) * S, (-d / 2 + 0.4) * S), wallB, Enum.Material.Concrete)
+		cf * CFrame.new(0, (10 + (h - 10) / 2) * S, (-d / 2 + 0.4) * S), wallB, Enum.Material.Plaster)
 	newPart(m, "Roof", Vector3.new(w + 2, 1.2, d + 2) * S, cf * CFrame.new(0, (h + 0.6) * S, 0),
 		Color3.fromRGB(180, 178, 170), Enum.Material.Concrete)
 	newPart(m, "Parapet", Vector3.new(w + 3, 2.4, d + 3) * S, cf * CFrame.new(0, (h + 1.8) * S, 0),
@@ -4058,7 +4069,7 @@ local DAY_LENGTH = 600
 local START_CASH = 100
 local WALK_SPEED = 16
 local SCOOTER_SPEED = 30
-local VERSION = "v160"
+local VERSION = "v164"
 
 -- ==============================================================================================
 -- LIGHTING, DYNAMIC SUNSET & STARRY NIGHT SKY SYSTEM
@@ -4287,7 +4298,7 @@ task.spawn(function()
 end)
 
 local TRICK_COOLDOWN = 0.65
-local TRAFFIC_CARS = 130
+local TRAFFIC_CARS = 230
 local CAR_SPEED = 38
 local FLING_RADIUS = 9
 local CAR_DAMAGE = 10000
@@ -4317,6 +4328,7 @@ end
 local DoTrick = remote("DoTrick")
 local TrickResult = remote("TrickResult")
 local ToggleScooter = remote("ToggleScooter")
+local ForceDismount = remote("ForceDismount") -- cutscenes: always get off, never toggles back on
 local BuyCustomItem = remote("BuyCustomItem")
 local HatchEgg = remote("HatchEgg") -- server -> client: play the on-screen hatch cinematic
 local UpdatePity = remote("UpdatePity") -- server -> client: updates pity tracker
@@ -4436,6 +4448,8 @@ local function updateSpeed(plr)
 		humanoid.WalkSpeed = math.max(WALK_SPEED + (plr:GetAttribute("WalkBoost") or 0)
 			+ (plr:GetAttribute("WeatherWalk") or 0), 6)
 	end
+	-- the speed you SHOULD have: the client puts this back after a cutscene changed WalkSpeed locally
+	humanoid:SetAttribute("TargetSpeed", humanoid.WalkSpeed)
 end
 
 -- grant the 2X speed pass to owners (on join and right after purchase)
@@ -4983,6 +4997,13 @@ local function dismountScooter(plr)
 	updateSpeed(plr)
 end
 
+ForceDismount.OnServerEvent:Connect(function(plr)
+	local char = plr.Character
+	if plr:GetAttribute("Mounted") or (char and char:FindFirstChild("Scooter")) then
+		dismountScooter(plr)
+	end
+end)
+
 ToggleScooter.OnServerEvent:Connect(function(plr)
 	local now = os.clock()
 	if plr:GetAttribute("ToggleLock") and now - plr:GetAttribute("ToggleLock") < 0.5 then return end
@@ -5480,7 +5501,8 @@ local function onCharacter(plr, char)
 	task.delay(8, function()
 		if plr.Parent and plr.Character == char and char.Parent
 			and not (charRigs[plr.UserId] and charRigs[plr.UserId].char == char)
-			and not char:FindFirstChild("Scooter") then
+			and not char:FindFirstChild("Scooter")
+			and not parkedScooters[plr.UserId] then -- you got off on purpose (G, a cutscene): stay off
 			mountScooter(plr, char)
 		end
 	end)
@@ -6352,7 +6374,7 @@ local function hollowHouse(house)
 			mk(house, "Floor", Vector3.new(ws.X - 0.4, 0.4, len + 0.1), cfB * CFrame.new(wx, wy - wh / 2 + 0.18, wf + 0.2 + (len + 0.1) / 2),
 				Color3.fromRGB(160, 125, 85), Enum.Material.WoodPlanks)
 			mk(house, "Ceiling", Vector3.new(ws.X - 0.4, 0.4, len - 0.2), cfB * CFrame.new(wx, wy + wh / 2 - 0.2, wf + 0.2 + (len - 0.2) / 2),
-				Color3.fromRGB(238, 234, 224))
+				Color3.fromRGB(238, 234, 224), Enum.Material.Plaster)
 			local wHoles = {}
 			if doorRel and not doorOnBody then
 				addHole(wHoles, doorRel.X - wx, DOOR_W, 0, DOOR_H)
@@ -6403,7 +6425,7 @@ local function hollowHouse(house)
 	-- floor + ceiling stop 0.2 inside the walls' outer faces (flush edges shimmered on the outside)
 	mk(house, "Floor", Vector3.new(w - 0.4, 0.4, d - 0.4), cfB * CFrame.new(0, -h / 2 + 0.2, 0),
 		Color3.fromRGB(160, 125, 85), Enum.Material.WoodPlanks)
-	mk(house, "Ceiling", Vector3.new(w - 0.4, 0.4, d - 0.4), cfB * CFrame.new(0, h / 2 - 0.2, 0), Color3.fromRGB(238, 234, 224))
+	mk(house, "Ceiling", Vector3.new(w - 0.4, 0.4, d - 0.4), cfB * CFrame.new(0, h / 2 - 0.2, 0), Color3.fromRGB(238, 234, 224), Enum.Material.Plaster)
 	buildWall("FrontWall", cfB * CFrame.new(0, 0, -d / 2 + 0.4), w, h, frontHoles)
 	buildWall("BackWall", cfB * CFrame.new(0, 0, d / 2 - 0.4) * CFrame.Angles(0, math.pi, 0), w, h, backHoles)
 	buildWall("SideL", cfB * CFrame.new(-w / 2 + 0.4, 0, 0) * CFrame.Angles(0, math.pi / 2, 0), d - 1.6, h, leftHoles, d - 1.6)
@@ -6468,8 +6490,8 @@ local function hollowHouse(house)
 		mk(interior, "ThrowPillow", Vector3.new(1.4, 1.3, 0.5), sofa * CFrame.new(-2.6, 2.4, 0.5) * CFrame.Angles(0, 0, math.rad(12)), accent, Enum.Material.Fabric)
 
 		local midZ = zMax - 0.9 - (sofaDist - 0.9) * 0.5
-		mk(interior, "Rug", Vector3.new(9.5, 0.1, math.max(sofaDist - 2.2, 4)), F(lx, midZ) * CFrame.new(0, 0.05, 0), accent:Lerp(WHITE, 0.35), Enum.Material.Fabric)
-		mk(interior, "RugBorder", Vector3.new(10.3, 0.08, math.max(sofaDist - 1.4, 4.8)), F(lx, midZ) * CFrame.new(0, 0.04, 0), accent:Lerp(BLACK, 0.3), Enum.Material.Fabric)
+		mk(interior, "Rug", Vector3.new(9.5, 0.1, math.max(sofaDist - 2.2, 4)), F(lx, midZ) * CFrame.new(0, 0.05, 0), accent:Lerp(WHITE, 0.35), Enum.Material.Carpet)
+		mk(interior, "RugBorder", Vector3.new(10.3, 0.08, math.max(sofaDist - 1.4, 4.8)), F(lx, midZ) * CFrame.new(0, 0.04, 0), accent:Lerp(BLACK, 0.3), Enum.Material.Carpet)
 		local ct = F(lx, midZ)
 		mk(interior, "CoffeeTable", Vector3.new(4.2, 0.3, 2.2), ct * CFrame.new(0, 1.55, 0), WOOD, Enum.Material.WoodPlanks)
 		for _, sx in ipairs({ -1.8, 1.8 }) do
@@ -6689,10 +6711,10 @@ local function hollowHouse(house)
 
 	-- welcome mat inside the front door
 	if wingInfo then
-		mk(interior, "Doormat", Vector3.new(3.8, 0.1, 2.2), cfB * CFrame.new(wingInfo.x, wingInfo.floorY + 0.05, wingInfo.front + 2), Color3.fromRGB(140, 100, 60), Enum.Material.Fabric)
+		mk(interior, "Doormat", Vector3.new(3.8, 0.1, 2.2), cfB * CFrame.new(wingInfo.x, wingInfo.floorY + 0.05, wingInfo.front + 2), Color3.fromRGB(140, 100, 60), Enum.Material.Carpet)
 		ceilingLight(wingInfo.x, wingInfo.front + wingInfo.len / 2, true, wingInfo.h)
 	else
-		mk(interior, "Doormat", Vector3.new(3.8, 0.1, 2.2), F(doorX, zMin + 1.6) * CFrame.new(0, 0.05, 0), Color3.fromRGB(140, 100, 60), Enum.Material.Fabric)
+		mk(interior, "Doormat", Vector3.new(3.8, 0.1, 2.2), F(doorX, zMin + 1.6) * CFrame.new(0, 0.05, 0), Color3.fromRGB(140, 100, 60), Enum.Material.Carpet)
 		ceilingLight(doorX, zMin + 4, true)
 	end
 	if iw >= 20 and not wingInfo and not hasDining then
@@ -8118,11 +8140,18 @@ local function startTraffic(town)
 	end
 	table.sort(routes, function(x, y) return x.length > y.length end)
 	if #routes == 0 then return end
-	local count = math.min(TRAFFIC_CARS, #routes * 4)
-	for i = 1, count do
-		local route = routes[((i - 1) % #routes) + 1]
-		-- scatter cars along each route and alternate directions so streets feel alive
-		driveCar(carTemplate, route, rng:NextNumber(), i % 2 == 0)
+	-- spread the cars over the whole town: each road gets a share by its LENGTH (long boulevards
+	-- don't sit empty while short streets jam), evenly spaced along it in alternating directions
+	local totalLen = 0
+	for _, route in ipairs(routes) do totalLen += route.length end
+	local count = 0
+	for _, route in ipairs(routes) do
+		local k = math.max(1, math.floor(TRAFFIC_CARS * route.length / totalLen + 0.5))
+		for j = 0, k - 1 do
+			if count >= TRAFFIC_CARS then break end
+			count += 1
+			driveCar(carTemplate, route, (j + rng:NextNumber(0.15, 0.85)) / k, (j + count) % 2 == 0)
+		end
 	end
 	print("[DiscoveryBayShop] traffic: " .. count .. " NPC cars on the road. Watch out!")
 end
@@ -8234,7 +8263,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 
-local VERSION = "v160"
+local VERSION = "v164"
 local SPEED_PASS_ID = 0 -- paste the real Game Pass ID here (same one as in DiscoveryBayShop)
 local RunService = game:GetService("RunService")
 local Lighting = game:GetService("Lighting")
@@ -9264,10 +9293,10 @@ local NPC_CLASSIC_FACE_MAP = {
 	["Manager Bob"]   = { idle = "Stare",           interact = "Disbelief",       interactTalk = "Roar",           answer = "MrChuckles",     answerTalk = "OpenO" },
 	["Eggbert"]       = { idle = "GoodIntentioned", interact = "Skeptic",         interactTalk = "JoyousSurprise", answer = "GoodIntentioned", answerTalk = "JoyfulSmile" },
 	["Captain Finn"]  = { idle = "CheckIt",         interact = "Winky",           interactTalk = "JoyfulSmile",    answer = "Disbelief",      answerTalk = "OpenO" },
-	["Rider Rick"]    = { idle = "SureImCool",      interact = "Chill",           interactTalk = "JoyfulSmile",    answer = "ItsGoTime",      answerTalk = "TongueOut" },
+	["Rider Rick"]    = { idle = "SureImCool",      interact = "Chill",           interactTalk = "JoyfulSmile",    answer = "ItsGoTime",      answerTalk = "OpenO" },
 	["Callahan"]      = { idle = "Smile",           interact = "GoodIntentioned", interactTalk = "JoyfulSmile",    answer = "HappyWink",      answerTalk = "JoyousSurprise" },
 	["Thirsty Terry"] = { idle = "Sniffles",        interact = "Disbelief",       interactTalk = "OpenO",          answer = "Puck",           answerTalk = "JoyfulSmile" },
-	["Sal"]           = { idle = "Chill",           interact = "MrChuckles",      interactTalk = "JoyfulSmile",    answer = "HappyWink",      answerTalk = "TongueOut" },
+	["Sal"]           = { idle = "Chill",           interact = "MrChuckles",      interactTalk = "JoyfulSmile",    answer = "HappyWink",      answerTalk = "JoyousSurprise" },
 	["Sensei"]        = { idle = "Grr",             interact = "ItsGoTime",       interactTalk = "Roar",           answer = "Grr",            answerTalk = "Roar" },
 	["Ms. Wheeler"]   = { idle = "Smile",           interact = "Winky",           interactTalk = "JoyousSurprise", answer = "Smile",          answerTalk = "JoyfulSmile" },
 	["Pedestrian"]    = { idle = "Smile",           interact = "GoodIntentioned", interactTalk = "OpenO",          answer = "Slickfang",      answerTalk = "Fang", panic = "Roar" },
@@ -9864,10 +9893,10 @@ local function playTerrySodaCutscene(npcModel)
 	inTerryCutscene = true
 	questCompleted = true
 
-	-- Dismount scooter if riding so the player walks up on foot
-	if plr:GetAttribute("Mounted") then
-		plr:SetAttribute("Mounted", false)
-		ToggleScooter:FireServer()
+	-- Get off the scooter so the player walks up on foot. (A G-toggle here could be ignored by the
+	-- server's double-press guard, leaving you "riding" an invisible scooter after the cutscene.)
+	if plr:GetAttribute("Mounted") or (plr.Character and plr.Character:FindFirstChild("Scooter")) then
+		remotes:WaitForChild("ForceDismount"):FireServer()
 	end
 
 	local controls
@@ -10062,8 +10091,13 @@ local function playTerrySodaCutscene(npcModel)
 				hrp.Anchored = origAnchored
 			end
 			if hum and hum.Parent then
-				hum.WalkSpeed = origWalkSpeed
+				-- the server's intended speed (origWalkSpeed was still the SCOOTER speed: you'd walk at 30)
+				hum.WalkSpeed = hum:GetAttribute("TargetSpeed") or origWalkSpeed
 				hum.JumpPower = origJumpPower
+			end
+			-- still carrying the (hidden) scooter somehow? get properly off so nothing is left half-riding
+			if char and char:FindFirstChild("Scooter") then
+				remotes:WaitForChild("ForceDismount"):FireServer()
 			end
 			pcall(function()
 				if controls then controls:Enable() end
@@ -12473,6 +12507,8 @@ do
 			if d:IsA("Motor6D") or d.Name == "LeftArmGrip" or d.Name == "RightArmGrip" then
 				setC0(d, d:GetAttribute("WalkOrigC0") or cachedBase[d])
 				if d:IsA("Motor6D") then d.Transform = CFrame.new() end
+			elseif d:IsA("AnimationConstraint") then
+				pcall(function() d.Transform = CFrame.new() end) -- newer rigs: clear the riding pose too
 			end
 		end
 	end

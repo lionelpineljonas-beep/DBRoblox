@@ -11,7 +11,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 
-local VERSION = "v160"
+local VERSION = "v164"
 local SPEED_PASS_ID = 0 -- paste the real Game Pass ID here (same one as in DiscoveryBayShop)
 local RunService = game:GetService("RunService")
 local Lighting = game:GetService("Lighting")
@@ -1041,10 +1041,10 @@ local NPC_CLASSIC_FACE_MAP = {
 	["Manager Bob"]   = { idle = "Stare",           interact = "Disbelief",       interactTalk = "Roar",           answer = "MrChuckles",     answerTalk = "OpenO" },
 	["Eggbert"]       = { idle = "GoodIntentioned", interact = "Skeptic",         interactTalk = "JoyousSurprise", answer = "GoodIntentioned", answerTalk = "JoyfulSmile" },
 	["Captain Finn"]  = { idle = "CheckIt",         interact = "Winky",           interactTalk = "JoyfulSmile",    answer = "Disbelief",      answerTalk = "OpenO" },
-	["Rider Rick"]    = { idle = "SureImCool",      interact = "Chill",           interactTalk = "JoyfulSmile",    answer = "ItsGoTime",      answerTalk = "TongueOut" },
+	["Rider Rick"]    = { idle = "SureImCool",      interact = "Chill",           interactTalk = "JoyfulSmile",    answer = "ItsGoTime",      answerTalk = "OpenO" },
 	["Callahan"]      = { idle = "Smile",           interact = "GoodIntentioned", interactTalk = "JoyfulSmile",    answer = "HappyWink",      answerTalk = "JoyousSurprise" },
 	["Thirsty Terry"] = { idle = "Sniffles",        interact = "Disbelief",       interactTalk = "OpenO",          answer = "Puck",           answerTalk = "JoyfulSmile" },
-	["Sal"]           = { idle = "Chill",           interact = "MrChuckles",      interactTalk = "JoyfulSmile",    answer = "HappyWink",      answerTalk = "TongueOut" },
+	["Sal"]           = { idle = "Chill",           interact = "MrChuckles",      interactTalk = "JoyfulSmile",    answer = "HappyWink",      answerTalk = "JoyousSurprise" },
 	["Sensei"]        = { idle = "Grr",             interact = "ItsGoTime",       interactTalk = "Roar",           answer = "Grr",            answerTalk = "Roar" },
 	["Ms. Wheeler"]   = { idle = "Smile",           interact = "Winky",           interactTalk = "JoyousSurprise", answer = "Smile",          answerTalk = "JoyfulSmile" },
 	["Pedestrian"]    = { idle = "Smile",           interact = "GoodIntentioned", interactTalk = "OpenO",          answer = "Slickfang",      answerTalk = "Fang", panic = "Roar" },
@@ -1641,10 +1641,10 @@ local function playTerrySodaCutscene(npcModel)
 	inTerryCutscene = true
 	questCompleted = true
 
-	-- Dismount scooter if riding so the player walks up on foot
-	if plr:GetAttribute("Mounted") then
-		plr:SetAttribute("Mounted", false)
-		ToggleScooter:FireServer()
+	-- Get off the scooter so the player walks up on foot. (A G-toggle here could be ignored by the
+	-- server's double-press guard, leaving you "riding" an invisible scooter after the cutscene.)
+	if plr:GetAttribute("Mounted") or (plr.Character and plr.Character:FindFirstChild("Scooter")) then
+		remotes:WaitForChild("ForceDismount"):FireServer()
 	end
 
 	local controls
@@ -1839,8 +1839,13 @@ local function playTerrySodaCutscene(npcModel)
 				hrp.Anchored = origAnchored
 			end
 			if hum and hum.Parent then
-				hum.WalkSpeed = origWalkSpeed
+				-- the server's intended speed (origWalkSpeed was still the SCOOTER speed: you'd walk at 30)
+				hum.WalkSpeed = hum:GetAttribute("TargetSpeed") or origWalkSpeed
 				hum.JumpPower = origJumpPower
+			end
+			-- still carrying the (hidden) scooter somehow? get properly off so nothing is left half-riding
+			if char and char:FindFirstChild("Scooter") then
+				remotes:WaitForChild("ForceDismount"):FireServer()
 			end
 			pcall(function()
 				if controls then controls:Enable() end
@@ -4250,6 +4255,8 @@ do
 			if d:IsA("Motor6D") or d.Name == "LeftArmGrip" or d.Name == "RightArmGrip" then
 				setC0(d, d:GetAttribute("WalkOrigC0") or cachedBase[d])
 				if d:IsA("Motor6D") then d.Transform = CFrame.new() end
+			elseif d:IsA("AnimationConstraint") then
+				pcall(function() d.Transform = CFrame.new() end) -- newer rigs: clear the riding pose too
 			end
 		end
 	end

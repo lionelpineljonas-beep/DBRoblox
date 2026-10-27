@@ -1,4 +1,4 @@
--- DISCOVERY BAY, CALIFORNIA — OSM-accurate procedural Roblox build (v160)
+-- DISCOVERY BAY, CALIFORNIA — OSM-accurate procedural Roblox build (v164)
 --==============================================================================================
 -- Builds the real Discovery Bay from OpenStreetMap geometry (© OpenStreetMap contributors):
 --   * real terrain raster: every lagoon/bay polygon, Old River, golf fairways/greens/
@@ -377,13 +377,22 @@ local function newBall(parent, name, diameter, cframe, color, material)
 	return p
 end
 
+-- red / orange / terracotta roofs get Spanish clay tiles (very California), the rest asphalt shingles
+local function roofMaterial(color)
+	if color.R > color.G * 1.3 and color.R > color.B * 1.3 then
+		return Enum.Material.ClayRoofTiles
+	end
+	return Enum.Material.RoofShingles
+end
+
 -- gable roof, ridge along local X. WedgePart's vertical face is on its +Z side.
 local function gableRoof(parent, cf, width, depth, height, color)
 	local halfD = depth / 2
+	local mat = roofMaterial(color)
 	newWedge(parent, "RoofA", Vector3.new(width, height, halfD),
-		cf * CFrame.new(0, height / 2, -halfD / 2), color)
+		cf * CFrame.new(0, height / 2, -halfD / 2), color, mat)
 	newWedge(parent, "RoofB", Vector3.new(width, height, halfD),
-		cf * CFrame.new(0, height / 2, halfD / 2) * CFrame.Angles(0, math.pi, 0), color)
+		cf * CFrame.new(0, height / 2, halfD / 2) * CFrame.Angles(0, math.pi, 0), color, mat)
 end
 
 local function makeSign(part, face, text, bg, fg)
@@ -645,7 +654,7 @@ local function buildSailboat()
 	newColumn(m, "Mast", 15 * S, 0.35 * S, CFrame.new(0, 9 * S, -1 * S),
 		Color3.fromRGB(180, 180, 185), Enum.Material.Metal)
 	newPart(m, "Sail", Vector3.new(0.15, 10, 5) * S, CFrame.new(0, 9.5 * S, 1.7 * S),
-		Color3.fromRGB(250, 248, 240))
+		Color3.fromRGB(250, 248, 240), Enum.Material.Fabric)
 	return addRoot(m, "boat_sailboat")
 end
 
@@ -1213,7 +1222,8 @@ end
 -- Residential builder with real variety: gable ranch / L-shaped / modern flat-roof
 -- styles, mixed wall materials, porches, balconies, chimneys, shutters, driveways.
 -- All rng draws come from the shared seeded stream, so rebuilds are identical.
-local WALL_MATS = { Enum.Material.Brick, Enum.Material.WoodPlanks, Enum.Material.Concrete, Enum.Material.SmoothPlastic }
+-- (plaster = the painted stucco most Discovery Bay houses actually have)
+local WALL_MATS = { Enum.Material.Brick, Enum.Material.WoodPlanks, Enum.Material.Plaster, Enum.Material.Plaster }
 
 local function buildResidential(m, cf, b)
 	local w, d = b.w, b.d
@@ -1268,7 +1278,7 @@ local function buildResidential(m, cf, b)
 
 	if style == "modern" then
 		newPart(m, "Body", Vector3.new(w, h, d) * S, cf * CFrame.new(0, (0.5 + h / 2) * S, 0),
-			wall, Enum.Material.Concrete)
+			wall, Enum.Material.Plaster)
 		newPart(m, "Parapet", Vector3.new(w + 1, 1.2, d + 1) * S,
 			cf * CFrame.new(0, (0.5 + h + 0.6) * S, 0), trim, Enum.Material.Concrete)
 		-- wood accent panel fills the wall right of the door; glass band fills the left
@@ -1313,14 +1323,15 @@ local function buildResidential(m, cf, b)
 		local roofH = math.clamp(d * 0.28, 4, 9)
 		gableRoof(m, cf * CFrame.new(0, (0.5 + h) * S, 0), (w + 1.5) * S, (d + 1.5) * S, roofH * S, roof)
 		newPart(m, "RidgeCap", Vector3.new(w + 1.9, 0.5, 0.9) * S, cf * CFrame.new(0, (0.5 + h + roofH) * S, 0),
-			roof:Lerp(Color3.new(0, 0, 0), 0.35))
+			roof:Lerp(Color3.new(0, 0, 0), 0.35), roofMaterial(roof))
 		if rng:NextNumber() < 0.28 then
 			-- front porch
 			newPart(m, "PorchRoof", Vector3.new(10, 0.4, 4.5) * S,
-				cf * CFrame.new(doorX * S, (0.5 + 7.6) * S, (frontZ - 2.2) * S), roof)
+				cf * CFrame.new(doorX * S, (0.5 + 7.6) * S, (frontZ - 2.2) * S), roof, roofMaterial(roof))
 			for _, px in ipairs({ doorX - 4.2, doorX + 4.2 }) do
 				newColumn(m, "PorchPost", 7.4 * S, 0.7 * S,
-					cf * CFrame.new(px * S, (0.5 + 3.7) * S, (frontZ - 3.8) * S), Color3.fromRGB(235, 232, 225))
+					cf * CFrame.new(px * S, (0.5 + 3.7) * S, (frontZ - 3.8) * S), Color3.fromRGB(235, 232, 225),
+					Enum.Material.Wood)
 			end
 		end
 		if stories == 2 and rng:NextNumber() < 0.35 then
@@ -1367,7 +1378,7 @@ local function buildResidential(m, cf, b)
 			if rng:NextNumber() < 0.4 then
 				for _, sxo in ipairs({ -3.1, 3.1 }) do
 					newPart(m, "Shutter", Vector3.new(1, 3.4, 0.2) * S,
-						cf * CFrame.new((wx + sxo) * S, (0.5 + 5) * S, (frontZ - 0.08) * S), trim)
+						cf * CFrame.new((wx + sxo) * S, (0.5 + 5) * S, (frontZ - 0.08) * S), trim, Enum.Material.Wood)
 				end
 			end
 		end
@@ -1383,7 +1394,7 @@ local function buildResidential(m, cf, b)
 	if hasGarage then
 		newPart(m, "Garage", Vector3.new(9, 6.4, 0.3) * S,
 			cf * CFrame.new(-w * 0.3 * S, (0.5 + 3.2) * S, (frontZ - 0.12) * S),
-			Color3.fromRGB(220, 215, 205))
+			Color3.fromRGB(220, 215, 205), Enum.Material.WoodPlanks) -- planks read as a paneled door
 		newPart(m, "GarageTrim", Vector3.new(9.8, 0.5, 0.45) * S,
 			cf * CFrame.new(-w * 0.3 * S, (0.5 + 6.6) * S, (frontZ - 0.2) * S), trim, Enum.Material.Concrete)
 		newPart(m, "Driveway", Vector3.new(10, 0.25, 12) * S,
@@ -2190,14 +2201,14 @@ local function buildPlaza()
 		newPart(mS, "Floor", Vector3.new(w - 0.2, 0.5, d - 0.2) * S, sSh * CFrame.new(0, 0.22 * S, 0),
 			Color3.fromRGB(220, 220, 225), Enum.Material.Marble)
 		newPart(mS, "Back", Vector3.new(w - 1.2, h, 0.6) * S, sSh * CFrame.new(0, h / 2 * S, (d / 2 - 0.3) * S),
-			wallS, Enum.Material.Concrete)
+			wallS, Enum.Material.Plaster)
 		for _, sx in ipairs({ -1, 1 }) do
 			newPart(mS, "Side", Vector3.new(0.6, h, d) * S,
-				sSh * CFrame.new(sx * (w / 2 - 0.3) * S, h / 2 * S, 0), wallS, Enum.Material.Concrete)
+				sSh * CFrame.new(sx * (w / 2 - 0.3) * S, h / 2 * S, 0), wallS, Enum.Material.Plaster)
 			-- front wall segments beside a central door opening
 			-- front wall with a real window opening (see in and out)
 			windowedWall(mS, sSh, sx > 0 and 2.5 or -14.4, sx > 0 and 14.4 or -2.5, h, d,
-				{ sx * 8.45, 5.6, 7, 4.5 }, wallS, Enum.Material.Concrete)
+				{ sx * 8.45, 5.6, 7, 4.5 }, wallS, Enum.Material.Plaster)
 		end
 		local sDoor = newPart(mS, "AutoDoor", Vector3.new(4.6, 8, 0.25) * S,
 			sSh * CFrame.new(0, 4 * S, (-d / 2 + 0.3) * S),
@@ -2205,7 +2216,7 @@ local function buildPlaza()
 		sDoor:SetAttribute("AutoDoor", true)
 		sDoor:SetAttribute("SlideDist", 4.6 * S)
 		newPart(mS, "Header", Vector3.new(5, h - 8, 0.6) * S,
-			sSh * CFrame.new(0, (8 + (h - 8) / 2) * S, (-d / 2 + 0.3) * S), wallS, Enum.Material.Concrete)
+			sSh * CFrame.new(0, (8 + (h - 8) / 2) * S, (-d / 2 + 0.3) * S), wallS, Enum.Material.Plaster)
 		newPart(mS, "Roof", Vector3.new(w + 1.5, 1, d + 1.5) * S, sSh * CFrame.new(0, (h + 0.5) * S, 0),
 			Color3.fromRGB(20, 20, 25))
 		local sBoard = newPart(mS, "SignBoard", Vector3.new(w * 0.88, 2.8, 0.4) * S,
@@ -2424,13 +2435,13 @@ local function buildPlaza()
 		newPart(mJ, "Floor", Vector3.new(w - 0.2, 0.5, d - 0.2) * S, jSh * CFrame.new(0, 0.22 * S, 0),
 			Color3.fromRGB(120, 90, 65), Enum.Material.WoodPlanks)
 		newPart(mJ, "Back", Vector3.new(w - 1.2, h, 0.6) * S, jSh * CFrame.new(0, h / 2 * S, (d / 2 - 0.3) * S),
-			wallJ, Enum.Material.Concrete)
+			wallJ, Enum.Material.Plaster)
 		for _, sx in ipairs({ -1, 1 }) do
 			newPart(mJ, "Side", Vector3.new(0.6, h, d) * S, jSh * CFrame.new(sx * (w / 2 - 0.3) * S, h / 2 * S, 0),
-				wallJ, Enum.Material.Concrete)
+				wallJ, Enum.Material.Plaster)
 			-- front wall with a real window opening (see in and out)
 			windowedWall(mJ, jSh, sx > 0 and 2.5 or -15.4, sx > 0 and 15.4 or -2.5, h, d,
-				{ sx * 8.95, 6, 6, 4.5 }, wallJ, Enum.Material.Concrete)
+				{ sx * 8.95, 6, 6, 4.5 }, wallJ, Enum.Material.Plaster)
 			local doorJ = newPart(mJ, "AutoDoor", Vector3.new(2.5, 7, 0.25) * S,
 				jSh * CFrame.new(sx * 1.25 * S, 3.5 * S, (-d / 2 + 0.3) * S),
 				Color3.fromRGB(170, 200, 215), Enum.Material.Glass, 0.35)
@@ -2438,7 +2449,7 @@ local function buildPlaza()
 			doorJ:SetAttribute("SlideDist", sx * 2.6 * S)
 		end
 		newPart(mJ, "DoorHeader", Vector3.new(5, h - 7, 0.6) * S,
-			jSh * CFrame.new(0, (7 + (h - 7) / 2) * S, (-d / 2 + 0.3) * S), wallJ, Enum.Material.Concrete)
+			jSh * CFrame.new(0, (7 + (h - 7) / 2) * S, (-d / 2 + 0.3) * S), wallJ, Enum.Material.Plaster)
 		newPart(mJ, "Roof", Vector3.new(w + 1, 1, d + 1) * S, jSh * CFrame.new(0, (h + 0.5) * S, 0),
 			Color3.fromRGB(35, 38, 45))
 		local jSign = newPart(mJ, "SignBoard", Vector3.new(w * 0.9, 2.6, 0.4) * S,
@@ -2810,13 +2821,13 @@ local function buildBloxway()
 	newPart(m, "Floor", Vector3.new(w - 0.2, 0.4, d - 0.2) * S, cf * CFrame.new(0, 0.22 * S, 0),
 		Color3.fromRGB(205, 202, 196), Enum.Material.Concrete)
 	newPart(m, "Back", Vector3.new(w - 1.6, h, 0.8) * S, cf * CFrame.new(0, h / 2 * S, (d / 2 - 0.4) * S),
-		wallB, Enum.Material.Concrete)
+		wallB, Enum.Material.Plaster)
 	for _, sx in ipairs({ -1, 1 }) do
 		newPart(m, "Side", Vector3.new(0.8, h, d) * S, cf * CFrame.new(sx * (w / 2 - 0.4) * S, h / 2 * S, 0),
-			wallB, Enum.Material.Concrete)
+			wallB, Enum.Material.Plaster)
 		newPart(m, "FrontWall", Vector3.new(w / 2 - 4.3, h, 0.8) * S,
 			cf * CFrame.new(sx * (3.5 + (w / 2 - 4.3) / 2) * S, h / 2 * S, (-d / 2 + 0.4) * S),
-			wallB, Enum.Material.Concrete)
+			wallB, Enum.Material.Plaster)
 		newPart(m, "FrontGlass", Vector3.new((w - 15.6) / 2 - 8, 6, 0.3) * S,
 			cf * CFrame.new(sx * ((w - 15.6) / 4 + 3.5) * S, 6 * S, (-d / 2 + 0.1) * S),
 			Color3.fromRGB(140, 195, 215), Enum.Material.Glass, 0.3)
@@ -2827,7 +2838,7 @@ local function buildBloxway()
 		doorB:SetAttribute("SlideDist", sx * 7.2 * S)
 	end
 	newPart(m, "DoorHeader", Vector3.new(7, h - 10, 0.8) * S,
-		cf * CFrame.new(0, (10 + (h - 10) / 2) * S, (-d / 2 + 0.4) * S), wallB, Enum.Material.Concrete)
+		cf * CFrame.new(0, (10 + (h - 10) / 2) * S, (-d / 2 + 0.4) * S), wallB, Enum.Material.Plaster)
 	newPart(m, "Roof", Vector3.new(w + 2, 1.2, d + 2) * S, cf * CFrame.new(0, (h + 0.6) * S, 0),
 		Color3.fromRGB(180, 178, 170), Enum.Material.Concrete)
 	newPart(m, "Parapet", Vector3.new(w + 3, 2.4, d + 3) * S, cf * CFrame.new(0, (h + 1.8) * S, 0),

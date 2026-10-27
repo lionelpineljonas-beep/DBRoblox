@@ -36,7 +36,7 @@ local DAY_LENGTH = 600
 local START_CASH = 100
 local WALK_SPEED = 16
 local SCOOTER_SPEED = 30
-local VERSION = "v160"
+local VERSION = "v164"
 
 -- ==============================================================================================
 -- LIGHTING, DYNAMIC SUNSET & STARRY NIGHT SKY SYSTEM
@@ -265,7 +265,7 @@ task.spawn(function()
 end)
 
 local TRICK_COOLDOWN = 0.65
-local TRAFFIC_CARS = 130
+local TRAFFIC_CARS = 230
 local CAR_SPEED = 38
 local FLING_RADIUS = 9
 local CAR_DAMAGE = 10000
@@ -295,6 +295,7 @@ end
 local DoTrick = remote("DoTrick")
 local TrickResult = remote("TrickResult")
 local ToggleScooter = remote("ToggleScooter")
+local ForceDismount = remote("ForceDismount") -- cutscenes: always get off, never toggles back on
 local BuyCustomItem = remote("BuyCustomItem")
 local HatchEgg = remote("HatchEgg") -- server -> client: play the on-screen hatch cinematic
 local UpdatePity = remote("UpdatePity") -- server -> client: updates pity tracker
@@ -414,6 +415,8 @@ local function updateSpeed(plr)
 		humanoid.WalkSpeed = math.max(WALK_SPEED + (plr:GetAttribute("WalkBoost") or 0)
 			+ (plr:GetAttribute("WeatherWalk") or 0), 6)
 	end
+	-- the speed you SHOULD have: the client puts this back after a cutscene changed WalkSpeed locally
+	humanoid:SetAttribute("TargetSpeed", humanoid.WalkSpeed)
 end
 
 -- grant the 2X speed pass to owners (on join and right after purchase)
@@ -961,6 +964,13 @@ local function dismountScooter(plr)
 	updateSpeed(plr)
 end
 
+ForceDismount.OnServerEvent:Connect(function(plr)
+	local char = plr.Character
+	if plr:GetAttribute("Mounted") or (char and char:FindFirstChild("Scooter")) then
+		dismountScooter(plr)
+	end
+end)
+
 ToggleScooter.OnServerEvent:Connect(function(plr)
 	local now = os.clock()
 	if plr:GetAttribute("ToggleLock") and now - plr:GetAttribute("ToggleLock") < 0.5 then return end
@@ -1458,7 +1468,8 @@ local function onCharacter(plr, char)
 	task.delay(8, function()
 		if plr.Parent and plr.Character == char and char.Parent
 			and not (charRigs[plr.UserId] and charRigs[plr.UserId].char == char)
-			and not char:FindFirstChild("Scooter") then
+			and not char:FindFirstChild("Scooter")
+			and not parkedScooters[plr.UserId] then -- you got off on purpose (G, a cutscene): stay off
 			mountScooter(plr, char)
 		end
 	end)
@@ -2330,7 +2341,7 @@ local function hollowHouse(house)
 			mk(house, "Floor", Vector3.new(ws.X - 0.4, 0.4, len + 0.1), cfB * CFrame.new(wx, wy - wh / 2 + 0.18, wf + 0.2 + (len + 0.1) / 2),
 				Color3.fromRGB(160, 125, 85), Enum.Material.WoodPlanks)
 			mk(house, "Ceiling", Vector3.new(ws.X - 0.4, 0.4, len - 0.2), cfB * CFrame.new(wx, wy + wh / 2 - 0.2, wf + 0.2 + (len - 0.2) / 2),
-				Color3.fromRGB(238, 234, 224))
+				Color3.fromRGB(238, 234, 224), Enum.Material.Plaster)
 			local wHoles = {}
 			if doorRel and not doorOnBody then
 				addHole(wHoles, doorRel.X - wx, DOOR_W, 0, DOOR_H)
@@ -2381,7 +2392,7 @@ local function hollowHouse(house)
 	-- floor + ceiling stop 0.2 inside the walls' outer faces (flush edges shimmered on the outside)
 	mk(house, "Floor", Vector3.new(w - 0.4, 0.4, d - 0.4), cfB * CFrame.new(0, -h / 2 + 0.2, 0),
 		Color3.fromRGB(160, 125, 85), Enum.Material.WoodPlanks)
-	mk(house, "Ceiling", Vector3.new(w - 0.4, 0.4, d - 0.4), cfB * CFrame.new(0, h / 2 - 0.2, 0), Color3.fromRGB(238, 234, 224))
+	mk(house, "Ceiling", Vector3.new(w - 0.4, 0.4, d - 0.4), cfB * CFrame.new(0, h / 2 - 0.2, 0), Color3.fromRGB(238, 234, 224), Enum.Material.Plaster)
 	buildWall("FrontWall", cfB * CFrame.new(0, 0, -d / 2 + 0.4), w, h, frontHoles)
 	buildWall("BackWall", cfB * CFrame.new(0, 0, d / 2 - 0.4) * CFrame.Angles(0, math.pi, 0), w, h, backHoles)
 	buildWall("SideL", cfB * CFrame.new(-w / 2 + 0.4, 0, 0) * CFrame.Angles(0, math.pi / 2, 0), d - 1.6, h, leftHoles, d - 1.6)
@@ -2446,8 +2457,8 @@ local function hollowHouse(house)
 		mk(interior, "ThrowPillow", Vector3.new(1.4, 1.3, 0.5), sofa * CFrame.new(-2.6, 2.4, 0.5) * CFrame.Angles(0, 0, math.rad(12)), accent, Enum.Material.Fabric)
 
 		local midZ = zMax - 0.9 - (sofaDist - 0.9) * 0.5
-		mk(interior, "Rug", Vector3.new(9.5, 0.1, math.max(sofaDist - 2.2, 4)), F(lx, midZ) * CFrame.new(0, 0.05, 0), accent:Lerp(WHITE, 0.35), Enum.Material.Fabric)
-		mk(interior, "RugBorder", Vector3.new(10.3, 0.08, math.max(sofaDist - 1.4, 4.8)), F(lx, midZ) * CFrame.new(0, 0.04, 0), accent:Lerp(BLACK, 0.3), Enum.Material.Fabric)
+		mk(interior, "Rug", Vector3.new(9.5, 0.1, math.max(sofaDist - 2.2, 4)), F(lx, midZ) * CFrame.new(0, 0.05, 0), accent:Lerp(WHITE, 0.35), Enum.Material.Carpet)
+		mk(interior, "RugBorder", Vector3.new(10.3, 0.08, math.max(sofaDist - 1.4, 4.8)), F(lx, midZ) * CFrame.new(0, 0.04, 0), accent:Lerp(BLACK, 0.3), Enum.Material.Carpet)
 		local ct = F(lx, midZ)
 		mk(interior, "CoffeeTable", Vector3.new(4.2, 0.3, 2.2), ct * CFrame.new(0, 1.55, 0), WOOD, Enum.Material.WoodPlanks)
 		for _, sx in ipairs({ -1.8, 1.8 }) do
@@ -2667,10 +2678,10 @@ local function hollowHouse(house)
 
 	-- welcome mat inside the front door
 	if wingInfo then
-		mk(interior, "Doormat", Vector3.new(3.8, 0.1, 2.2), cfB * CFrame.new(wingInfo.x, wingInfo.floorY + 0.05, wingInfo.front + 2), Color3.fromRGB(140, 100, 60), Enum.Material.Fabric)
+		mk(interior, "Doormat", Vector3.new(3.8, 0.1, 2.2), cfB * CFrame.new(wingInfo.x, wingInfo.floorY + 0.05, wingInfo.front + 2), Color3.fromRGB(140, 100, 60), Enum.Material.Carpet)
 		ceilingLight(wingInfo.x, wingInfo.front + wingInfo.len / 2, true, wingInfo.h)
 	else
-		mk(interior, "Doormat", Vector3.new(3.8, 0.1, 2.2), F(doorX, zMin + 1.6) * CFrame.new(0, 0.05, 0), Color3.fromRGB(140, 100, 60), Enum.Material.Fabric)
+		mk(interior, "Doormat", Vector3.new(3.8, 0.1, 2.2), F(doorX, zMin + 1.6) * CFrame.new(0, 0.05, 0), Color3.fromRGB(140, 100, 60), Enum.Material.Carpet)
 		ceilingLight(doorX, zMin + 4, true)
 	end
 	if iw >= 20 and not wingInfo and not hasDining then
@@ -4096,11 +4107,18 @@ local function startTraffic(town)
 	end
 	table.sort(routes, function(x, y) return x.length > y.length end)
 	if #routes == 0 then return end
-	local count = math.min(TRAFFIC_CARS, #routes * 4)
-	for i = 1, count do
-		local route = routes[((i - 1) % #routes) + 1]
-		-- scatter cars along each route and alternate directions so streets feel alive
-		driveCar(carTemplate, route, rng:NextNumber(), i % 2 == 0)
+	-- spread the cars over the whole town: each road gets a share by its LENGTH (long boulevards
+	-- don't sit empty while short streets jam), evenly spaced along it in alternating directions
+	local totalLen = 0
+	for _, route in ipairs(routes) do totalLen += route.length end
+	local count = 0
+	for _, route in ipairs(routes) do
+		local k = math.max(1, math.floor(TRAFFIC_CARS * route.length / totalLen + 0.5))
+		for j = 0, k - 1 do
+			if count >= TRAFFIC_CARS then break end
+			count += 1
+			driveCar(carTemplate, route, (j + rng:NextNumber(0.15, 0.85)) / k, (j + count) % 2 == 0)
+		end
 	end
 	print("[DiscoveryBayShop] traffic: " .. count .. " NPC cars on the road. Watch out!")
 end
