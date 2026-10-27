@@ -1,4 +1,4 @@
--- DISCOVERY BAY, CALIFORNIA — OSM-accurate procedural Roblox build (v132)
+-- DISCOVERY BAY, CALIFORNIA — OSM-accurate procedural Roblox build (v160)
 --==============================================================================================
 -- Builds the real Discovery Bay from OpenStreetMap geometry (© OpenStreetMap contributors):
 --   * real terrain raster: every lagoon/bay polygon, Old River, golf fairways/greens/
@@ -29,6 +29,9 @@ local CONFIG = {
 	treeCount = 1200,
 	streetlightSpacingFt = 260,
 	yieldEvery = 2000,  -- parts between task.wait() so Studio stays responsive
+	-- true = real PBR materials (grass, asphalt, brick, wood, metal...) with smooth faces.
+	-- false = the old all-plastic Lego look with studs on every face.
+	realisticMaterials = true,
 	build = {
 		ground = true, roads = true, buildings = true, docks = true,
 		golf = true, landmarks = true, props = true,
@@ -80,23 +83,25 @@ local ROWS = DATA.rows
 --==============================================================================================
 -- 1. PALETTE / LOOK
 --==============================================================================================
+-- bright, saturated palette: lush green grass, blue water, colourful houses
+-- (the walls/roofs lists keep 6 entries each so the seeded town layout doesn't change)
 local COL = {
-	water    = Color3.fromHex("4a8fb3"),
-	land     = Color3.fromHex("7c9e5a"),
-	fairway  = Color3.fromHex("8bc34a"),
-	green    = Color3.fromHex("68be58"),
-	tee      = Color3.fromHex("9acd64"),
-	bunker   = Color3.fromHex("e8dcaa"),
-	park     = Color3.fromHex("6eaa5f"),
+	water    = Color3.fromHex("2f9be0"),
+	land     = Color3.fromHex("3f8a26"), -- deep lawn green: the shaded base under the 3D grass blades
+	fairway  = Color3.fromHex("5fae38"),
+	green    = Color3.fromHex("4fd46a"),
+	tee      = Color3.fromHex("92e05c"),
+	bunker   = Color3.fromHex("f4e2a0"),
+	park     = Color3.fromHex("3a8a30"),
 	pavement = Color3.fromHex("a8a298"),
 	road     = Color3.fromHex("3a3a3a"),
 	cartpath = Color3.fromHex("b8b4a8"),
 	wood     = Color3.fromHex("7a5230"),
 	stripe   = Color3.fromHex("e8e8e8"),
-	roofs = { Color3.fromHex("8c4a2f"), Color3.fromHex("6b6b6b"), Color3.fromHex("7a5230"),
-		Color3.fromHex("334a5c"), Color3.fromHex("9c5a3a"), Color3.fromHex("4a4a44") },
-	walls = { Color3.fromHex("e8e4d8"), Color3.fromHex("d8c9a8"), Color3.fromHex("b8c4a0"),
-		Color3.fromHex("c9c9c9"), Color3.fromHex("a7b6c2"), Color3.fromHex("d9cfc0") },
+	roofs = { Color3.fromHex("c0392b"), Color3.fromHex("2e5e9e"), Color3.fromHex("d35400"),
+		Color3.fromHex("1f7a5a"), Color3.fromHex("8e3b6e"), Color3.fromHex("4a4a52") },
+	walls = { Color3.fromHex("fff1c9"), Color3.fromHex("ffd6a0"), Color3.fromHex("bff0d4"),
+		Color3.fromHex("ffc8c8"), Color3.fromHex("b9dcff"), Color3.fromHex("e2cfff") },
 }
 
 local GROUND_STYLE = {
@@ -307,6 +312,24 @@ local function tick()
 	end
 end
 
+-- material + faces for every built part (see CONFIG.realisticMaterials)
+local function applySurface(p, material)
+	local surf
+	if CONFIG.realisticMaterials then
+		p.Material = material or Enum.Material.SmoothPlastic -- no material given = clean painted finish
+		surf = Enum.SurfaceType.Smooth
+	else
+		p.Material = Enum.Material.Plastic
+		surf = Enum.SurfaceType.Studs
+	end
+	p.TopSurface = surf
+	p.BottomSurface = surf
+	p.LeftSurface = surf
+	p.RightSurface = surf
+	p.FrontSurface = surf
+	p.BackSurface = surf
+end
+
 local function newPart(parent, name, size, cframe, color, material, transparency)
 	local p = Instance.new("Part")
 	p.Name = name
@@ -314,14 +337,8 @@ local function newPart(parent, name, size, cframe, color, material, transparency
 	p.CFrame = cframe
 	p.Anchored = true
 	p.Color = color
-	p.Material = Enum.Material.Plastic
 	p.Transparency = transparency or 0
-	p.TopSurface = Enum.SurfaceType.Studs
-	p.BottomSurface = Enum.SurfaceType.Studs
-	p.LeftSurface = Enum.SurfaceType.Studs
-	p.RightSurface = Enum.SurfaceType.Studs
-	p.FrontSurface = Enum.SurfaceType.Studs
-	p.BackSurface = Enum.SurfaceType.Studs
+	applySurface(p, material)
 	p.Parent = parent
 	tick()
 	return p
@@ -334,13 +351,7 @@ local function newWedge(parent, name, size, cframe, color, material)
 	p.CFrame = cframe
 	p.Anchored = true
 	p.Color = color
-	p.Material = Enum.Material.Plastic
-	p.TopSurface = Enum.SurfaceType.Studs
-	p.BottomSurface = Enum.SurfaceType.Studs
-	p.LeftSurface = Enum.SurfaceType.Studs
-	p.RightSurface = Enum.SurfaceType.Studs
-	p.FrontSurface = Enum.SurfaceType.Studs
-	p.BackSurface = Enum.SurfaceType.Studs
+	applySurface(p, material)
 	p.Parent = parent
 	tick()
 	return p
@@ -385,7 +396,7 @@ local function makeSign(part, face, text, bg, fg)
 	label.Size = UDim2.fromScale(1, 1)
 	label.BackgroundColor3 = bg or Color3.fromRGB(30, 40, 50)
 	label.TextColor3 = fg or Color3.new(1, 1, 1)
-	label.Font = Enum.Font.LuckiestGuy
+	label.Font = Enum.Font.PermanentMarker
 	label.TextScaled = true
 	label.Text = text
 	label.Parent = gui
@@ -642,8 +653,8 @@ local function buildOak()
 	local m = Instance.new("Model")
 	newColumn(m, "Trunk", 8 * S, 1.8 * S, CFrame.new(0, 4 * S, 0),
 		Color3.fromRGB(105, 75, 50), Enum.Material.Wood)
-	newBall(m, "Leaves1", 10 * S, CFrame.new(0, 10.5 * S, 0), Color3.fromRGB(70, 120, 60), Enum.Material.Grass)
-	newBall(m, "Leaves2", 7 * S, CFrame.new(2.4 * S, 8.6 * S, 1.4 * S), Color3.fromRGB(85, 135, 70), Enum.Material.Grass)
+	newBall(m, "Leaves1", 10 * S, CFrame.new(0, 10.5 * S, 0), Color3.fromRGB(56, 160, 58), Enum.Material.Grass)
+	newBall(m, "Leaves2", 7 * S, CFrame.new(2.4 * S, 8.6 * S, 1.4 * S), Color3.fromRGB(96, 190, 70), Enum.Material.Grass)
 	return addRoot(m, "tree_oak")
 end
 
@@ -654,7 +665,7 @@ local function buildPalm()
 	for i = 0, 5 do
 		local cf = CFrame.new(0.4 * S, 17 * S, 0) * CFrame.Angles(0, math.rad(i * 60), 0)
 			* CFrame.new(0, 0, -3.4 * S) * CFrame.Angles(math.rad(-28), 0, 0)
-		newPart(m, "Frond", Vector3.new(1.4, 0.15, 7.5) * S, cf, Color3.fromRGB(75, 140, 70), Enum.Material.Grass)
+		newPart(m, "Frond", Vector3.new(1.4, 0.15, 7.5) * S, cf, Color3.fromRGB(60, 175, 72), Enum.Material.Grass)
 	end
 	return addRoot(m, "tree_palm")
 end
@@ -1391,7 +1402,7 @@ local function buildResidential(m, cf, b)
 		end
 		if clear then
 			newBall(m, "Shrub", 2.6 * S, cf * CFrame.new(shrubX * S, 1.4 * S, (frontZ - 1.8) * S),
-				Color3.fromRGB(hr:NextInteger(50, 80), hr:NextInteger(120, 150), hr:NextInteger(50, 70)), Enum.Material.Grass)
+				Color3.fromRGB(hr:NextInteger(40, 80), hr:NextInteger(155, 195), hr:NextInteger(50, 75)), Enum.Material.Grass)
 		end
 	end
 	local MAILBOX = { Color3.fromRGB(40, 60, 110), Color3.fromRGB(170, 40, 40), Color3.fromRGB(35, 35, 40), Color3.fromRGB(60, 110, 70) }
@@ -1872,7 +1883,7 @@ local function buildPlaza()
 		{ { "Anything else?",
 			"Snacks, lots of snacks. And don't let Callahan tell you ice cream is fuel. It is delicious though." } })
 	buildNPC(shell, "Thirsty Terry", K * CFrame.new(0, 0.4 * S, 14 * S) * CFrame.Angles(0, math.pi, 0),
-		{ face = "rbxassetid://13014074", hairAccessory = "20573078", hatAccessory = "212450372", shirtTemplate = "rbxassetid://398633812", pantsTemplate = "rbxassetid://144076370" })
+		{ face = "rbxassetid://13014074", hairAccessory = "20573078", shirtTemplate = "rbxassetid://398633812", pantsTemplate = "rbxassetid://144076370" })
 	for _, sy in ipairs({ 2.2, 4.8 }) do
 		newPart(shell, "Shelf", Vector3.new(1.8, 0.3, 12) * S, K * CFrame.new(10.4 * S, sy * S, 0),
 			Color3.fromRGB(170, 165, 155), Enum.Material.Metal)
@@ -2493,7 +2504,7 @@ local function buildPlaza()
 		newBall(mJ, "WaterJug", 1.4 * S, wc * CFrame.new(0, 4.1 * S, 0), Color3.fromRGB(120, 180, 240), Enum.Material.Glass)
 
 		buildNPC(mJ, "Sensei", jSh * CFrame.new(12 * S, 0.4 * S, 8 * S),
-			{ face = "rbxassetid://161246543", hatAccessory = "242444317", shirtColor = Color3.fromRGB(20, 20, 20), pantsColor = Color3.fromRGB(20, 20, 20) },
+			{ face = "rbxassetid://161246543", shirtColor = Color3.fromRGB(20, 20, 20), pantsColor = Color3.fromRGB(20, 20, 20) },
 			"Step on the grey mat to begin your training. Seven buttons. Five seconds each. Miss and you PAY. Win, and you feast: $50.",
 			{ { "Any advice?",
 				"Never leave the mat mid-fight. And never, EVER, challenge me on a Monday." } })

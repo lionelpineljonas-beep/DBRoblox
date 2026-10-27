@@ -36,7 +36,7 @@ local DAY_LENGTH = 600
 local START_CASH = 100
 local WALK_SPEED = 16
 local SCOOTER_SPEED = 30
-local VERSION = "v132"
+local VERSION = "v160"
 
 -- ==============================================================================================
 -- LIGHTING, DYNAMIC SUNSET & STARRY NIGHT SKY SYSTEM
@@ -61,9 +61,10 @@ local function initializeLighting()
 			end
 		end
 
-		Lighting.Technology = Enum.Technology.Future
+		-- (Lighting.Technology can't be set from a script - it threw here and silently skipped this whole
+		-- setup, so there was no sky, atmosphere or glow at all. It's set in default.project.json instead.)
 		Lighting.ShadowSoftness = 0.12
-		Lighting.Brightness = 3.2
+		Lighting.Brightness = 2.5
 		Lighting.GlobalShadows = true
 		Lighting.Ambient = Color3.fromRGB(35, 38, 52)
 		Lighting.OutdoorAmbient = Color3.fromRGB(95, 108, 125)
@@ -95,16 +96,16 @@ local function initializeLighting()
 		-- Bloom (neon signs, streetlights, moon reflection, and shooting stars glow at night)
 		bloom = Instance.new("BloomEffect")
 		bloom.Name = "DiscoveryBayBloom"
-		bloom.Intensity = 1.1
+		bloom.Intensity = 0.5
 		bloom.Size = 28
-		bloom.Threshold = 1.4
+		bloom.Threshold = 1.8
 		bloom.Parent = Lighting
 
 		-- Color Correction
 		cc = Instance.new("ColorCorrectionEffect")
 		cc.Name = "DiscoveryBayColorCorrection"
 		cc.Contrast = 0.2
-		cc.Saturation = 0.38
+		cc.Saturation = 0.3
 		cc.TintColor = Color3.fromRGB(255, 250, 244)
 		cc.Parent = Lighting
 
@@ -163,10 +164,10 @@ local SKY = {
 		tint = Color3.fromRGB(255, 240, 216), cloud = Color3.fromRGB(255, 228, 182),
 	},
 	dusk = {
-		atmo = Color3.fromRGB(255, 196, 120), decay = Color3.fromRGB(104, 116, 168),
-		oa = Color3.fromRGB(92, 100, 136), amb = Color3.fromRGB(36, 38, 56),
-		top = Color3.fromRGB(255, 176, 92), bottom = Color3.fromRGB(70, 86, 132),
-		tint = Color3.fromRGB(255, 234, 204), cloud = Color3.fromRGB(255, 212, 150),
+		atmo = Color3.fromRGB(255, 168, 96), decay = Color3.fromRGB(196, 92, 176),
+		oa = Color3.fromRGB(112, 112, 136), amb = Color3.fromRGB(40, 38, 54),
+		top = Color3.fromRGB(255, 176, 104), bottom = Color3.fromRGB(96, 92, 140),
+		tint = Color3.fromRGB(255, 238, 222), cloud = Color3.fromRGB(255, 205, 165),
 	},
 	dawn = {
 		atmo = Color3.fromRGB(255, 172, 175), decay = Color3.fromRGB(175, 120, 205),
@@ -175,16 +176,16 @@ local SKY = {
 		tint = Color3.fromRGB(255, 236, 236), cloud = Color3.fromRGB(255, 186, 196),
 	},
 	afterglow = {
-		atmo = Color3.fromRGB(220, 130, 150), decay = Color3.fromRGB(90, 60, 150),
+		atmo = Color3.fromRGB(236, 120, 150), decay = Color3.fromRGB(110, 56, 170),
 		oa = Color3.fromRGB(110, 92, 140), amb = Color3.fromRGB(40, 34, 64),
 		top = Color3.fromRGB(240, 150, 140), bottom = Color3.fromRGB(80, 64, 130),
 		tint = Color3.fromRGB(255, 230, 236), cloud = Color3.fromRGB(240, 150, 165),
 	},
 	night = {
-		atmo = Color3.fromRGB(58, 50, 135), decay = Color3.fromRGB(12, 14, 52),
-		oa = Color3.fromRGB(62, 80, 145), amb = Color3.fromRGB(32, 38, 84),
-		top = Color3.fromRGB(140, 172, 255), bottom = Color3.fromRGB(44, 32, 86),
-		tint = Color3.fromRGB(214, 228, 255), cloud = Color3.fromRGB(58, 66, 120),
+		atmo = Color3.fromRGB(44, 40, 120), decay = Color3.fromRGB(8, 10, 40),
+		oa = Color3.fromRGB(62, 68, 104), amb = Color3.fromRGB(30, 32, 58),
+		top = Color3.fromRGB(150, 165, 210), bottom = Color3.fromRGB(40, 34, 70),
+		tint = Color3.fromRGB(226, 232, 250), cloud = Color3.fromRGB(58, 66, 120),
 	},
 }
 
@@ -204,7 +205,7 @@ local function updateSkyForClock(ct)
 		c = lerpColor(c, SKY.night[key], nightW)
 		c = lerpColor(c, SKY.dusk[key], duskW * 0.9)
 		c = lerpColor(c, SKY.dawn[key], dawnW * 0.9)
-		c = lerpColor(c, SKY.afterglow[key], afterglowW * 0.55)
+		c = lerpColor(c, SKY.afterglow[key], afterglowW * 0.75)
 		return c
 	end
 	local glowW = math.max(duskW, dawnW) -- either end of the day: the colourful sky
@@ -212,18 +213,20 @@ local function updateSkyForClock(ct)
 	atmo.Color = mix("atmo")
 	atmo.Decay = mix("decay")
 	-- thicker, glowier air at sunset; thin at night so the stars and moon stay crisp
-	atmo.Density = 0.16 * (1 - nightW) + 0.07 * nightW + 0.04 * glowW
-	atmo.Haze = 1.4 * (1 - nightW) + 0.4 * nightW + 0.6 * glowW
-	atmo.Glare = 0.8 * (1 - nightW) + 2.6 * glowW * (1 - nightW)
-	atmo.Offset = 0.25 * (1 - nightW) + 0.1 * nightW
+	-- sunset: blue stays overhead, the glow builds at the horizon and round the sun (too much
+	-- air turns the whole sky muddy orange-green and tints the ground)
+	atmo.Density = 0.16 * (1 - nightW) + 0.05 * nightW + 0.04 * glowW
+	atmo.Haze = 1.4 * (1 - nightW) + 0.15 * nightW + 0.7 * glowW
+	atmo.Glare = 0.8 * (1 - nightW) + 1.1 * glowW * (1 - nightW)
+	atmo.Offset = 0.25 * (1 - nightW) + 0.1 * nightW + 0.08 * glowW * (1 - nightW)
 
 	if sky then
 		sky.SunAngularSize = 16 + 10 * glowW  -- a big low sun at sunrise / sunset
-		sky.MoonAngularSize = 20 + 8 * nightW -- and a big moon at night
+		sky.MoonAngularSize = 20 + 12 * nightW -- and a big moon at night
 	end
 	if clouds and clouds.Parent then
 		clouds.Color = mix("cloud")
-		clouds.Cover = 0.55 + 0.1 * glowW - 0.12 * nightW
+		clouds.Cover = 0.55 - 0.05 * glowW - 0.12 * nightW
 	end
 
 	if not weatherActive then
@@ -231,21 +234,21 @@ local function updateSkyForClock(ct)
 		Lighting.Ambient = mix("amb")
 		Lighting.ColorShift_Top = mix("top")
 		Lighting.ColorShift_Bottom = mix("bottom")
-		Lighting.Brightness = 3.2 * (1 - nightW) - 0.6 * glowW * (1 - nightW) + 1.7 * nightW
+		Lighting.Brightness = 2.5 * (1 - nightW) - 0.7 * glowW * (1 - nightW) + 1.3 * nightW
 	end
 
 	if bloom then
-		bloom.Intensity = 1.0 * (1 - nightW) + 1.8 * nightW + 0.3 * glowW
-		bloom.Threshold = 1.45 * (1 - nightW) + 1.0 * nightW
+		bloom.Intensity = 0.5 * (1 - nightW) + 1.8 * nightW - 0.1 * glowW
+		bloom.Threshold = 1.8 * (1 - nightW) + 1.0 * nightW + 0.1 * glowW
 	end
 	if sunRays then
-		sunRays.Intensity = 0.12 * (1 - nightW) + 0.32 * glowW * (1 - nightW)
+		sunRays.Intensity = 0.12 * (1 - nightW) + 0.14 * glowW * (1 - nightW)
 		sunRays.Spread = 0.85 - 0.25 * glowW
 	end
 	if cc then
 		cc.TintColor = mix("tint")
-		cc.Saturation = 0.38 + 0.1 * glowW + 0.06 * nightW
-		cc.Contrast = 0.2 + 0.14 * glowW -- punchy, near-silhouette look into the sun
+		cc.Saturation = 0.3 + 0.06 * glowW + 0.04 * nightW -- the palette is already bright
+		cc.Contrast = 0.18 + 0.1 * glowW -- punchier, near-silhouette look into the sun
 	end
 end
 
@@ -708,7 +711,7 @@ function mountScooterBody(plr, char)
 		ColorSequenceKeypoint.new(0.5, Color3.fromRGB(150, 50, 250)),
 		ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 0, 0))
 	})
-	trail.LightEmission = 0.8
+	trail.LightEmission = 0.35
 	trail.LightInfluence = 0
 	trail.Enabled = true
 	trail.Parent = rearWheel
@@ -1214,7 +1217,7 @@ PianoDrop.OnServerEvent:Connect(function(plr, npc)
 					local tagText = Instance.new("TextLabel")
 					tagText.Size = UDim2.fromScale(1, 1)
 					tagText.BackgroundTransparency = 1
-					tagText.Font = Enum.Font.LuckiestGuy
+					tagText.Font = Enum.Font.PermanentMarker
 					tagText.TextScaled = true
 					tagText.TextColor3 = Color3.fromRGB(255, 225, 80)
 					tagText.TextStrokeTransparency = 0.2
@@ -1404,19 +1407,27 @@ local function createNametag(char, displayName)
 	bGui.StudsOffset = Vector3.new(0, 4.0, 0)
 	bGui.AlwaysOnTop = true
 	bGui.ResetOnSpawn = false
+	bGui.MaxDistance = 150 -- not readable across the whole map
 
+	-- name in the game's marker font, white-to-gold fade, chunky dark outline
 	local label = Instance.new("TextLabel")
 	label.Name = "PlayerName"
 	label.Size = UDim2.new(1, 0, 1, 0)
 	label.BackgroundTransparency = 1
-	label.Font = Enum.Font.LuckiestGuy
+	label.Font = Enum.Font.PermanentMarker
 	label.TextScaled = true
 	label.TextColor3 = Color3.fromRGB(255, 255, 255)
-	label.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
-	label.TextStrokeTransparency = 0.2
 	label.Text = displayName
 	label.ZIndex = 10
 	label.Parent = bGui
+	local fade = Instance.new("UIGradient")
+	fade.Rotation = 90
+	fade.Color = ColorSequence.new(Color3.fromRGB(255, 255, 255), Color3.fromRGB(255, 196, 60))
+	fade.Parent = label
+	local outline = Instance.new("UIStroke")
+	outline.Color = Color3.fromRGB(30, 22, 40)
+	outline.Thickness = 2.5
+	outline.Parent = label
 
 	bGui.Parent = char
 	print("[DiscoveryBayShop] Overhead nametag created for: " .. displayName)
@@ -2136,7 +2147,7 @@ local function makeSign(part, face, text, bg, fg)
 	label.Size = UDim2.fromScale(1, 1)
 	label.BackgroundColor3 = bg
 	label.TextColor3 = fg
-	label.Font = Enum.Font.LuckiestGuy
+	label.Font = Enum.Font.PermanentMarker
 	label.TextScaled = true
 	label.Text = text
 	label.Parent = sg

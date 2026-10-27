@@ -11,7 +11,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 
-local VERSION = "v132"
+local VERSION = "v160"
 local SPEED_PASS_ID = 0 -- paste the real Game Pass ID here (same one as in DiscoveryBayShop)
 local RunService = game:GetService("RunService")
 local Lighting = game:GetService("Lighting")
@@ -268,7 +268,7 @@ local rmTitle = Instance.new("TextLabel")
 rmTitle.Size = UDim2.new(1, 0, 0, 40)
 rmTitle.BackgroundTransparency = 1
 rmTitle.Text = "REBIRTH?"
-rmTitle.Font = Enum.Font.LuckiestGuy
+rmTitle.Font = Enum.Font.PermanentMarker
 rmTitle.TextColor3 = Color3.new(1, 1, 1)
 rmTitle.TextSize = 24
 rmTitle.Parent = rebirthMenu
@@ -278,7 +278,7 @@ rmDesc.Size = UDim2.new(1, -20, 0, 120)
 rmDesc.Position = UDim2.new(0, 10, 0, 40)
 rmDesc.BackgroundTransparency = 1
 rmDesc.Text = "Benefits:\n• 1.5x Scooter Speed!\n• 1.5x Cash Multiplier!\n\nWarning: You will lose your house, pet, and money."
-rmDesc.Font = Enum.Font.GothamBold
+rmDesc.Font = Enum.Font.PermanentMarker
 rmDesc.TextColor3 = Color3.new(0.8, 0.8, 0.8)
 rmDesc.TextSize = 18
 rmDesc.TextWrapped = true
@@ -289,7 +289,7 @@ rmConfirm.Size = UDim2.new(0.4, 0, 0, 40)
 rmConfirm.Position = UDim2.new(0.07, 0, 1, -50)
 rmConfirm.BackgroundColor3 = Color3.fromRGB(150, 50, 200)
 rmConfirm.Text = "REBIRTH?"
-rmConfirm.Font = Enum.Font.LuckiestGuy
+rmConfirm.Font = Enum.Font.PermanentMarker
 rmConfirm.TextColor3 = Color3.new(1, 1, 1)
 rmConfirm.TextSize = 16
 rmConfirm.Parent = rebirthMenu
@@ -300,7 +300,7 @@ rmCancel.Size = UDim2.new(0.4, 0, 0, 40)
 rmCancel.Position = UDim2.new(0.53, 0, 1, -50)
 rmCancel.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
 rmCancel.Text = "CANCEL"
-rmCancel.Font = Enum.Font.LuckiestGuy
+rmCancel.Font = Enum.Font.PermanentMarker
 rmCancel.TextColor3 = Color3.new(1, 1, 1)
 rmCancel.TextSize = 16
 rmCancel.Parent = rebirthMenu
@@ -321,7 +321,7 @@ rebirthBtn.Size = UDim2.new(0, 156, 0, 50)
 rebirthBtn.Position = UDim2.new(0, 18, 0.52, 6)
 rebirthBtn.BackgroundColor3 = Color3.fromRGB(150, 50, 200)
 rebirthBtn.Text = "REBIRTH"
-rebirthBtn.Font = Enum.Font.LuckiestGuy
+rebirthBtn.Font = Enum.Font.PermanentMarker
 rebirthBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 rebirthBtn.TextSize = 16
 rebirthBtn.Parent = gui
@@ -392,7 +392,7 @@ for i = 1, 9 do
 	numLbl.BackgroundTransparency = 1
 	numLbl.Text = tostring(i)
 	numLbl.TextColor3 = Color3.fromRGB(200, 200, 200)
-	numLbl.Font = Enum.Font.LuckiestGuy
+	numLbl.Font = Enum.Font.PermanentMarker
 	numLbl.TextSize = 12
 	numLbl.Parent = slot
 	
@@ -401,7 +401,7 @@ for i = 1, 9 do
 	itemLbl.BackgroundTransparency = 1
 	itemLbl.Text = ""
 	itemLbl.TextColor3 = Color3.new(1, 1, 1)
-	itemLbl.Font = Enum.Font.LuckiestGuy
+	itemLbl.Font = Enum.Font.PermanentMarker
 	itemLbl.TextSize = 10
 	itemLbl.TextWrapped = true
 	itemLbl.Parent = slot
@@ -455,7 +455,7 @@ local function refreshHotbar()
 		btn.Text = tool.Name
 		btn.TextColor3 = Color3.new(1,1,1)
 		btn.TextSize = 10
-		btn.Font = Enum.Font.LuckiestGuy
+		btn.Font = Enum.Font.PermanentMarker
 		btn.TextWrapped = true
 		local corner = Instance.new("UICorner"); corner.CornerRadius = UDim.new(0.3, 0); corner.Parent = btn
 		btn.Parent = invFrame
@@ -545,7 +545,7 @@ qtxt.Size = UDim2.new(1, 0, 1, 0)
 qtxt.BackgroundTransparency = 1
 qtxt.Text = "2:00"
 qtxt.TextColor3 = Color3.new(1,1,1)
-qtxt.Font = Enum.Font.LuckiestGuy
+qtxt.Font = Enum.Font.PermanentMarker
 qtxt.TextSize = 24
 qtxt.Parent = questFrame
 
@@ -639,7 +639,7 @@ local dlgName = Instance.new("TextLabel")
 dlgName.Position = UDim2.new(0, 20, 0, 10)
 dlgName.Size = UDim2.new(1, -40, 0, 24)
 dlgName.BackgroundTransparency = 1
-dlgName.Font = Enum.Font.LuckiestGuy
+dlgName.Font = Enum.Font.PermanentMarker
 dlgName.TextSize = 22
 dlgName.TextColor3 = Color3.fromRGB(250, 200, 50)
 dlgName.TextXAlignment = Enum.TextXAlignment.Left
@@ -651,7 +651,7 @@ dlgText.Position = UDim2.new(0, 20, 0, 42)
 dlgText.Size = UDim2.new(1, -40, 0, 84)
 dlgText.TextScaled = false
 dlgText.BackgroundTransparency = 1
-dlgText.Font = Enum.Font.GothamBold
+dlgText.Font = Enum.Font.PermanentMarker
 dlgText.TextSize = 20
 dlgText.TextColor3 = Color3.new(1, 1, 1)
 dlgText.TextWrapped = true
@@ -675,6 +675,7 @@ local activeTypewriter = nil
 local currentCutsceneNPC = nil
 local cutsceneCamTween = nil
 local savedNPCJoints = {}
+local npcHomePivot = setmetatable({}, { __mode = "k" }) -- how an NPC stood before turning to face you
 
 local topBar = Instance.new("Frame")
 topBar.Name = "CutsceneTopBar"
@@ -702,17 +703,67 @@ choicesFrame.ZIndex = 12
 --==============================================================================================
 -- GTA V "WASTED" DEATH SCREEN + ROASTS + CAR FLING PHYSICS
 --==============================================================================================
-local DEATH_ROASTS = {
-	"Is this your best?",
-	"Bro looked both ways and still got folded.",
-	"The car had the right of way lil bro.",
-	"Even the NPCs saw that coming.",
-	"You had a whole sidewalk and still chose the bumper.",
-	"Skill issue detected. Respawning...",
-	"Insurance is NOT covering that one.",
-	"Bro became a Discovery Bay speedbump.",
-	"My grandma dodges traffic better than that.",
-	"That driver didn't even touch the brakes.",
+-- a different title + set of lines for each way to die
+local DEATH_KINDS = {
+	car = {
+		title = "WASTED", color = Color3.fromRGB(225, 38, 38),
+		lines = {
+			"Bro looked both ways and still got folded.",
+			"The car had the right of way lil bro.",
+			"You had a whole sidewalk and still chose the bumper.",
+			"Insurance is NOT covering that one.",
+			"Bro became a Discovery Bay speedbump.",
+			"My grandma dodges traffic better than that.",
+			"That driver didn't even touch the brakes.",
+			"Frogger called. He wants his game back.",
+			"Car: 1. You: 0.",
+			"The driver gave you a 1-star rating.",
+			"You got yeeted by a sedan.",
+			"Free ride! ...just not the kind you wanted.",
+			"That car is gonna need a car wash now.",
+			"Discovery Bay traffic does NOT brake for you.",
+		},
+	},
+	debt = {
+		title = "BANKRUPT", color = Color3.fromRGB(240, 190, 40),
+		lines = {
+			"Died broke AND in debt. Legendary.",
+			"Your bank account died before you did.",
+			"Even your funeral is on a payment plan.",
+			"The bank sent flowers... and a bill.",
+			"Negative money, negative aura.",
+			"You owe more than you're worth. Literally.",
+			"Your wallet filed for divorce.",
+			"Debt collectors are already waiting at spawn.",
+			"Bro speedran bankruptcy.",
+			"Sensei still wants his $5.",
+		},
+	},
+	reset = {
+		title = "RAGE QUIT", color = Color3.fromRGB(120, 170, 255),
+		lines = {
+			"Aww, is the game too hard for you?",
+			"Did the game hurt your feelings?",
+			"Giving up already? Cute.",
+			"Pressing reset won't fix your life, bro.",
+			"Rage quit speedrun any%.",
+			"It's okay, you can cry a little.",
+			"Reset button warrior strikes again.",
+			"We'll pretend that didn't happen.",
+			"Self-respawn? Bold strategy.",
+		},
+	},
+	other = {
+		title = "WASTED", color = Color3.fromRGB(225, 38, 38),
+		lines = {
+			"Is this your best?",
+			"Skill issue detected. Respawning...",
+			"Even the NPCs saw that coming.",
+			"Well... that happened.",
+			"Discovery Bay: 1. You: 0.",
+			"Try not dying next time. Just a tip.",
+		},
+	},
 }
 
 local wastedGui = Instance.new("ScreenGui")
@@ -741,7 +792,7 @@ wastedTitle.AnchorPoint = Vector2.new(0.5, 0.5)
 wastedTitle.Position = UDim2.new(0.5, 0, 0.38, 0)
 wastedTitle.Size = UDim2.new(1, 0, 0, 90)
 wastedTitle.BackgroundTransparency = 1
-wastedTitle.Font = Enum.Font.LuckiestGuy
+wastedTitle.Font = Enum.Font.PermanentMarker
 wastedTitle.Text = "WASTED"
 wastedTitle.TextColor3 = Color3.fromRGB(225, 38, 38)
 wastedTitle.TextSize = 78
@@ -761,7 +812,7 @@ wastedRoast.AnchorPoint = Vector2.new(0.5, 0.5)
 wastedRoast.Position = UDim2.new(0.5, 0, 0.78, 0)
 wastedRoast.Size = UDim2.new(0.9, 0, 0, 36)
 wastedRoast.BackgroundTransparency = 1
-wastedRoast.Font = Enum.Font.GothamBold
+wastedRoast.Font = Enum.Font.PermanentMarker
 wastedRoast.Text = "Is this your best?"
 wastedRoast.TextColor3 = Color3.fromRGB(240, 240, 240)
 wastedRoast.TextSize = 24
@@ -781,13 +832,16 @@ wastedCC.Enabled = false
 wastedCC.Parent = game:GetService("Lighting")
 
 local lastRoastIdx = 0
-local function playGTAWasted()
+local function playGTAWasted(cause)
 	local oldDeath = plr:FindFirstChild("PlayerGui") and plr.PlayerGui:FindFirstChild("DeathScreen")
 	if oldDeath then oldDeath:Destroy() end
-	local idx = math.random(1, #DEATH_ROASTS)
-	if idx == lastRoastIdx then idx = (idx % #DEATH_ROASTS) + 1 end
+	local kind = DEATH_KINDS[cause] or DEATH_KINDS.other
+	local idx = math.random(1, #kind.lines)
+	if idx == lastRoastIdx then idx = (idx % #kind.lines) + 1 end
 	lastRoastIdx = idx
-	wastedRoast.Text = DEATH_ROASTS[idx]
+	wastedRoast.Text = kind.lines[idx]
+	wastedTitle.Text = kind.title
+	wastedTitle.TextColor3 = kind.color
 
 	-- GTA V initial slow-mo flash + heavy bass hit SFX
 	local sfx1 = Instance.new("Sound")
@@ -860,6 +914,7 @@ local function playGTAWasted()
 end
 
 local wastedShownForChar = nil
+local resetPressedFor = nil -- the character you pressed Reset on (so its death gets the reset jokes)
 local function hookCharacterDeath(ch)
 	wastedShownForChar = nil
 	wastedBanner.Visible = false
@@ -873,7 +928,16 @@ local function hookCharacterDeath(ch)
 		hum.Died:Connect(function()
 			if wastedShownForChar ~= ch then
 				wastedShownForChar = ch
-				playGTAWasted()
+				-- (car hits show their screen on the fling, before you die)
+				local stats = plr:FindFirstChild("leaderstats")
+				local cash = stats and stats:FindFirstChild("Cash")
+				if resetPressedFor == ch then
+					playGTAWasted("reset")
+				elseif cash and cash.Value < 0 then
+					playGTAWasted("debt")
+				else
+					playGTAWasted("other")
+				end
 			end
 		end)
 	end
@@ -882,6 +946,27 @@ if plr.Character then
 	task.spawn(hookCharacterDeath, plr.Character)
 end
 plr.CharacterAdded:Connect(hookCharacterDeath)
+
+-- take over Roblox's Reset button so we know a death was a reset (it still kills you the same way)
+do
+	local StarterGui = game:GetService("StarterGui")
+	local resetEvent = Instance.new("BindableEvent")
+	resetEvent.Event:Connect(function()
+		local ch = plr.Character
+		local hum = ch and ch:FindFirstChildOfClass("Humanoid")
+		if hum and hum.Health > 0 then
+			resetPressedFor = ch
+			hum.Health = 0
+		end
+	end)
+	task.spawn(function()
+		-- SetCore fails until the core scripts have loaded, so keep trying for a bit
+		for _ = 1, 30 do
+			if pcall(StarterGui.SetCore, StarterGui, "ResetButtonCallback", resetEvent) then return end
+			task.wait(1)
+		end
+	end)
+end
 
 task.spawn(function()
 	local carFlingRemote = remotes:WaitForChild("CarFling", 15)
@@ -897,7 +982,7 @@ task.spawn(function()
 				hrp.AssemblyAngularVelocity = angVel
 				if wastedShownForChar ~= ch then
 					wastedShownForChar = ch
-					playGTAWasted()
+					playGTAWasted("car")
 				end
 			end
 		end)
@@ -919,6 +1004,30 @@ local function restoreNPCPose(npcModel)
 			end
 		end
 	end
+end
+
+-- after a conversation the NPC swings smoothly back to how it was standing (talking again
+-- mid-swing leaves it facing you, and it remembers its real home facing for next time)
+local function turnNPCBackHome(npc)
+	local home = npcHomePivot[npc]
+	if not home or not npc.Parent then return end
+	npcHomePivot[npc] = nil
+	local from = npc:GetPivot()
+	local t0 = os.clock()
+	local conn
+	conn = RunService.RenderStepped:Connect(function()
+		if currentCutsceneNPC == npc or npc:GetAttribute("PianoDropping") or not npc.Parent then
+			conn:Disconnect()
+			npcHomePivot[npc] = npcHomePivot[npc] or home
+			return
+		end
+		local u = math.clamp((os.clock() - t0) / 0.45, 0, 1)
+		npc:PivotTo(from:Lerp(home, u * u * (3 - 2 * u)))
+		if u >= 1 then
+			conn:Disconnect()
+			savedNPCJoints[npc] = nil -- the next conversation re-captures its pose from here
+		end
+	end)
 end
 
 local isNPCTalking = false
@@ -1087,6 +1196,7 @@ local function playPostTalkAnimation(npc)
 			if currentCutsceneNPC ~= npc and not npc:GetAttribute("PianoDropping") then
 				restoreNPCPose(npc)
 				setNPCFaceState(npc, "idle")
+				turnNPCBackHome(npc)
 			end
 			return
 		end
@@ -1354,6 +1464,7 @@ local function focusCameraOnNPC(npcModel, wideShot)
 			dir, f = dir.Unit, f.Unit
 			local ang = math.atan2(f:Cross(dir).Y, f:Dot(dir))
 			if math.abs(ang) > math.rad(5) then
+				if not npcHomePivot[npcModel] then npcHomePivot[npcModel] = npcModel:GetPivot() end
 				npcModel:PivotTo(CFrame.new(c) * CFrame.Angles(0, ang, 0) * CFrame.new(-c) * npcModel:GetPivot())
 				savedNPCJoints[npcModel] = nil
 			end
@@ -1486,7 +1597,7 @@ local function showDialogue(npcName, text, choicesArray, callback)
 			btn.Size = UDim2.new(0, 160, 0, 36)
 			btn.BackgroundColor3 = Color3.fromRGB(50, 55, 65)
 			btn.TextColor3 = Color3.new(1, 1, 1)
-			btn.Font = Enum.Font.LuckiestGuy
+			btn.Font = Enum.Font.PermanentMarker
 			btn.TextSize = 14
 			btn.ZIndex = 13
 			btn.Text = ch.text
@@ -1508,7 +1619,7 @@ local function showDialogue(npcName, text, choicesArray, callback)
 		closeBtn.Size = UDim2.new(0, 100, 0, 36)
 		closeBtn.BackgroundColor3 = Color3.fromRGB(150, 40, 40)
 		closeBtn.TextColor3 = Color3.new(1, 1, 1)
-		closeBtn.Font = Enum.Font.LuckiestGuy
+		closeBtn.Font = Enum.Font.PermanentMarker
 		closeBtn.TextSize = 14
 		closeBtn.ZIndex = 13
 		closeBtn.Text = "Leave"
@@ -1819,7 +1930,7 @@ local function playTerrySodaCutscene(npcModel)
 		if elapsed >= 2.85 and not sodaPopPlayed then
 			sodaPopPlayed = true
 			setNPCFaceState(npcModel, "answer")
-			pcall(playSound, "rbxassetid://9061556942", 0.5)
+			pcall(playSound, "rbxasset://sounds/victory.wav", 0.5) -- Terry gets his soda!
 			dlgText.Text = "You found it!! Thank you so much — deal's a deal, here's $200!"
 			npcTalkUntil = os.clock() + 1.4
 		end
@@ -2241,21 +2352,32 @@ local function runIntro()
 	title.Position = UDim2.new(0.5, 0, 0.08, 0)
 	title.Size = UDim2.new(1, 0, 0, 84)
 	title.BackgroundTransparency = 1
-	title.Font = Enum.Font.LuckiestGuy
-	title.TextSize = 64
+	title.Font = Enum.Font.PermanentMarker -- graffiti / skate-park marker lettering
+	title.TextSize = 72
 	title.TextColor3 = Color3.new(1, 1, 1)
-	title.TextStrokeTransparency = 0.4
-	title.Text = "DISCOVERY BAY"
+	title.Text = "Discovery Bay"
 	title.ZIndex = 8 -- above the grey cover
 	title.Parent = introGui
+	local titleFade = Instance.new("UIGradient")
+	titleFade.Rotation = 90
+	titleFade.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 240, 170)),
+		ColorSequenceKeypoint.new(0.55, Color3.fromRGB(255, 176, 60)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 96, 120)),
+	})
+	titleFade.Parent = title
+	local titleStroke = Instance.new("UIStroke")
+	titleStroke.Color = Color3.fromRGB(28, 18, 40)
+	titleStroke.Thickness = 4
+	titleStroke.Parent = title
 
 	local subtitle = Instance.new("TextLabel")
 	subtitle.AnchorPoint = Vector2.new(0.5, 0)
 	subtitle.Position = UDim2.new(0.5, 0, 0.08, 86)
 	subtitle.Size = UDim2.new(1, 0, 0, 28)
 	subtitle.BackgroundTransparency = 1
-	subtitle.Font = Enum.Font.LuckiestGuy
-	subtitle.TextSize = 20
+	subtitle.Font = Enum.Font.PermanentMarker
+	subtitle.TextSize = 24
 	subtitle.TextColor3 = Color3.fromRGB(220, 228, 235)
 	subtitle.TextStrokeTransparency = 0.6
 	subtitle.Text = "California Delta - scooters - " .. VERSION
@@ -2283,8 +2405,8 @@ local function runIntro()
 	loadTxt.Position = UDim2.new(0.5, 0, 0.5, 0)
 	loadTxt.Size = UDim2.new(0, 500, 0, 40)
 	loadTxt.BackgroundTransparency = 1
-	loadTxt.Font = Enum.Font.LuckiestGuy
-	loadTxt.TextSize = 26
+	loadTxt.Font = Enum.Font.PermanentMarker
+	loadTxt.TextSize = 30
 	loadTxt.TextColor3 = Color3.fromRGB(240, 242, 245)
 	loadTxt.Text = "Loading Discovery Bay..."
 	loadTxt.ZIndex = 6
@@ -2294,7 +2416,7 @@ local function runIntro()
 	spinner.Position = UDim2.new(1, -28, 1, -28)
 	spinner.Size = UDim2.new(0, 76, 0, 76)
 	spinner.BackgroundColor3 = Color3.fromRGB(250, 205, 30)
-	spinner.Font = Enum.Font.LuckiestGuy
+	spinner.Font = Enum.Font.PermanentMarker
 	spinner.TextSize = 46
 	spinner.TextColor3 = Color3.fromRGB(40, 30, 10)
 	spinner.Text = "L"
@@ -2307,12 +2429,12 @@ local function runIntro()
 		spinner.Rotation = spinner.Rotation + dt * 220
 	end)
 	
-	-- Beautiful Sunset Gradient Background
+	-- dark night-sky loading background, so it blends straight into the flyover
 	loadFrame.BackgroundTransparency = 0
 	grad.Color = ColorSequence.new({
-		ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 113, 113)),
-		ColorSequenceKeypoint.new(0.5, Color3.fromRGB(155, 89, 182)),
-		ColorSequenceKeypoint.new(1, Color3.fromRGB(52, 152, 219))
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(14, 18, 42)),
+		ColorSequenceKeypoint.new(0.5, Color3.fromRGB(44, 26, 70)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(16, 40, 72))
 	})
 	
 	-- Animate the gradient
@@ -2340,12 +2462,138 @@ local function runIntro()
 	spinner:Destroy()
 	loadTxt:Destroy()
 
+	-- SHOWREEL: the gradient fades away and the camera tours Discovery Bay behind the menu -
+	-- slow orbits round each landmark with a location caption, dipping to black between shots
+	local cam = workspace.CurrentCamera
+	local shots = {}
+	local lm = town and town:FindFirstChild("Landmarks")
+	local function addShot(name, inst, radius, height)
+		if inst then
+			local ok, pos = pcall(function() return inst:IsA("Model") and inst:GetPivot().Position or inst.Position end)
+			if ok and pos then
+				table.insert(shots, { name = name, pos = pos, r = radius or 120, h = height or 55 })
+			end
+		end
+	end
+	if lm then
+		addShot("Discovery Bay Blvd Plaza", lm:FindFirstChild("Discovery Bay Blvd Plaza"), 130, 55)
+		addShot("Discovery Bay Yacht Harbor", lm:FindFirstChild("Discovery Bay Yacht Harbor"), 160, 60)
+		addShot("Discovery Bay Golf Club", lm:FindFirstChild("Clubhouse"), 140, 60)
+		addShot("BLOXWAY", lm:FindFirstChild("BLOXWAY"), 190, 70)
+		for _, m in ipairs(lm:GetChildren()) do
+			if #shots >= 7 then break end
+			if m:IsA("Model") and (m.Name:find("School") or m.Name:find("Elementary") or m.Name:find("Park")) then
+				addShot(m.Name, m, 140, 60)
+			end
+		end
+	end
+	local docks = town and town:FindFirstChild("Docks")
+	local dock = docks and docks:GetChildren()[math.max(1, math.floor(#docks:GetChildren() / 2))]
+	addShot("The Delta Waterfront", dock, 150, 45)
+
+	local fader = Instance.new("Frame")
+	fader.Size = UDim2.fromScale(1, 1)
+	fader.BackgroundColor3 = Color3.new(0, 0, 0)
+	fader.BackgroundTransparency = 1
+	fader.BorderSizePixel = 0
+	fader.ZIndex = 5
+	fader.Parent = introGui
+	-- soft dark edges top and bottom so the title and buttons pop against the town
+	for _, top in ipairs({ true, false }) do
+		local shade = Instance.new("Frame")
+		shade.AnchorPoint = Vector2.new(0, top and 0 or 1)
+		shade.Position = UDim2.fromScale(0, top and 0 or 1)
+		shade.Size = UDim2.fromScale(1, 0.35)
+		shade.BackgroundColor3 = Color3.new(0, 0, 0)
+		shade.BorderSizePixel = 0
+		shade.ZIndex = 5
+		shade.Parent = introGui
+		local g = Instance.new("UIGradient")
+		g.Rotation = top and 90 or -90
+		g.Transparency = NumberSequence.new(0.35, 1)
+		g.Parent = shade
+	end
+	local caption = Instance.new("TextLabel")
+	caption.AnchorPoint = Vector2.new(0, 1)
+	caption.Position = UDim2.new(0, 28, 1, -24)
+	caption.Size = UDim2.new(0, 520, 0, 34)
+	caption.BackgroundTransparency = 1
+	caption.Font = Enum.Font.PermanentMarker
+	caption.TextSize = 32
+	caption.TextColor3 = Color3.new(1, 1, 1)
+	caption.TextStrokeTransparency = 0.4
+	caption.TextXAlignment = Enum.TextXAlignment.Left
+	caption.TextTransparency = 1
+	caption.TextStrokeTransparency = 1
+	caption.ZIndex = 8
+	caption.Parent = introGui
+	local subCaption = caption:Clone()
+	subCaption.Position = UDim2.new(0, 30, 1, -6)
+	subCaption.Size = UDim2.new(0, 520, 0, 20)
+	subCaption.TextSize = 15
+	subCaption.TextColor3 = Color3.fromRGB(255, 220, 140)
+	subCaption.Text = "DISCOVERY BAY, CALIFORNIA"
+	subCaption.Parent = introGui
+
+	local showreelOn = #shots > 0
+	local showreelConn = nil
+	-- name tags draw on top of everything, so they'd float over the flyover: hide them on this
+	-- screen until PLAY (only locally; other players still see them)
+	local function setNametagsShown(shown)
+		for _, p in ipairs(Players:GetPlayers()) do
+			local tag = p.Character and p.Character:FindFirstChild("OverheadNametag")
+			if tag then tag.Enabled = shown end
+		end
+	end
+	task.spawn(function()
+		while introGui.Parent do
+			setNametagsShown(false) -- tags can be (re)created after this starts, so keep at it
+			task.wait(0.5)
+		end
+	end)
+	if showreelOn then
+		cam.CameraType = Enum.CameraType.Scriptable
+		TweenService:Create(loadFrame, TweenInfo.new(0.8, Enum.EasingStyle.Sine), { BackgroundTransparency = 1 }):Play()
+		task.spawn(function()
+			local SHOT_TIME = 7
+			local idx = math.random(1, #shots)
+			while showreelOn do
+				local shot = shots[idx]
+				local a0 = math.random() * math.pi * 2
+				local dir = (math.random() < 0.5) and 1 or -1
+				local t0 = os.clock()
+				if showreelConn then showreelConn:Disconnect() end
+				showreelConn = RunService.RenderStepped:Connect(function()
+					local u = (os.clock() - t0) / SHOT_TIME
+					local a = a0 + dir * math.rad(40) * u
+					local r = shot.r * (1.08 - 0.12 * u) -- slow push-in while orbiting
+					local camPos = shot.pos + Vector3.new(math.cos(a) * r, shot.h + 6 * math.sin(u * math.pi), math.sin(a) * r)
+					cam.CFrame = CFrame.lookAt(camPos, shot.pos + Vector3.new(0, 6, 0))
+				end)
+				caption.Text = "📍 " .. string.upper(shot.name)
+				for _, lbl in ipairs({ caption, subCaption }) do
+					TweenService:Create(lbl, TweenInfo.new(0.6), { TextTransparency = 0, TextStrokeTransparency = 0.4 }):Play()
+				end
+				TweenService:Create(fader, TweenInfo.new(0.6), { BackgroundTransparency = 1 }):Play()
+				task.wait(SHOT_TIME - 0.6)
+				if not showreelOn then break end
+				-- dip to black, then cut to the next landmark
+				for _, lbl in ipairs({ caption, subCaption }) do
+					TweenService:Create(lbl, TweenInfo.new(0.4), { TextTransparency = 1, TextStrokeTransparency = 1 }):Play()
+				end
+				TweenService:Create(fader, TweenInfo.new(0.5), { BackgroundTransparency = 0 }):Play()
+				task.wait(0.55)
+				idx = idx % #shots + 1
+			end
+		end)
+	end
+
 	local playBtn = Instance.new("TextButton")
 	playBtn.AnchorPoint = Vector2.new(0.5, 0.5)
 	playBtn.Position = UDim2.new(0.5, 0, 0.74, 0)
 	playBtn.Size = UDim2.new(0, 260, 0, 84)
 	playBtn.BackgroundColor3 = Color3.fromRGB(250, 205, 30)
-	playBtn.Font = Enum.Font.LuckiestGuy
+	playBtn.Font = Enum.Font.PermanentMarker
 	playBtn.TextSize = 36
 	playBtn.TextColor3 = Color3.fromRGB(40, 30, 10)
 	playBtn.Text = "PLAY"
@@ -2372,7 +2620,7 @@ local function runIntro()
 	panTitle.Position = UDim2.new(0.5, 0, 0, 0)
 	panTitle.Size = UDim2.new(1, 0, 0, 40)
 	panTitle.BackgroundColor3 = Color3.fromRGB(40, 50, 60)
-	panTitle.Font = Enum.Font.LuckiestGuy
+	panTitle.Font = Enum.Font.PermanentMarker
 	panTitle.TextSize = 20
 	panTitle.TextColor3 = Color3.new(1, 1, 1)
 	panTitle.Text = "UPDATE NOTES"
@@ -2385,7 +2633,7 @@ local function runIntro()
 	panBody.Position = UDim2.new(0, 12, 0, 48)
 	panBody.Size = UDim2.new(1, -24, 1, -100)
 	panBody.BackgroundTransparency = 1
-	panBody.Font = Enum.Font.LuckiestGuy
+	panBody.Font = Enum.Font.PermanentMarker
 	panBody.TextSize = 16
 	panBody.TextColor3 = Color3.fromRGB(232, 235, 240) -- light text on the dark panel
 	panBody.TextWrapped = true
@@ -2398,7 +2646,7 @@ local function runIntro()
 	panClose.Position = UDim2.new(0.5, 0, 1, -12)
 	panClose.Size = UDim2.new(0, 140, 0, 36)
 	panClose.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
-	panClose.Font = Enum.Font.LuckiestGuy
+	panClose.Font = Enum.Font.PermanentMarker
 	panClose.TextSize = 16
 	panClose.TextColor3 = Color3.new(1, 1, 1)
 	panClose.Text = "Got it!"
@@ -2433,7 +2681,7 @@ local function runIntro()
 		b.Size = UDim2.new(0, 170, 0, 62)
 		b.BackgroundColor3 = Color3.fromRGB(70, 160, 220)
 		b.TextColor3 = Color3.new(1, 1, 1)
-		b.Font = Enum.Font.LuckiestGuy
+		b.Font = Enum.Font.PermanentMarker
 		b.TextSize = 26
 		b.Text = text
 		b.ZIndex = 8
@@ -2457,11 +2705,17 @@ local function runIntro()
 	end)
 
 	playBtn.Activated:Connect(function()
+		showreelOn = false
+		if showreelConn then showreelConn:Disconnect() end
 		introGui:Destroy()
+		setNametagsShown(true)
 		gui.Enabled = true
-		
-		local cam = workspace.CurrentCamera
+
 		cam.CameraType = Enum.CameraType.Custom
+		-- the town finishing respawns you while the flyover owns the camera, and Roblox doesn't
+		-- re-aim it at the new character: point it at the CURRENT one or it stays at the old spawn
+		local hum = plr.Character and plr.Character:FindFirstChildOfClass("Humanoid")
+		if hum then cam.CameraSubject = hum end
 		
 		pcall(function() controls:Enable() end)
 		local t = plr.Character and plr.Character:FindFirstChild("HumanoidRootPart")
@@ -2485,7 +2739,7 @@ money.Size = UDim2.new(0, 195, 0, 48)
 money.BackgroundColor3 = Color3.fromRGB(20, 26, 34)
 money.BackgroundTransparency = 0.2
 money.TextColor3 = Color3.fromRGB(120, 230, 130)
-money.Font = Enum.Font.LuckiestGuy
+money.Font = Enum.Font.PermanentMarker
 money.TextSize = 26
 money.Text = "$ ..."
 money.Parent = gui
@@ -2506,7 +2760,7 @@ pityLabel.Position = UDim2.new(0, 18, 1, -74)
 pityLabel.Size = UDim2.new(0, 195, 0, 36)
 pityLabel.BackgroundColor3 = Color3.fromRGB(115, 35, 145)
 pityLabel.TextColor3 = Color3.new(1, 1, 1)
-pityLabel.Font = Enum.Font.LuckiestGuy
+pityLabel.Font = Enum.Font.PermanentMarker
 pityLabel.TextSize = 14
 pityLabel.Text = "Pity: 90 rolls until Linus"
 pityLabel.Parent = gui
@@ -2540,7 +2794,7 @@ shopBtn.Position = UDim2.new(0, 18, 0.52, -4)
 shopBtn.Size = UDim2.new(0, 156, 0, 50)
 shopBtn.BackgroundColor3 = Color3.fromRGB(230, 145, 35)
 shopBtn.TextColor3 = Color3.new(1, 1, 1)
-shopBtn.Font = Enum.Font.LuckiestGuy
+shopBtn.Font = Enum.Font.PermanentMarker
 shopBtn.TextSize = 20
 shopBtn.Text = "SHOP"
 shopBtn.Parent = gui
@@ -2560,7 +2814,7 @@ mapBtn.Position = UDim2.new(1, -18, 0, 16)
 mapBtn.Size = UDim2.new(0, 136, 0, 42)
 mapBtn.BackgroundColor3 = Color3.fromRGB(62, 115, 72)
 mapBtn.TextColor3 = Color3.new(1, 1, 1)
-mapBtn.Font = Enum.Font.LuckiestGuy
+mapBtn.Font = Enum.Font.PermanentMarker
 mapBtn.TextSize = 18
 mapBtn.Text = "Map  (M)"
 mapBtn.Parent = gui
@@ -2579,7 +2833,7 @@ moneyBtn.Position = UDim2.new(1, -164, 0, 16)
 moneyBtn.Size = UDim2.new(0, 148, 0, 42)
 moneyBtn.BackgroundColor3 = Color3.fromRGB(30, 135, 65)
 moneyBtn.TextColor3 = Color3.new(1, 1, 1)
-moneyBtn.Font = Enum.Font.LuckiestGuy
+moneyBtn.Font = Enum.Font.PermanentMarker
 moneyBtn.TextSize = 15
 moneyBtn.Text = "+ Inf Money"
 -- owner-only (the server checks too): hidden for everyone but the game's owner / Studio testing
@@ -2610,7 +2864,7 @@ mountBtn.Position = UDim2.new(1, -172, 1, -18)
 mountBtn.Size = UDim2.new(0, 146, 0, 48)
 mountBtn.BackgroundColor3 = Color3.fromRGB(70, 160, 220)
 mountBtn.TextColor3 = Color3.new(1, 1, 1)
-mountBtn.Font = Enum.Font.LuckiestGuy
+mountBtn.Font = Enum.Font.PermanentMarker
 mountBtn.TextSize = 16
 mountBtn.Text = "Get Off  (G)"
 mountBtn.Parent = gui
@@ -2629,7 +2883,7 @@ tricksToggleBtn.Position = UDim2.new(1, -18, 1, -18)
 tricksToggleBtn.Size = UDim2.new(0, 144, 0, 48)
 tricksToggleBtn.BackgroundColor3 = Color3.fromRGB(250, 195, 30)
 tricksToggleBtn.TextColor3 = Color3.fromRGB(40, 30, 10)
-tricksToggleBtn.Font = Enum.Font.LuckiestGuy
+tricksToggleBtn.Font = Enum.Font.PermanentMarker
 tricksToggleBtn.TextSize = 19
 tricksToggleBtn.Text = "TRICKS"
 tricksToggleBtn.Parent = gui
@@ -2658,7 +2912,7 @@ local shopTitle = Instance.new("TextLabel")
 shopTitle.Position = UDim2.new(0, 0, 0, 10)
 shopTitle.Size = UDim2.new(1, 0, 0, 36)
 shopTitle.BackgroundTransparency = 1
-shopTitle.Font = Enum.Font.LuckiestGuy
+shopTitle.Font = Enum.Font.PermanentMarker
 shopTitle.TextSize = 28
 shopTitle.TextColor3 = Color3.new(1, 1, 1)
 shopTitle.Text = "SHOP"
@@ -2670,7 +2924,7 @@ shopClose.Position = UDim2.new(1, -10, 0, 10)
 shopClose.Size = UDim2.new(0, 34, 0, 34)
 shopClose.BackgroundColor3 = Color3.fromRGB(160, 60, 55)
 shopClose.TextColor3 = Color3.new(1, 1, 1)
-shopClose.Font = Enum.Font.LuckiestGuy
+shopClose.Font = Enum.Font.PermanentMarker
 shopClose.TextSize = 20
 shopClose.Text = "X"
 shopClose.Parent = shopPage
@@ -2692,7 +2946,7 @@ local passIcon = Instance.new("TextLabel")
 passIcon.Position = UDim2.new(0, 14, 0, 14)
 passIcon.Size = UDim2.new(0, 90, 0, 90)
 passIcon.BackgroundColor3 = Color3.fromRGB(250, 205, 30)
-passIcon.Font = Enum.Font.LuckiestGuy
+passIcon.Font = Enum.Font.PermanentMarker
 passIcon.TextSize = 40
 passIcon.TextColor3 = Color3.fromRGB(40, 30, 10)
 passIcon.Text = "2X"
@@ -2705,7 +2959,7 @@ local passName = Instance.new("TextLabel")
 passName.Position = UDim2.new(0, 118, 0, 16)
 passName.Size = UDim2.new(1, -130, 0, 56)
 passName.BackgroundTransparency = 1
-passName.Font = Enum.Font.LuckiestGuy
+passName.Font = Enum.Font.PermanentMarker
 passName.TextSize = 22
 passName.TextColor3 = Color3.new(1, 1, 1)
 passName.TextWrapped = true
@@ -2717,7 +2971,7 @@ local passDesc = Instance.new("TextLabel")
 passDesc.Position = UDim2.new(0, 118, 0, 72)
 passDesc.Size = UDim2.new(1, -130, 0, 34)
 passDesc.BackgroundTransparency = 1
-passDesc.Font = Enum.Font.LuckiestGuy
+passDesc.Font = Enum.Font.PermanentMarker
 passDesc.TextSize = 14
 passDesc.TextColor3 = Color3.fromRGB(190, 200, 215)
 passDesc.TextWrapped = true
@@ -2731,7 +2985,7 @@ buyBtn.Position = UDim2.new(0.5, 0, 1, -14)
 buyBtn.Size = UDim2.new(0, 220, 0, 52)
 buyBtn.BackgroundColor3 = Color3.fromRGB(60, 180, 90)
 buyBtn.TextColor3 = Color3.new(1, 1, 1)
-buyBtn.Font = Enum.Font.LuckiestGuy
+buyBtn.Font = Enum.Font.PermanentMarker
 buyBtn.TextSize = 24
 buyBtn.Text = "Buy  ·  R$ 299"
 buyBtn.Parent = passCard
@@ -2744,7 +2998,7 @@ shopStatus.AnchorPoint = Vector2.new(0.5, 1)
 shopStatus.Position = UDim2.new(0.5, 0, 1, -12)
 shopStatus.Size = UDim2.new(1, -20, 0, 40)
 shopStatus.BackgroundTransparency = 1
-shopStatus.Font = Enum.Font.LuckiestGuy
+shopStatus.Font = Enum.Font.PermanentMarker
 shopStatus.TextSize = 14
 shopStatus.TextWrapped = true
 shopStatus.TextColor3 = Color3.fromRGB(255, 200, 120)
@@ -2779,7 +3033,7 @@ verTag.Size = UDim2.new(0, 190, 0, 16)
 verTag.BackgroundTransparency = 1
 verTag.TextColor3 = Color3.fromRGB(200, 205, 210)
 verTag.TextTransparency = 0.25
-verTag.Font = Enum.Font.LuckiestGuy
+verTag.Font = Enum.Font.PermanentMarker
 verTag.TextSize = 12
 verTag.TextXAlignment = Enum.TextXAlignment.Left
 verTag.Text = "Discovery Bay " .. VERSION
@@ -2827,7 +3081,7 @@ local trickTitle = Instance.new("TextLabel")
 trickTitle.Position = UDim2.new(0, 0, 0, 10)
 trickTitle.Size = UDim2.new(1, 0, 0, 32)
 trickTitle.BackgroundTransparency = 1
-trickTitle.Font = Enum.Font.LuckiestGuy
+trickTitle.Font = Enum.Font.PermanentMarker
 trickTitle.TextSize = 26
 trickTitle.TextColor3 = Color3.fromRGB(250, 205, 40)
 trickTitle.Text = "SCOOTER TRICKS"
@@ -2837,7 +3091,7 @@ local trickSub = Instance.new("TextLabel")
 trickSub.Position = UDim2.new(0, 0, 0, 40)
 trickSub.Size = UDim2.new(1, 0, 0, 18)
 trickSub.BackgroundTransparency = 1
-trickSub.Font = Enum.Font.GothamBold
+trickSub.Font = Enum.Font.PermanentMarker
 trickSub.TextSize = 13
 trickSub.TextColor3 = Color3.fromRGB(185, 195, 210)
 trickSub.Text = "Click any card or press its hotkey anytime while riding!"
@@ -2849,7 +3103,7 @@ trickClose.Position = UDim2.new(1, -10, 0, 10)
 trickClose.Size = UDim2.new(0, 34, 0, 34)
 trickClose.BackgroundColor3 = Color3.fromRGB(160, 60, 55)
 trickClose.TextColor3 = Color3.new(1, 1, 1)
-trickClose.Font = Enum.Font.LuckiestGuy
+trickClose.Font = Enum.Font.PermanentMarker
 trickClose.TextSize = 20
 trickClose.Text = "X"
 trickClose.Parent = trickPage
@@ -2897,7 +3151,7 @@ for idx, t in ipairs(TRICKS) do
 	keyBadge.Size = UDim2.new(0, 40, 0, 40)
 	keyBadge.BackgroundColor3 = t.color
 	keyBadge.TextColor3 = Color3.new(1, 1, 1)
-	keyBadge.Font = Enum.Font.LuckiestGuy
+	keyBadge.Font = Enum.Font.PermanentMarker
 	keyBadge.TextSize = 20
 	keyBadge.Text = t.label
 	keyBadge.Parent = btn
@@ -2909,7 +3163,7 @@ for idx, t in ipairs(TRICKS) do
 	nameLbl.Position = UDim2.new(0, 58, 0, 8)
 	nameLbl.Size = UDim2.new(1, -66, 0, 24)
 	nameLbl.BackgroundTransparency = 1
-	nameLbl.Font = Enum.Font.LuckiestGuy
+	nameLbl.Font = Enum.Font.PermanentMarker
 	nameLbl.TextSize = 17
 	nameLbl.TextColor3 = Color3.new(1, 1, 1)
 	nameLbl.TextXAlignment = Enum.TextXAlignment.Left
@@ -2920,7 +3174,7 @@ for idx, t in ipairs(TRICKS) do
 	payLbl.Position = UDim2.new(0, 58, 0, 32)
 	payLbl.Size = UDim2.new(1, -66, 0, 18)
 	payLbl.BackgroundTransparency = 1
-	payLbl.Font = Enum.Font.GothamBold
+	payLbl.Font = Enum.Font.PermanentMarker
 	payLbl.TextSize = 13
 	payLbl.TextColor3 = Color3.fromRGB(120, 235, 135)
 	payLbl.TextXAlignment = Enum.TextXAlignment.Left
@@ -2937,7 +3191,7 @@ trickBtn.Position = UDim2.new(0.5, 0, 1, -14)
 trickBtn.Size = UDim2.new(1, -28, 0, 52)
 trickBtn.BackgroundColor3 = Color3.fromRGB(250, 205, 30)
 trickBtn.TextColor3 = Color3.fromRGB(40, 30, 10)
-trickBtn.Font = Enum.Font.LuckiestGuy
+trickBtn.Font = Enum.Font.PermanentMarker
 trickBtn.TextSize = 22
 trickBtn.Text = "RANDOM TRICK!  (Press T)"
 trickBtn.Parent = trickPage
@@ -2968,6 +3222,8 @@ end)
 -- Chunky 3D HUD buttons: drop-shadow base, gradient face, top gloss, sweeping shine, emoji icon,
 -- key badge and hover/press animation. The button itself turns invisible and its Text and
 -- BackgroundColor3 are mirrored onto the decorated layers, so existing code that updates them keeps working.
+local HUD_SCALE = 1 -- < 1 on small touch screens (see MOBILE LAYOUT at the end of this script)
+
 local function darken(c, f)
 	return Color3.new(c.R * f, c.G * f, c.B * f)
 end
@@ -3085,7 +3341,7 @@ local function styleHudButton(btn, icon)
 	badge.Position = UDim2.new(1, 6, 0, -7)
 	badge.Size = UDim2.new(0, 22, 0, 22)
 	badge.BackgroundColor3 = Color3.fromRGB(245, 245, 245)
-	badge.Font = Enum.Font.GothamBlack
+	badge.Font = Enum.Font.PermanentMarker
 	badge.TextSize = 13
 	badge.TextColor3 = Color3.fromRGB(35, 35, 45)
 	badge.ZIndex = 6
@@ -3126,14 +3382,14 @@ local function styleHudButton(btn, icon)
 	end
 	btn.MouseEnter:Connect(function()
 		hovering = true
-		TweenService:Create(scale, quick, { Scale = 1.06 }):Play()
+		TweenService:Create(scale, quick, { Scale = HUD_SCALE * 1.06 }):Play()
 		TweenService:Create(gloss, quick, { BackgroundTransparency = 0.55 }):Play()
 		TweenService:Create(iconLbl, quick, { Rotation = -10 }):Play()
 	end)
 	btn.MouseLeave:Connect(function()
 		hovering = false
 		setPressed(false)
-		TweenService:Create(scale, quick, { Scale = 1 }):Play()
+		TweenService:Create(scale, quick, { Scale = HUD_SCALE }):Play()
 		TweenService:Create(gloss, quick, { BackgroundTransparency = 0.72 }):Play()
 		TweenService:Create(iconLbl, quick, { Rotation = 0 }):Play()
 	end)
@@ -3141,8 +3397,8 @@ local function styleHudButton(btn, icon)
 	btn.MouseButton1Up:Connect(function() setPressed(false) end)
 	btn.Activated:Connect(function()
 		setPressed(false)
-		scale.Scale = 0.94
-		TweenService:Create(scale, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = hovering and 1.06 or 1 }):Play()
+		scale.Scale = HUD_SCALE * 0.94
+		TweenService:Create(scale, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = HUD_SCALE * (hovering and 1.06 or 1) }):Play()
 	end)
 
 	task.spawn(function()
@@ -3263,7 +3519,7 @@ ldmBtn.Name = "LowDetailToggle"
 ldmBtn.AnchorPoint = Vector2.new(1, 0)
 ldmBtn.Position = UDim2.new(1, -18, 0, 66)
 ldmBtn.Size = UDim2.new(0, 136, 0, 38)
-ldmBtn.Font = Enum.Font.LuckiestGuy
+ldmBtn.Font = Enum.Font.PermanentMarker
 ldmBtn.TextSize = 15
 ldmBtn.TextColor3 = Color3.new(1, 1, 1)
 ldmBtn.Parent = gui
@@ -3343,7 +3599,7 @@ mapLegend.AnchorPoint = Vector2.new(0.5, 0)
 mapLegend.Position = UDim2.new(0.5, 0, 0, 6)
 mapLegend.Size = UDim2.new(1, -20, 0, 22)
 mapLegend.BackgroundTransparency = 1
-mapLegend.Font = Enum.Font.LuckiestGuy
+mapLegend.Font = Enum.Font.PermanentMarker
 mapLegend.TextSize = 15
 mapLegend.TextColor3 = Color3.new(1, 1, 1)
 mapLegend.TextStrokeTransparency = 0.5
@@ -3357,7 +3613,7 @@ clearBtn.Position = UDim2.new(1, -8, 0, 32)
 clearBtn.Size = UDim2.new(0, 110, 0, 30)
 clearBtn.BackgroundColor3 = Color3.fromRGB(160, 60, 55)
 clearBtn.TextColor3 = Color3.new(1, 1, 1)
-clearBtn.Font = Enum.Font.LuckiestGuy
+clearBtn.Font = Enum.Font.PermanentMarker
 clearBtn.TextSize = 15
 clearBtn.Text = "Clear mark"
 clearBtn.ZIndex = 10
@@ -3393,7 +3649,7 @@ wayLabel.Size = UDim2.new(0, 340, 0, 32)
 wayLabel.BackgroundColor3 = Color3.fromRGB(20, 26, 34)
 wayLabel.BackgroundTransparency = 0.25
 wayLabel.TextColor3 = Color3.fromRGB(255, 150, 150)
-wayLabel.Font = Enum.Font.LuckiestGuy
+wayLabel.Font = Enum.Font.PermanentMarker
 wayLabel.TextSize = 18
 wayLabel.Visible = false
 wayLabel.Parent = gui
@@ -3464,7 +3720,7 @@ local function buildMap()
 		dm.Size = UDim2.new(0, 20, 0, 20)
 		dm.BackgroundColor3 = color
 		dm.TextColor3 = Color3.new(1, 1, 1)
-		dm.Font = Enum.Font.LuckiestGuy
+		dm.Font = Enum.Font.PermanentMarker
 		dm.TextSize = 14
 		dm.Text = letter
 		dm.ZIndex = 6
@@ -3491,7 +3747,7 @@ local function buildMap()
 			lbl.Position = UDim2.new(u, 0, v, 10)
 			lbl.Size = UDim2.new(0, 160, 0, 14)
 			lbl.BackgroundTransparency = 1
-			lbl.Font = Enum.Font.LuckiestGuy
+			lbl.Font = Enum.Font.PermanentMarker
 			lbl.TextSize = 11
 			lbl.TextColor3 = Color3.new(1, 1, 1)
 			lbl.TextStrokeTransparency = 0.3
@@ -3526,7 +3782,7 @@ local function buildMap()
 				lbl.Position = UDim2.new(u, 0, v, flip and -24 or 8)
 				lbl.Size = UDim2.new(0, 120, 0, 14)
 				lbl.BackgroundTransparency = 1
-				lbl.Font = Enum.Font.LuckiestGuy
+				lbl.Font = Enum.Font.PermanentMarker
 				lbl.TextSize = 11
 				lbl.TextColor3 = Color3.new(1, 1, 1)
 				lbl.TextStrokeTransparency = 0.3
@@ -3756,7 +4012,7 @@ HatchEgg.OnClientEvent:Connect(function(dogName)
 		tag.Position = UDim2.new(0.5, 0, 0.72, 0)
 		tag.Size = UDim2.new(1, 0, 0, 56)
 		tag.BackgroundTransparency = 1
-		tag.Font = Enum.Font.LuckiestGuy
+		tag.Font = Enum.Font.PermanentMarker
 		tag.TextSize = (dogName == "Linus") and 52 or 42
 		tag.TextColor3 = look.tagColor
 		tag.TextStrokeTransparency = 0.3
@@ -3790,7 +4046,7 @@ TrickResult.OnClientEvent:Connect(function(trickName, pay)
 		banner.Size = UDim2.new(0, 860, 0, 56)
 		banner.BackgroundColor3 = Color3.fromRGB(20, 26, 34)
 		banner.BackgroundTransparency = 0.25
-		banner.Font = Enum.Font.LuckiestGuy
+		banner.Font = Enum.Font.PermanentMarker
 		banner.TextSize = 26
 		banner.TextWrapped = true
 		banner.TextColor3 = Color3.fromRGB(255, 225, 120)
@@ -3815,14 +4071,14 @@ TrickResult.OnClientEvent:Connect(function(trickName, pay)
 	pop.Position = UDim2.new(0, 20, 1, -140)
 	pop.Size = UDim2.new(0, 320, 0, 34)
 	pop.BackgroundTransparency = 1
-	pop.Font = Enum.Font.LuckiestGuy
+	pop.Font = Enum.Font.PermanentMarker
 	pop.TextSize = 24
 	pop.TextXAlignment = Enum.TextXAlignment.Left
 	pop.TextStrokeTransparency = 0.4
 	if pay and pay > 0 then
 		pop.Text = "+$" .. pay .. "  " .. trickName .. "!"
 		pop.TextColor3 = Color3.fromRGB(120, 230, 130)
-		pcall(playSound, "rbxassetid://9061556942", 0.4) -- landing chime
+		pcall(playSound, "rbxasset://sounds/electronicpingshort.wav", 0.4) -- landing chime
 
 		-- camera shake on landing a trick
 		task.spawn(function()
@@ -3849,7 +4105,7 @@ TrickResult.OnClientEvent:Connect(function(trickName, pay)
 		pop.TextColor3 = Color3.fromRGB(120, 200, 255)
 		local lowerMsg = string.lower(trickName)
 		if string.find(lowerMsg, "speed") or string.find(lowerMsg, "rush") or string.find(lowerMsg, "boost") then
-			pcall(playSound, "rbxassetid://9061556942", 0.5) -- speed boost swoosh
+			pcall(playSound, "rbxasset://sounds/action_jump.mp3", 0.5) -- speed boost swoosh
 		elseif string.find(lowerMsg, "cash") or string.find(lowerMsg, "purchase") or string.find(lowerMsg, "bought") or string.find(lowerMsg, "spent") or string.find(lowerMsg, "rent") then
 			pcall(playSound, "rbxassetid://9059737151", 0.45) -- shop purchase cash register
 		end
@@ -3908,6 +4164,51 @@ do
 	local smoothSteer = 0
 	local smoothSpeed = 0
 	local smoothCrouch = 0
+	local smoothPush = 0 -- 0 = both feet on the deck, 1 = kicking along the road
+	local smoothDrop = 0 -- how far the hips sink so the kicking foot reaches the road
+	local KNEE_HINT = Vector3.new(0, -0.2, -1)
+
+	-- KICK RHYTHM: one push a second. The foot works for KICK_TIME (down, shove, back up), then you glide.
+	local KICK_TIME = 0.55
+	local SHOVE_START, SHOVE_END = 0.2 * KICK_TIME, 0.7 * KICK_TIME
+	local SURGE = 0.3 -- speed swing: about +17% just after the shove, about -12% at the end of the glide
+	local SURGE_DECAY = 3.5
+	-- 0..1 "how much burst" through one second: builds during the shove, then bleeds off
+	local function surgeShape(t)
+		local residual = math.exp(-(1 - SHOVE_END) * SURGE_DECAY) -- what's left from the last kick
+		if t < SHOVE_START then
+			return residual * math.exp(-t * SURGE_DECAY)
+		elseif t < SHOVE_END then
+			local s = (t - SHOVE_START) / (SHOVE_END - SHOVE_START)
+			local from = residual * math.exp(-SHOVE_START * SURGE_DECAY)
+			return from + (1 - from) * s * s * (3 - 2 * s)
+		end
+		return math.exp(-(t - SHOVE_END) * SURGE_DECAY)
+	end
+	local surgeMean = 0 -- subtracted so the pulse averages out to your normal speed
+	for i = 0, 199 do surgeMean += surgeShape(i / 200) / 200 end
+
+	-- The server sets WalkSpeed (scooter upgrades, boosts, drinks). We remember its value and ride
+	-- at that times the pulse; any change WE didn't make is taken as the new server value.
+	local speedHum, speedConn, rideBase, lastWritten = nil, nil, 16, nil
+	local pulsing = false
+	local function setSpeedPulse(hum, factor)
+		if speedHum ~= hum then
+			if speedConn then speedConn:Disconnect() end
+			speedHum, rideBase, lastWritten, pulsing = hum, hum.WalkSpeed, nil, false
+			speedConn = hum:GetPropertyChangedSignal("WalkSpeed"):Connect(function()
+				if not lastWritten or math.abs(hum.WalkSpeed - lastWritten) > 0.01 then
+					rideBase = hum.WalkSpeed
+				end
+			end)
+		end
+		if factor == 1 and not pulsing then return end
+		lastWritten = rideBase * factor -- set first so the changed signal knows it's ours
+		hum.WalkSpeed = lastWritten
+		pulsing = factor ~= 1
+	end
+	local legRayParams = RaycastParams.new()
+	legRayParams.FilterType = Enum.RaycastFilterType.Exclude
 	local wasMounted = false
 	local wasAirborne = false
 	local cachedBase = setmetatable({}, { __mode = "k" })
@@ -4011,6 +4312,9 @@ do
 			rKnee = rKnee,
 			lWrist = char:FindFirstChild("LeftHand") and char.LeftHand:FindFirstChild("LeftWrist"),
 			rWrist = char:FindFirstChild("RightHand") and char.RightHand:FindFirstChild("RightWrist"),
+			lAnkle = char:FindFirstChild("LeftFoot") and char.LeftFoot:FindFirstChild("LeftAnkle"),
+			rAnkle = char:FindFirstChild("RightFoot") and char.RightFoot:FindFirstChild("RightAnkle"),
+			rFoot = char:FindFirstChild("RightFoot"),
 		}
 	end
 
@@ -4053,13 +4357,16 @@ do
 	end
 	-- the real bone vectors come from the rig's own joint frames (the resting arm is NOT a straight
 	-- drop below the shoulder pivot on every avatar), then each bone is rotated onto its solved direction
-	local function aimArm(shoulder, elbow, wrist, target)
+	-- (arms and legs alike: shoulder/elbow/wrist or hip/knee/ankle. hint = which way the middle
+	-- joint bends; parentCF = where the limb's parent part is THIS frame, when we know better
+	-- than its last drawn CFrame)
+	local function aimLimb(shoulder, elbow, wrist, target, hint, parentCF)
 		if not (shoulder and elbow and wrist and target) then return end
 		local sh0, sh1, torso = jointFrames(shoulder)
 		local el0, el1 = jointFrames(elbow)
 		local wr0, wr1 = jointFrames(wrist)
 		if not (sh0 and el0 and wr0 and torso) then return end
-		local sp = torso.CFrame * sh0                               -- shoulder pivot, world
+		local sp = (parentCF or torso.CFrame) * sh0                 -- shoulder pivot, world
 		local u0 = sh1:PointToObjectSpace(el0.Position)             -- shoulder -> elbow at rest
 		local f0 = el1:PointToObjectSpace((wr0 * wr1:Inverse()).Position) -- elbow -> hand centre at rest
 		local L1, L2 = u0.Magnitude, f0.Magnitude
@@ -4068,7 +4375,7 @@ do
 		local n = t.Unit
 		-- elbows bend down, back and a little outward
 		local side = sh0.Position.X >= 0 and 1 or -1
-		local hint = Vector3.new(side * 0.35, -1, 0.8)
+		hint = hint or Vector3.new(side * 0.35, -1, 0.8)
 		local m = hint - n * hint:Dot(n)
 		if m.Magnitude < 1e-4 then return end
 		m = m.Unit
@@ -4079,6 +4386,17 @@ do
 		local elbowFrame = Ts * sh1:Inverse() * el0
 		local Te = rotBetween(f0, elbowFrame:VectorToObjectSpace(n * D - e))
 		pose(elbow, Te)
+	end
+	local function aimArm(shoulder, elbow, wrist, target)
+		aimLimb(shoulder, elbow, wrist, target)
+	end
+	-- where a hip/knee/ankle chain puts the foot centre when unposed, given the pelvis CFrame
+	local function restFootPos(hip, knee, ankle, pelvisCF)
+		local h0, h1 = jointFrames(hip)
+		local k0, k1 = jointFrames(knee)
+		local a0, a1 = jointFrames(ankle)
+		if not (h0 and k0 and a0) then return nil end
+		return (pelvisCF * h0 * h1:Inverse() * k0 * k1:Inverse() * a0 * a1:Inverse()).Position
 	end
 	local function gripTarget(hum, name)
 		local ik = hum and hum:FindFirstChild(name)
@@ -4128,6 +4446,7 @@ do
 		if not char then return end
 		local isMounted = plr:GetAttribute("Mounted") and (char:FindFirstChild("Scooter") ~= nil)
 		if not isMounted then
+			if pulsing and speedHum and speedHum.Parent then setSpeedPulse(speedHum, 1) end
 			if activeTrick then
 				local j = getJoints(char)
 				resetAllToBase(j)
@@ -4155,6 +4474,7 @@ do
 			-- and Frontflip, keep hands holding the handlebars as the scooter flips/spins with you!
 			local releaseHands = (name == "No-Hander" or name == "Kickflip")
 			setIKEnabled(j.hum, false)
+			setSpeedPulse(j.hum, 1) -- no kicking mid-trick
 
 			-- Clear default R15/R6 Animate Transform on legs/torso (and arms only when IK is released)
 			local clearKeys = releaseHands and {
@@ -4336,13 +4656,67 @@ do
 			-- Both rider and scooter lean together so feet NEVER sink through the deck
 			local leanCF = CFrame.new(0, bob, 0) * CFrame.Angles(0, 0, leanRoll)
 
-			local pushCycle = (tNow * 1.8) % 1
-			local pushWave = (not inAir and smoothSpeed > 0.12 and pushCycle < 0.42)
-				and math.sin((pushCycle / 0.42) * math.pi) * smoothSpeed or 0
+			-- kick-push: once a second the right foot snaps down onto the ROAD beside the deck, shoves
+			-- back hard and pops back up onto the deck, then you glide. The hips stay sunk and the knees
+			-- bent the whole time (two-bone IK on both legs). R6 rigs (no knees) keep the simple leg swing.
+			local wantPush = not inAir and flatSpeed > 3 and j.hum.MoveDirection.Magnitude > 0.1
+			smoothPush = smoothPush + ((wantPush and 1 or 0) - smoothPush) * math.min(1, dt * 6)
+			local KICK_Z0, KICK_Z1 = -0.25, 0.85 -- foot plants forward of the hip, shoves to behind it
+			local pushCycle = tNow % 1
+			local kickT = pushCycle < KICK_TIME and pushCycle / KICK_TIME or nil
+			local pushWave = (kickT and math.sin(kickT * math.pi) or 0) * smoothPush
+			-- each shove gives a little burst of speed that bleeds off while you glide
+			setSpeedPulse(j.hum, 1 + SURGE * smoothPush * (surgeShape(pushCycle) - surgeMean))
+
+			-- body a third of a stud forward on the deck so the hands reach the grips
+			local rootRest = CFrame.new(0, 0, -0.35) * leanCF
+			local legIK = j.root and j.lKnee and j.rKnee and j.lAnkle and j.rAnkle and not j.isR6Root
+			local r0, r1, lFootRest, kickTarget
+			local drop = 0
+			if legIK and smoothPush > 0.01 then
+				r0, r1 = jointFrames(j.root)
+				local pelvisRest = r0 and j.hrp.CFrame * r0 * rootRest * r1:Inverse()
+				lFootRest = pelvisRest and restFootPos(j.lHip, j.lKnee, j.lAnkle, pelvisRest)
+				local rFootRest = pelvisRest and restFootPos(j.rHip, j.rKnee, j.rAnkle, pelvisRest)
+				if lFootRest and rFootRest then
+					-- foot path in the rider's space. onRoad = how far the foot is from the deck towards the road
+					local z, lift, onRoad = KICK_Z0, 0, 0
+					if kickT then
+						if kickT < 0.2 then -- snap down, planted ahead of the hip
+							local s = kickT / 0.2
+							onRoad = 1 - (1 - s) * (1 - s)
+						elseif kickT < 0.7 then -- the shove: fastest at the start, like a real push
+							local s = (kickT - 0.2) / 0.5
+							z, onRoad = KICK_Z0 + (KICK_Z1 - KICK_Z0) * (1 - (1 - s) * (1 - s)), 1
+						else -- pop back up onto the deck
+							local s = (kickT - 0.7) / 0.3
+							z, lift, onRoad = KICK_Z1, math.sin(s * math.pi) * 0.5, 1 - s * s * (3 - 2 * s)
+						end
+					end
+					local footHalf = j.rFoot and j.rFoot.Size.Y / 2 or 0.15
+					local beside = j.hrp.CFrame * Vector3.new(1.05, 0, z) -- just off the deck's right edge
+					legRayParams.FilterDescendantsInstances = { char }
+					local hit = workspace:Raycast(beside, Vector3.new(0, -8, 0), legRayParams)
+					local groundY = hit and hit.Position.Y or (rFootRest.Y - footHalf - 0.55)
+					kickTarget = rFootRest:Lerp(Vector3.new(beside.X, groundY + footHalf + lift, beside.Z), onRoad * smoothPush)
+					-- stand tall while gliding; the standing knee only dips while the foot is down on the
+					-- road, just enough for the leg to reach it
+					local hipPos = (pelvisRest * jointFrames(j.rHip)).Position
+					local reach = (hipPos - rFootRest).Magnitude * 0.97
+					local off = kickTarget - hipPos
+					local need = math.sqrt(math.max(reach * reach - off.X * off.X - off.Z * off.Z, 0))
+					drop = math.clamp(-off.Y - need, 0, 1.1)
+				else
+					legIK = false
+				end
+			else
+				legIK = false
+			end
+			smoothDrop = smoothDrop + (drop - smoothDrop) * math.min(1, dt * 16)
+			local rootPose = CFrame.new(0, -smoothDrop, 0) * rootRest
 
 			if j.root then
-				-- body a third of a stud forward on the deck so the hands reach the grips
-				pose(j.root, CFrame.new(0, 0, -0.35) * leanCF)
+				pose(j.root, rootPose)
 			end
 			if j.deckMount then
 				setC0(j.deckMount, getBaseC0(j.deckMount) * leanCF)
@@ -4351,32 +4725,39 @@ do
 				setC0(j.barMount, getBaseC0(j.barMount) * leanCF * CFrame.Angles(0, barYaw, 0))
 			end
 			if j.waist then
-				local waistPitch = math.rad(-16 - 6 * smoothSpeed - 12 * smoothCrouch - 5 * pushWave) -- riders lean in over the bar
+				local waistPitch = math.rad(-16 - 6 * smoothSpeed - 12 * smoothCrouch) -- riders lean in over the bar
 				pose(j.waist, CFrame.Angles(waistPitch, math.rad(10 * smoothSteer), 0))
 			end
 			if j.neck then
 				local neckPitch = math.rad(12 + 6 * smoothSpeed + 10 * smoothCrouch) -- head up to look ahead past the lean
 				pose(j.neck, CFrame.Angles(neckPitch, math.rad(14 * smoothSteer), 0))
 			end
-			if j.lHip then
-				if not j.isR6Hip then
-					pose(j.lHip, CFrame.Angles(math.rad(16 * smoothCrouch), 0, 0))
-				else
-					pose(j.lHip, CFrame.Angles(0, 0, math.rad(16 * smoothCrouch)))
+			if legIK then
+				-- knees bend forward; solve against where the pelvis is THIS frame (hips sunk)
+				local pelvisNow = j.hrp.CFrame * r0 * rootPose * r1:Inverse()
+				aimLimb(j.lHip, j.lKnee, j.lAnkle, lFootRest, KNEE_HINT, pelvisNow)
+				aimLimb(j.rHip, j.rKnee, j.rAnkle, kickTarget, KNEE_HINT, pelvisNow)
+			else
+				if j.lHip then
+					if not j.isR6Hip then
+						pose(j.lHip, CFrame.Angles(math.rad(16 * smoothCrouch), 0, 0))
+					else
+						pose(j.lHip, CFrame.Angles(0, 0, math.rad(16 * smoothCrouch)))
+					end
 				end
-			end
-			if j.rHip then
-				if not j.isR6Hip then
-					pose(j.rHip, CFrame.Angles(math.rad(16 * smoothCrouch - 28 * pushWave), 0, math.rad(-8 * pushWave)))
-				else
-					pose(j.rHip, CFrame.Angles(0, 0, math.rad(-16 * smoothCrouch + 24 * pushWave)))
+				if j.rHip then
+					if not j.isR6Hip then
+						pose(j.rHip, CFrame.Angles(math.rad(16 * smoothCrouch - 28 * pushWave), 0, math.rad(-8 * pushWave)))
+					else
+						pose(j.rHip, CFrame.Angles(0, 0, math.rad(-16 * smoothCrouch + 24 * pushWave)))
+					end
 				end
-			end
-			if j.lKnee then
-				pose(j.lKnee, CFrame.Angles(math.rad(-18 * smoothCrouch), 0, 0))
-			end
-			if j.rKnee then
-				pose(j.rKnee, CFrame.Angles(math.rad(-18 * smoothCrouch - 22 * pushWave), 0, 0))
+				if j.lKnee then
+					pose(j.lKnee, CFrame.Angles(math.rad(-18 * smoothCrouch), 0, 0))
+				end
+				if j.rKnee then
+					pose(j.rKnee, CFrame.Angles(math.rad(-18 * smoothCrouch - 22 * pushWave), 0, 0))
+				end
 			end
 			aimArmsAtGrips(j)
 		end
@@ -4406,7 +4787,7 @@ FishGame.OnClientEvent:Connect(function()
 	title.Position = UDim2.new(0, 0, 0, 8)
 	title.Size = UDim2.new(1, 0, 0, 34)
 	title.BackgroundTransparency = 1
-	title.Font = Enum.Font.LuckiestGuy
+	title.Font = Enum.Font.PermanentMarker
 	title.TextSize = 30
 	title.TextColor3 = Color3.fromRGB(255, 225, 120)
 	title.Text = "FISH ON!"
@@ -4443,7 +4824,7 @@ FishGame.OnClientEvent:Connect(function()
 	reelBtn.Size = UDim2.new(0, 170, 0, 44)
 	reelBtn.BackgroundColor3 = Color3.fromRGB(250, 205, 30)
 	reelBtn.TextColor3 = Color3.fromRGB(40, 30, 10)
-	reelBtn.Font = Enum.Font.LuckiestGuy
+	reelBtn.Font = Enum.Font.PermanentMarker
 	reelBtn.TextSize = 24
 	reelBtn.Text = "REEL!  (Space)"
 	reelBtn.Parent = frame
@@ -4538,7 +4919,7 @@ local deathText = Instance.new("TextLabel")
 deathText.Size = UDim2.new(1, 0, 0, 150)
 deathText.Position = UDim2.new(0, 0, 0.5, -120)
 deathText.BackgroundTransparency = 1
-deathText.Font = Enum.Font.LuckiestGuy
+deathText.Font = Enum.Font.PermanentMarker
 deathText.Text = "DEAD"
 deathText.TextColor3 = Color3.fromRGB(220, 20, 20)
 deathText.TextStrokeColor3 = Color3.new(0, 0, 0)
@@ -4552,7 +4933,7 @@ local roastText = Instance.new("TextLabel")
 roastText.Size = UDim2.new(1, 0, 0, 45)
 roastText.Position = UDim2.new(0, 0, 0.5, 40)
 roastText.BackgroundTransparency = 1
-roastText.Font = Enum.Font.GothamBold
+roastText.Font = Enum.Font.PermanentMarker
 roastText.Text = ""
 roastText.TextColor3 = Color3.fromRGB(255, 255, 255)
 roastText.TextStrokeColor3 = Color3.new(0, 0, 0)
@@ -4624,3 +5005,458 @@ end
 
 if plr.Character then onSpawn(plr.Character) end
 plr.CharacterAdded:Connect(onSpawn)
+
+--==============================================================================================
+-- MOBILE LAYOUT (touch devices without a keyboard): scale the HUD to the screen, move the
+-- bottom-corner HUD out of Roblox's joystick (bottom-left) and jump button (bottom-right), and add
+-- a big TRICK! button beside the jump button while riding. Desktop is left exactly as it was.
+--==============================================================================================
+if UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled then
+	local trickTap = Instance.new("TextButton")
+	trickTap.Name = "TouchTrick"
+	trickTap.AnchorPoint = Vector2.new(1, 1)
+	trickTap.Size = UDim2.fromOffset(84, 84)
+	trickTap.BackgroundColor3 = Color3.fromRGB(235, 70, 60)
+	trickTap.TextColor3 = Color3.new(1, 1, 1)
+	trickTap.Font = Enum.Font.PermanentMarker
+	trickTap.TextSize = 20
+	trickTap.Text = "TRICK!"
+	trickTap.AutoButtonColor = true
+	trickTap.Visible = false
+	trickTap.Parent = gui
+	local ttCorner = Instance.new("UICorner")
+	ttCorner.CornerRadius = UDim.new(1, 0)
+	ttCorner.Parent = trickTap
+	local ttStroke = Instance.new("UIStroke")
+	ttStroke.Color = Color3.fromRGB(255, 220, 120)
+	ttStroke.Thickness = 3
+	ttStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	ttStroke.Parent = trickTap
+	trickTap.Activated:Connect(function()
+		requestTrick(nil) -- random, same as T
+	end)
+	local function refreshTrickTap()
+		trickTap.Visible = plr:GetAttribute("Mounted") == true
+	end
+	plr:GetAttributeChangedSignal("Mounted"):Connect(refreshTrickTap)
+	refreshTrickTap()
+
+	-- a UIScale on every HUD element (full-width bars excluded); styled buttons already have one
+	local function scaleOf(obj)
+		local s = obj:FindFirstChildOfClass("UIScale")
+		if not s then
+			s = Instance.new("UIScale")
+			s.Parent = obj
+		end
+		return s
+	end
+
+	local function layout()
+		local vp = workspace.CurrentCamera.ViewportSize
+		local short = math.min(vp.X, vp.Y)
+		HUD_SCALE = math.clamp(short / 620, 0.6, 1)
+		local s = HUD_SCALE
+		for _, obj in ipairs(gui:GetChildren()) do
+			if obj:IsA("GuiObject") and obj ~= trickTap and obj.Size.X.Scale < 0.5 and obj.Size.Y.Scale < 0.5 then
+				-- dialogue stays readable even on small phones
+				scaleOf(obj).Scale = (obj == dlgFrame) and math.max(s, 0.85) or s
+			end
+		end
+		-- top-left stack instead of the joystick corner: money, pity, version tag, job tracker
+		money.AnchorPoint = Vector2.new(0, 0)
+		money.Position = UDim2.new(0, 14, 0, 8)
+		pityLabel.AnchorPoint = Vector2.new(0, 0)
+		pityLabel.Position = UDim2.new(0, 14, 0, 8 + 54 * s)
+		verTag.AnchorPoint = Vector2.new(0, 0)
+		verTag.Position = UDim2.new(0, 16, 0, 8 + 94 * s)
+		questFrame.AnchorPoint = Vector2.new(0, 0)
+		questFrame.Position = UDim2.new(0, 14, 0, 8 + 116 * s)
+		-- Shop / Rebirth a little higher on the left
+		shopBtn.Position = UDim2.new(0, 14, 0.44, -4)
+		rebirthBtn.Position = UDim2.new(0, 14, 0.44, 6)
+		-- Get Off / TRICKS lifted above the jump button; TRICK! sits just left of it
+		mountBtn.Position = UDim2.new(1, -14 - 152 * s, 1, -118)
+		tricksToggleBtn.Position = UDim2.new(1, -14, 1, -118)
+		trickTap.Position = UDim2.new(1, -112, 1, -22)
+	end
+	layout()
+	workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(layout)
+end
+
+--==============================================================================================
+-- SKY SHOW (this screen only): at night aurora ribbons, a Milky Way band, big twinkling stars and
+-- a halo round the moon; at sunrise/sunset a huge warm glow round the sun. It all rides along
+-- with the camera (sideways only) so it always sits far off in the sky, and fades with the time.
+--==============================================================================================
+do
+	local skyFolder = Instance.new("Folder")
+	skyFolder.Name = "SkyShow"
+	skyFolder.Parent = workspace.CurrentCamera -- under the camera: drawn on this screen only
+
+	local function skyPart(name, shape, size, color, transparency)
+		local p = Instance.new("Part")
+		p.Name = name
+		p.Shape = shape
+		p.Size = size
+		p.Color = color
+		p.Material = Enum.Material.Neon
+		p.Transparency = transparency
+		p.Anchored = true
+		p.CanCollide = false
+		p.CanQuery = false
+		p.CanTouch = false
+		p.CastShadow = false
+		p.Parent = skyFolder
+		return p
+	end
+
+	local rig = skyPart("SkyRig", Enum.PartType.Block, Vector3.new(1, 1, 1), Color3.new(0, 0, 0), 1)
+
+	local function ribbon(a, b, width0, width1, colors)
+		local a0, a1 = Instance.new("Attachment"), Instance.new("Attachment")
+		-- attachments point "up", so CurveSize makes the ribbon ripple up and down
+		a0.CFrame = CFrame.new(a) * CFrame.Angles(0, 0, math.rad(90))
+		a1.CFrame = CFrame.new(b) * CFrame.Angles(0, 0, math.rad(90))
+		a0.Parent, a1.Parent = rig, rig
+		local beam = Instance.new("Beam")
+		beam.Attachment0, beam.Attachment1 = a0, a1
+		beam.Width0, beam.Width1 = width0, width1
+		beam.Color = colors
+		beam.LightEmission = 1
+		beam.LightInfluence = 0
+		beam.FaceCamera = true
+		beam.Segments = 60
+		beam.Texture = "rbxasset://textures/particles/smoke_main.dds"
+		beam.TextureMode = Enum.TextureMode.Wrap
+		beam.TextureLength = 180 -- a wisp every 180 studs: curtain-like folds along the ribbon
+		beam.TextureSpeed = 0.06 -- the wisps drift slowly along the ribbon
+		beam.Parent = rig
+		return beam
+	end
+	local AURORA = {
+		ColorSequence.new({ ColorSequenceKeypoint.new(0, Color3.fromRGB(80, 255, 170)), ColorSequenceKeypoint.new(0.5, Color3.fromRGB(70, 210, 255)), ColorSequenceKeypoint.new(1, Color3.fromRGB(170, 100, 255)) }),
+		ColorSequence.new({ ColorSequenceKeypoint.new(0, Color3.fromRGB(120, 90, 255)), ColorSequenceKeypoint.new(0.5, Color3.fromRGB(90, 255, 180)), ColorSequenceKeypoint.new(1, Color3.fromRGB(60, 220, 160)) }),
+		ColorSequence.new({ ColorSequenceKeypoint.new(0, Color3.fromRGB(60, 230, 200)), ColorSequenceKeypoint.new(0.6, Color3.fromRGB(200, 110, 255)), ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 120, 200)) }),
+	}
+	local auroras = {}
+	for i = 1, 3 do
+		auroras[i] = ribbon(Vector3.new(-760, 210 + i * 24, -430 - i * 85), Vector3.new(760, 230 + i * 18, -545 - i * 75),
+			230 - i * 30, 200 - i * 24, AURORA[i])
+	end
+	local milkyWay = ribbon(Vector3.new(-900, 430, 420), Vector3.new(900, 470, -520), 240, 200,
+		ColorSequence.new(Color3.fromRGB(225, 215, 255), Color3.fromRGB(180, 195, 255)))
+
+	local stars = {}
+	local srng = Random.new(2026)
+	for i = 1, 45 do
+		local yaw, pitch = srng:NextNumber(0, math.pi * 2), srng:NextNumber(math.rad(18), math.rad(80))
+		local dir = Vector3.new(math.cos(yaw) * math.cos(pitch), math.sin(pitch), math.sin(yaw) * math.cos(pitch))
+		local tint = ({ Color3.fromRGB(255, 255, 255), Color3.fromRGB(190, 215, 255), Color3.fromRGB(255, 236, 190) })[srng:NextInteger(1, 3)]
+		local size = srng:NextNumber(1.3, 2.6)
+		stars[i] = { part = skyPart("BigStar", Enum.PartType.Ball, Vector3.new(size, size, size), tint, 1),
+			offset = dir * 420, phase = srng:NextNumber(0, math.pi * 2), speed = srng:NextNumber(1.5, 4) }
+	end
+	-- soft glows: a stack of faint circles (each a little bigger) on a billboard, so the light fades
+	-- smoothly outwards with no hard edge (a see-through ball shows its outline)
+	local function glow(name, studs, inner, outer, rings)
+		local anchor = skyPart(name, Enum.PartType.Block, Vector3.new(1, 1, 1), Color3.new(0, 0, 0), 1)
+		local bb = Instance.new("BillboardGui")
+		bb.Size = UDim2.fromScale(studs, studs)
+		bb.LightInfluence = 0
+		bb.Adornee = anchor
+		bb.Parent = anchor
+		local frames = {}
+		for k = 1, rings do
+			local f = Instance.new("Frame")
+			f.AnchorPoint = Vector2.new(0.5, 0.5)
+			f.Position = UDim2.fromScale(0.5, 0.5)
+			f.Size = UDim2.fromScale(k / rings, k / rings)
+			f.BackgroundColor3 = inner:Lerp(outer, (k - 1) / math.max(rings - 1, 1))
+			f.BorderSizePixel = 0
+			f.ZIndex = rings - k + 1 -- small bright rings on top
+			f.BackgroundTransparency = 1
+			f.Parent = bb
+			Instance.new("UICorner", f).CornerRadius = UDim.new(1, 0)
+			frames[k] = f
+		end
+		return { anchor = anchor, frames = frames }
+	end
+	local function setGlow(g, cf, strength)
+		g.anchor.CFrame = cf
+		for _, f in ipairs(g.frames) do
+			f.BackgroundTransparency = 1 - 0.11 * strength -- stacked rings add up towards the middle
+		end
+	end
+	local moonHalo = glow("MoonHalo", 150, Color3.fromRGB(210, 225, 255), Color3.fromRGB(120, 140, 255), 9)
+	local sunGlow = glow("SunGlow", 1100, Color3.fromRGB(255, 236, 170), Color3.fromRGB(255, 96, 120), 12)
+
+	local function smooth(a, b, x)
+		local t = math.clamp((x - a) / (b - a), 0, 1)
+		return t * t * (3 - 2 * t)
+	end
+	local function bump(a, b, x)
+		if x <= a or x >= b then return 0 end
+		return math.sin((x - a) / (b - a) * math.pi)
+	end
+	local function seq(alphaScale, base)
+		-- soft ends, brighter middle; alphaScale 0 = invisible, 1 = full
+		local function v(t) return 1 - (1 - t) * alphaScale end
+		return NumberSequence.new({
+			NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.18, v(base + 0.25)),
+			NumberSequenceKeypoint.new(0.5, v(base)), NumberSequenceKeypoint.new(0.82, v(base + 0.2)),
+			NumberSequenceKeypoint.new(1, 1),
+		})
+	end
+
+	RunService.RenderStepped:Connect(function()
+		local cam = workspace.CurrentCamera
+		if not cam then return end
+		local cp = cam.CFrame.Position
+		local origin = Vector3.new(cp.X, 0, cp.Z)
+		rig.CFrame = CFrame.new(origin)
+		local ct = Lighting.ClockTime
+		local t = os.clock()
+		local nightW = math.max(smooth(19.0, 20.2, ct), 1 - smooth(4.4, 5.6, ct))
+		local glowW = math.max(bump(16.4, 19.4, ct), bump(4.8, 7.6, ct))
+
+		for i, beam in ipairs(auroras) do
+			beam.CurveSize0 = 90 * math.sin(t * 0.25 + i * 1.7)
+			beam.CurveSize1 = -80 * math.cos(t * 0.21 + i * 2.3)
+			-- slow shimmer in brightness
+			beam.Transparency = seq(nightW * (0.85 + 0.15 * math.sin(t * 0.6 + i)), 0)
+		end
+		milkyWay.Transparency = seq(nightW * 0.6, 0.05)
+
+		for _, st in ipairs(stars) do
+			st.part.CFrame = CFrame.new(origin + st.offset)
+			st.part.Transparency = 1 - nightW * (0.55 + 0.4 * math.sin(t * st.speed + st.phase))
+		end
+
+		local moonDir = Lighting:GetMoonDirection()
+		setGlow(moonHalo, CFrame.new(cp + moonDir * 520), nightW * math.clamp(moonDir.Y * 4, 0, 1) * 0.8)
+
+		local sunDir = Lighting:GetSunDirection()
+		local up = math.clamp((sunDir.Y + 0.1) * 5, 0, 1) -- fades as the sun drops under the horizon
+		setGlow(sunGlow, CFrame.new(cp + sunDir * 1700), glowW * up)
+	end)
+end
+
+-- whenever you (re)spawn, make sure the camera follows the new character (a respawn while a
+-- cutscene / the start-screen flyover owned the camera could leave it on the old one)
+plr.CharacterAdded:Connect(function(char)
+	local hum = char:WaitForChild("Humanoid", 10)
+	local cam = workspace.CurrentCamera
+	if hum and cam and cam.CameraType == Enum.CameraType.Custom then
+		cam.CameraSubject = hum
+	end
+end)
+
+
+-- 3D GRASS: tufts of real blades on the lawns around you. Client-only and recycled as you
+-- move. Two rings: a dense swaying ring at your feet, and a lighter ring of shorter, still
+-- blades further out so the flat ground never shows up close.
+do
+	local GRASS_CLASS = { G_l = 1, G_p = 1, G_f = 0.45 } -- blade height per ground type (none on greens / tees)
+	local GRASS_CELL = 8
+	local IS_PHONE = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+	local NEAR_R = IS_PHONE and 18 or 24   -- swaying ring
+	local FAR_R = IS_PHONE and 40 or 64    -- still ring
+	local NEAR_TUFTS = IS_PHONE and 14 or 28 -- tufts per cell (3-5 blades each)
+	local FAR_TUFTS = IS_PHONE and 5 or 10
+	local HIDDEN_CF = CFrame.new(0, -5000, 0)
+
+	local grassFolder = Instance.new("Folder")
+	grassFolder.Name = "LocalGrass"
+	grassFolder.Parent = workspace
+	local rayParams = RaycastParams.new()
+	rayParams.FilterType = Enum.RaycastFilterType.Exclude
+
+	local pool = {}    -- spare blade parts, parked out of sight
+	local cells = {}   -- "cx,cz" -> { near = bool, blades = {records} }
+	local active = {}  -- records of the swaying (near) blades
+	local fillQueue = {}
+	local dirty = false
+
+	local function getBlade()
+		local b = table.remove(pool)
+		if b then return b end
+		b = Instance.new("WedgePart")
+		b.Name = "Blade"
+		b.Anchored = true
+		b.CanCollide = false
+		b.CanQuery = false
+		b.CanTouch = false
+		b.CastShadow = false
+		b.Material = Enum.Material.Grass -- matte, no plastic shine
+		b.TopSurface = Enum.SurfaceType.Smooth
+		b.BottomSurface = Enum.SurfaceType.Smooth
+		b.CFrame = HIDDEN_CF
+		b.Parent = grassFolder
+		return b
+	end
+
+	-- real lawns are a mix: deep shaded green, fresh green, sunlit yellow-green, the odd dry blade
+	local PALETTE = {
+		Color3.fromRGB(62, 120, 34), Color3.fromRGB(78, 140, 40), Color3.fromRGB(94, 156, 46),
+		Color3.fromRGB(112, 168, 52), Color3.fromRGB(134, 178, 60), Color3.fromRGB(165, 175, 85),
+	}
+	local PALETTE_W = { 0.2, 0.26, 0.24, 0.16, 0.1, 0.04 }
+	local function pickColor(r, base)
+		local acc = 0
+		for i, w in ipairs(PALETTE_W) do
+			acc += w
+			if r <= acc then return PALETTE[i]:Lerp(base, 0.25) end
+		end
+		return PALETTE[1]:Lerp(base, 0.25)
+	end
+
+	local function fillCell(cx, cz, near)
+		local ground = workspace:FindFirstChild("DiscoveryBay")
+		ground = ground and ground:FindFirstChild("Ground")
+		if not ground then return {} end
+		local list = {}
+		local rng = Random.new(cx * 73856093 + cz * 19349663 + (near and 1 or 0)) -- same grass every time you come back
+		for _ = 1, near and NEAR_TUFTS or FAR_TUFTS do
+			local tx = (cx + rng:NextNumber()) * GRASS_CELL
+			local tz = (cz + rng:NextNumber()) * GRASS_CELL
+			-- the ray stops on roads, sidewalks, floors and trunks, so tufts only grow on open lawn
+			local hit = workspace:Raycast(Vector3.new(tx, 14, tz), Vector3.new(0, -24, 0), rayParams)
+			local scale = hit and hit.Instance.Parent == ground and GRASS_CLASS[hit.Instance.Name]
+			local blades = rng:NextInteger(3, 5)
+			local spin = rng:NextNumber() * math.pi * 2
+			for b = 1, blades do
+				-- every random number is drawn even with no hit, so a cell always grows the same way
+				local h0, w0, sp, lean, phase, cr = rng:NextNumber(), rng:NextNumber(),
+					rng:NextNumber(0.05, 0.9), rng:NextNumber(0.05, 0.4), rng:NextNumber() * math.pi * 2, rng:NextNumber()
+				if scale then
+					-- mostly short with the odd tall blade; the still ring is a bit shorter
+					local h = (near and (0.9 + h0 ^ 1.6 * 2.6) or (0.7 + h0 ^ 1.6 * 1.6)) * scale
+					local yaw = spin + (b / blades) * math.pi * 2 + w0 -- fan out round the tuft
+					local out = Vector3.new(math.sin(yaw), 0, math.cos(yaw))
+					local part = getBlade()
+					part.Size = Vector3.new(0.04, h, 0.12 + w0 * 0.2)
+					part.Color = pickColor(cr, hit.Instance.Color)
+					local rec = {
+						part = part,
+						pos = Vector3.new(tx, hit.Position.Y - 0.1, tz) + out * sp,
+						rot = CFrame.Angles(0, yaw, 0) * CFrame.Angles(lean, 0, 0) * CFrame.new(0, h / 2, 0),
+						phase = phase,
+					}
+					if not near then part.CFrame = CFrame.new(rec.pos) * rec.rot end
+					table.insert(list, rec)
+				end
+			end
+		end
+		return list
+	end
+
+	local function releaseCell(key)
+		for _, rec in ipairs(cells[key].blades) do
+			rec.part.CFrame = HIDDEN_CF
+			table.insert(pool, rec.part)
+		end
+		cells[key] = nil
+		dirty = true
+	end
+
+	local function grassCenter()
+		local char = plr.Character
+		local root = char and char:FindFirstChild("HumanoidRootPart")
+		return root and root.Position
+	end
+
+	-- every 0.3s: plant cells that came into range, swap rings as you move, recycle the rest
+	task.spawn(function()
+		while grassFolder.Parent do
+			task.wait(0.3)
+			local c = grassCenter()
+			if ldmOn or not c then
+				for key in pairs(cells) do releaseCell(key) end
+				table.clear(fillQueue)
+			else
+				local char = plr.Character
+				rayParams.FilterDescendantsInstances = char and { char } or {}
+				local ccx, ccz = math.floor(c.X / GRASS_CELL), math.floor(c.Z / GRASS_CELL)
+				local r = math.ceil(FAR_R / GRASS_CELL)
+				local want = {}
+				for dx = -r, r do
+					for dz = -r, r do
+						local wx, wz = (ccx + dx + 0.5) * GRASS_CELL, (ccz + dz + 0.5) * GRASS_CELL
+						local d2 = (wx - c.X) ^ 2 + (wz - c.Z) ^ 2
+						if d2 <= FAR_R ^ 2 then
+							want[(ccx + dx) .. "," .. (ccz + dz)] = { ccx + dx, ccz + dz, d2 <= NEAR_R ^ 2, d2 }
+						end
+					end
+				end
+				for key, cell in pairs(cells) do
+					local w = want[key]
+					if not w or w[3] ~= cell.near then releaseCell(key) end
+				end
+				table.clear(fillQueue)
+				for key, w in pairs(want) do
+					if not cells[key] then table.insert(fillQueue, { key, w[1], w[2], w[3], w[4] }) end
+				end
+				-- nearest cells first so the grass grows out from your feet
+				table.sort(fillQueue, function(a, b) return a[5] < b[5] end)
+			end
+		end
+	end)
+
+	local parts, cfs = {}, {}
+	local frame = 0
+	local conn
+	conn = RunService.Heartbeat:Connect(function()
+		if not grassFolder.Parent then conn:Disconnect() return end
+		-- a few cells per frame so planting never hitches
+		for _ = 1, 5 do
+			local job = table.remove(fillQueue, 1)
+			if not job then break end
+			if not cells[job[1]] then
+				cells[job[1]] = { near = job[4], blades = fillCell(job[2], job[3], job[4]) }
+				dirty = true
+			end
+		end
+		if dirty then
+			dirty = false
+			table.clear(active)
+			for _, cell in pairs(cells) do
+				if cell.near then
+					for _, rec in ipairs(cell.blades) do table.insert(active, rec) end
+				end
+			end
+		end
+
+		frame += 1
+		if frame % 2 == 1 or #active == 0 then return end -- sway at 30 fps
+
+		local t = os.clock()
+		local wind = workspace.GlobalWind
+		local wdir = Vector3.new(wind.X, 0, wind.Z)
+		wdir = wdir.Magnitude > 0.1 and wdir.Unit or Vector3.new(0.8, 0, 0.6)
+		local strength = 0.1 + math.clamp(wind.Magnitude / 40, 0, 0.2)
+		local c = grassCenter() or Vector3.zero
+		table.clear(parts)
+		table.clear(cfs)
+		for i, rec in ipairs(active) do
+			local p = rec.pos
+			-- gusts roll across the lawn as a wave, each blade with its own flutter
+			local along = p.X * wdir.X + p.Z * wdir.Z
+			local gust = math.sin(t * 1.6 - along * 0.12) * 0.5 + 0.5
+			local tilt = wdir * (strength * gust + 0.04 * math.sin(t * 4.3 + rec.phase))
+			-- blades bend away from you as you walk through them
+			local away = Vector3.new(p.X - c.X, 0, p.Z - c.Z)
+			local d = away.Magnitude
+			if d < 3.2 and d > 0.01 then
+				tilt += away / d * (1.1 * (1 - d / 3.2))
+			end
+			local amt = tilt.Magnitude
+			local cf = CFrame.new(p)
+			if amt > 0.001 then
+				cf = cf * CFrame.fromAxisAngle(Vector3.yAxis:Cross(tilt / amt), amt)
+			end
+			parts[i] = rec.part
+			cfs[i] = cf * rec.rot
+		end
+		workspace:BulkMoveTo(parts, cfs, Enum.BulkMoveMode.FireCFrameChanged)
+	end)
+end
