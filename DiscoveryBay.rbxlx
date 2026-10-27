@@ -25,7 +25,7 @@
       <Properties>
         <string name="Name">DiscoveryBayBuild</string>
         <token name="RunContext">0</token>
-        <string name="Source"><![CDATA[-- DISCOVERY BAY, CALIFORNIA — OSM-accurate procedural Roblox build (v164)
+        <string name="Source"><![CDATA[-- DISCOVERY BAY, CALIFORNIA — OSM-accurate procedural Roblox build (v166)
 --==============================================================================================
 -- Builds the real Discovery Bay from OpenStreetMap geometry (© OpenStreetMap contributors):
 --   * real terrain raster: every lagoon/bay polygon, Old River, golf fairways/greens/
@@ -719,7 +719,7 @@ local function buildCar()
 	end
 	local driverDesigns = {
 		{ face = "rbxassetid://7074749", shirtTemplate = "rbxassetid://607785314", pantsTemplate = "rbxassetid://129458426", noPrompt = true, sit = true },
-		{ face = "rbxassetid://134079000", shirtTemplate = "rbxassetid://398633812", pantsTemplate = "rbxassetid://144076370", noPrompt = true, sit = true },
+		{ face = "rbxassetid://7699174", shirtTemplate = "rbxassetid://398633812", pantsTemplate = "rbxassetid://129458426", noPrompt = true, sit = true },
 		{ face = "rbxassetid://7699174", shirtColor = Color3.fromRGB(150, 50, 50), pantsColor = Color3.fromRGB(45, 90, 160), noPrompt = true, sit = true }
 	}
 	local driver = buildNPC(m, "Driver", CFrame.new(1.3 * S, 0.1 * S, 0.6 * S), driverDesigns[math.random(1, #driverDesigns)])
@@ -1081,9 +1081,9 @@ local function buildRoad(rd, roadIndex)
 					local roadCenter = (CFrame.lookAt(mid, mid + dir) * CFrame.new(0, ROAD_THICK / 2, 0)).Position
 					local spot = CFrame.lookAt(baseSpot, Vector3.new(roadCenter.X, baseSpot.Y, roadCenter.Z))
 					local peds = {
-						{ face = "rbxassetid://134079000", shirtTemplate = "rbxassetid://607785314", pantsTemplate = "rbxassetid://129458426" },
-						{ face = "rbxassetid://7699174", shirtTemplate = "rbxassetid://398633812", pantsTemplate = "rbxassetid://144076370" },
-						{ face = "rbxassetid://144075591", shirtTemplate = "rbxassetid://144076358", pantsTemplate = "rbxassetid://144076370" }
+						{ face = "rbxassetid://7699174", shirtTemplate = "rbxassetid://607785314", pantsTemplate = "rbxassetid://129458426" },
+						{ face = "rbxassetid://7699174", shirtTemplate = "rbxassetid://398633812", pantsTemplate = "rbxassetid://129458426" },
+						{ face = "rbxassetid://144075659", shirtTemplate = "rbxassetid://144076358", pantsTemplate = "rbxassetid://129458426" }
 					}
 					local design = peds[rng:NextInteger(1, #peds)]
 					-- No prompt text here, the client hooks it up
@@ -1916,12 +1916,12 @@ local function buildPlaza()
 	newPart(shell, "Counter", Vector3.new(8, 3.2, 2.5) * S, K * CFrame.new(-7 * S, 2.05 * S, -5 * S),
 		Color3.fromRGB(120, 90, 70), Enum.Material.Wood)
 	buildNPC(shell, "Sal", K * CFrame.new(-7 * S, 0.4 * S, -2 * S),
-		{ face = "rbxassetid://7699174", hairAccessory = "63690008", hatAccessory = "1033284090", shirtTemplate = "rbxassetid://607785314", pantsTemplate = "rbxassetid://129458426" },
+		{ face = "rbxassetid://7699174", hairAccessory = "63690008", hatAccessory = "48474313", shirtTemplate = "rbxassetid://607785314", pantsTemplate = "rbxassetid://129458426" },
 		"Welcome to ShellBlox! Fuel for cars, Bloxy Cola for scooters - every can makes that scooter a little quicker. Stacks five times!",
 		{ { "Anything else?",
 			"Snacks, lots of snacks. And don't let Callahan tell you ice cream is fuel. It is delicious though." } })
 	buildNPC(shell, "Thirsty Terry", K * CFrame.new(0, 0.4 * S, 14 * S) * CFrame.Angles(0, math.pi, 0),
-		{ face = "rbxassetid://13014074", hairAccessory = "20573078", shirtTemplate = "rbxassetid://398633812", pantsTemplate = "rbxassetid://144076370" })
+		{ face = "rbxassetid://10907541", hairAccessory = "20573078", shirtTemplate = "rbxassetid://398633812", pantsTemplate = "rbxassetid://129458426" })
 	for _, sy in ipairs({ 2.2, 4.8 }) do
 		newPart(shell, "Shelf", Vector3.new(1.8, 0.3, 12) * S, K * CFrame.new(10.4 * S, sy * S, 0),
 			Color3.fromRGB(170, 165, 155), Enum.Material.Metal)
@@ -2065,7 +2065,7 @@ local function buildPlaza()
 	eggPrompt.Parent = egg
 	-- Eggbert stands RIGHT beside the egg pedestal, greeting customers
 	buildNPC(m, "Eggbert", rowCf * CFrame.new(14 * S, 0, 2 * S),
-		{ face = "rbxassetid://134079000", hairAccessory = "20573078", shirtTemplate = "rbxassetid://398633812", pantsTemplate = "rbxassetid://129458426" },
+		{ face = "rbxassetid://7699174", hairAccessory = "20573078", shirtTemplate = "rbxassetid://398633812", pantsTemplate = "rbxassetid://129458426" },
 		"Psst! Mystery dogs in these eggs. Mostly Mary or Jolene... but one in a HUNDRED hatches Linus. Rent a house first - pups need a home!",
 		{ { "Who's Linus?",
 			"A golden legend. Pays $100 a pet. I saw him hatch once. Changed my whole life." } })
@@ -2213,7 +2213,7 @@ local function buildPlaza()
 		newPart(mF, "WelcomeMat", Vector3.new(4.4, 0.1, 2.4) * S, fSh * CFrame.new(0, 0.47 * S, (-d / 2 + 2) * S), Color3.fromRGB(70, 60, 50), Enum.Material.Fabric)
 
 		buildNPC(mF, "Captain Finn", fSh * CFrame.new(5.5 * S, 0.4 * S, 9 * S),
-			{ face = "rbxassetid://7074786", hatAccessory = "234479549", shirtTemplate = "rbxassetid://607785314", pantsTemplate = "rbxassetid://129458426" },
+			{ face = "rbxassetid://7074786", hatAccessory = "48474313", shirtTemplate = "rbxassetid://607785314", pantsTemplate = "rbxassetid://129458426" },
 			"Ahoy! Grab a rod, grab bait, and cast into ANY water in the bay. When the bobber glows - REEL! I buy every fish in your inventory.",
 			{ { "Any secret fish?",
 				"They whisper of THE LIONEL. One cast in a hundred. Worth five hundred bucks. Never landed it myself... yet." } })
@@ -2339,7 +2339,7 @@ local function buildPlaza()
 		end
 
 		buildNPC(mS, "Rider Rick", sSh * CFrame.new(-8 * S, 0.4 * S, -4 * S),
-			{ face = "rbxassetid://144075591", hairAccessory = "12270336", hatAccessory = "61208920", shirtTemplate = "rbxassetid://144076358", pantsTemplate = "rbxassetid://144076370" },
+			{ face = "rbxassetid://144075659", hairAccessory = "12270336", shirtTemplate = "rbxassetid://144076358", pantsTemplate = "rbxassetid://129458426" },
 			"Looking to upgrade? The Fast Scooter bumps your base speed up by 20. And yes, it stacks with the Speed Pass. Pure adrenaline.",
 			{ { "Why gold?",
 				"Because you want everyone to know you're rich and fast. Mostly fast." } })
@@ -2447,7 +2447,7 @@ local function buildPlaza()
 		end
 
 		buildNPC(mC, "Callahan", cSh * CFrame.new(-4 * S, 0.4 * S, 8 * S),
-			{ face = "rbxassetid://240928159", hairAccessory = "376527350", shirtTemplate = "rbxassetid://607785314", pantsTemplate = "rbxassetid://129458426" },
+			{ face = "rbxassetid://7317793", hairAccessory = "376527350", shirtTemplate = "rbxassetid://607785314", pantsTemplate = "rbxassetid://129458426" },
 			"Welcome to Callahan's Coffee and Cones! Chocolate makes your legs faster, Vanilla feeds your scooter, and Mint... Mint DOUBLES your trick money!",
 			{ { "Which one should I get?",
 				"Mint, if you can afford it. I've watched kids earn it back in one lap around Willow Lake." } })
@@ -2542,7 +2542,7 @@ local function buildPlaza()
 		newBall(mJ, "WaterJug", 1.4 * S, wc * CFrame.new(0, 4.1 * S, 0), Color3.fromRGB(120, 180, 240), Enum.Material.Glass)
 
 		buildNPC(mJ, "Sensei", jSh * CFrame.new(12 * S, 0.4 * S, 8 * S),
-			{ face = "rbxassetid://161246543", shirtColor = Color3.fromRGB(20, 20, 20), pantsColor = Color3.fromRGB(20, 20, 20) },
+			{ face = "rbxassetid://19398554", shirtColor = Color3.fromRGB(20, 20, 20), pantsColor = Color3.fromRGB(20, 20, 20) },
 			"Step on the grey mat to begin your training. Seven buttons. Five seconds each. Miss and you PAY. Win, and you feast: $50.",
 			{ { "Any advice?",
 				"Never leave the mat mid-fight. And never, EVER, challenge me on a Monday." } })
@@ -2711,7 +2711,7 @@ local function buildBigSchool(parent, lm)
 	sp.RequiresLineOfSight = false
 	sp.Parent = button
 	buildNPC(m, "Ms. Wheeler", cf * CFrame.new(8 * S, 0.4 * S, (d / 2 - 6) * S),
-		{ face = "rbxassetid://134079000", hairAccessory = "12270336", shirtColor = Color3.fromRGB(200, 100, 150) },
+		{ face = "rbxassetid://7699174", hairAccessory = "12270336", shirtColor = Color3.fromRGB(200, 100, 150) },
 		"Welcome to Room 103, History of Scooters. Hold the red button to study - smart riders are FAST riders.",
 		{ { "Is studying worth it?",
 			"Plus ten speed for fifteen whole minutes. Homework has never paid better." } })
@@ -2930,7 +2930,7 @@ local function buildBloxway()
 	end
 
 	local bob = buildNPC(m, "Manager Bob", cf * CFrame.new(26 * S, 0.4 * S, (-d / 2 + 18) * S),
-		{ face = "rbxassetid://7074749", hairAccessory = "63690008", shirtTemplate = "rbxassetid://144076358", pantsTemplate = "rbxassetid://144076370" })
+		{ face = "rbxassetid://7074749", hairAccessory = "63690008", shirtTemplate = "rbxassetid://144076358", pantsTemplate = "rbxassetid://129458426" })
 end
 
 -- Yacht harbor + lighthouse at the real end of Marina Road
@@ -4069,7 +4069,7 @@ local DAY_LENGTH = 600
 local START_CASH = 100
 local WALK_SPEED = 16
 local SCOOTER_SPEED = 30
-local VERSION = "v164"
+local VERSION = "v166"
 
 -- ==============================================================================================
 -- LIGHTING, DYNAMIC SUNSET & STARRY NIGHT SKY SYSTEM
@@ -4360,7 +4360,7 @@ local CLASSIC_FACE_CATALOG = {
 	Puck            = 20298988,
 	Sniffles        = 14516578,
 	Vampire         = 7074836,
-	Skeptic         = 31117192,
+	Skeptic         = 20337343,  -- (31117192 was a plain image, not a face: uses Disbelief)
 	-- open-mouth faces the client flips to while an NPC is talking
 	OpenO           = 7317773,   -- ":-o"
 	JoyfulSmile     = 209995366,
@@ -6102,6 +6102,14 @@ local function hookDoor(part)
 	local dist = part:GetAttribute("SlideDist") or 3.5
 	local openCf = closedCf * CFrame.new(dist, 0, 0)
 	local isOpen = false
+	-- the little shop bell over the door: rings whenever the door opens (3D, so only people nearby hear it)
+	local bell = Instance.new("Sound")
+	bell.Name = "ShopBell"
+	bell.SoundId = "rbxassetid://9125935023" -- Pro Sound Effects "Shop Door Bell" (public, licensed)
+	bell.Volume = 0.7
+	bell.RollOffMinDistance = 8
+	bell.RollOffMaxDistance = 45
+	bell.Parent = part
 	task.spawn(function()
 		while part.Parent do
 			local near = false
@@ -6115,6 +6123,7 @@ local function hookDoor(part)
 			end
 			if near ~= isOpen then
 				isOpen = near
+				if isOpen then bell:Play() end
 				TweenService:Create(part, TweenInfo.new(0.4, Enum.EasingStyle.Quad,
 					Enum.EasingDirection.Out), { CFrame = isOpen and openCf or closedCf }):Play()
 			end
@@ -8263,7 +8272,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 
-local VERSION = "v164"
+local VERSION = "v166"
 local SPEED_PASS_ID = 0 -- paste the real Game Pass ID here (same one as in DiscoveryBayShop)
 local RunService = game:GetService("RunService")
 local Lighting = game:GetService("Lighting")
@@ -9690,6 +9699,8 @@ local function focusCameraOnNPC(npcModel, wideShot)
 	local cam = workspace.CurrentCamera
 	local head = npcModel and npcModel:FindFirstChild("Head")
 	if not cam or not head then return end
+	-- stop its idle animation and snap it back to rest first: the facing / pose saved below must be clean
+	if _G.NPCIdleRest then _G.NPCIdleRest(npcModel) end
 	setLocalCharacterHidden(true)
 	local tp = head:FindFirstChild("TalkPrompt")
 	if tp then tp.Enabled = false end
@@ -11807,7 +11818,7 @@ for _, child in ipairs(gui:GetDescendants()) do
 			pcall(playSound, "rbxassetid://12221967", 0.25) -- soft hover
 		end)
 		child.Activated:Connect(function()
-			pcall(playSound, "rbxassetid://9065609404", 1.0) -- crisp click
+			pcall(playSound, "rbxassetid://15675059323", 1.0) -- crisp click (Roblox UI click)
 		end)
 	end
 end
@@ -12364,7 +12375,7 @@ TrickResult.OnClientEvent:Connect(function(trickName, pay)
 		if string.find(lowerMsg, "speed") or string.find(lowerMsg, "rush") or string.find(lowerMsg, "boost") then
 			pcall(playSound, "rbxasset://sounds/action_jump.mp3", 0.5) -- speed boost swoosh
 		elseif string.find(lowerMsg, "cash") or string.find(lowerMsg, "purchase") or string.find(lowerMsg, "bought") or string.find(lowerMsg, "spent") or string.find(lowerMsg, "rent") then
-			pcall(playSound, "rbxassetid://9059737151", 0.45) -- shop purchase cash register
+			pcall(playSound, "rbxassetid://134810204798705", 0.45) -- shop purchase cash register
 		end
 	end
 	pop.Parent = gui
@@ -13026,7 +13037,7 @@ end
 -- FISHING minigame: FISH ON! stop the swinging marker inside the green zone ----------------------
 local fishFrame = nil
 FishGame.OnClientEvent:Connect(function()
-	pcall(playSound, "rbxassetid://9061611394", 0.5) -- splash sound on fish hook
+	pcall(playSound, "rbxassetid://9125703162", 0.5) -- splash sound on fish hook (Pro Sound Effects)
 	if fishFrame then
 		fishFrame:Destroy()
 		fishFrame = nil
@@ -13214,7 +13225,7 @@ local function onDied()
 	if isDead then return end
 	isDead = true
 	
-	playSound("rbxassetid://413988628", 1) -- GTA 5 Wasted slowmo sound
+	playSound("rbxasset://sounds/impact_explosion_03.mp3", 1) -- slow-mo boom (built into the client)
 	
 	-- Stamp animation preparation
 	deathText.Size = UDim2.new(1, 0, 0, 600)
@@ -13239,7 +13250,7 @@ local function onDied()
 		TextStrokeTransparency = 0
 	})
 	stampTween:Play()
-	playSound("rbxassetid://138081509", 1) -- OOF / Slam sound
+	playSound("rbxasset://sounds/uuhhh.mp3", 1) -- the classic OOF (built into the client)
 	
 	task.wait(0.5)
 	-- Fade in roast
@@ -13717,6 +13728,192 @@ do
 			cfs[i] = cf * rec.rot
 		end
 		workspace:BulkMoveTo(parts, cfs, Enum.BulkMoveMode.FireCFrameChanged)
+	end)
+end
+
+-- NPC IDLE ANIMATIONS: standing NPCs breathe, shift their weight and look around, and every few
+-- seconds check their watch, scratch their head, stretch, wave, tap a foot or glance behind them.
+-- Client-only, and only NPCs near the camera. NPCs are anchored blocks (no joints), so each limb is
+-- turned about its shoulder / hip / neck. A conversation owns its NPC (savedNPCJoints[npc] is set):
+-- idling pauses, and _G.NPCIdleRest snaps it back to rest first so no gesture gets saved into a pose.
+do
+	local IDLE_RANGE = 110
+	local NECK = CFrame.new(0, 1, 0)
+	local L_SHOULDER, R_SHOULDER = CFrame.new(-1, 0.5, 0), CFrame.new(1, 0.5, 0)
+	local R_HIP = CFrame.new(0.5, -1, 0)
+	local GESTURES = {
+		{ name = "watch", dur = 2.4 }, { name = "scratch", dur = 2.2 }, { name = "stretch", dur = 2.6 },
+		{ name = "wave", dur = 2.0 }, { name = "tap", dur = 2.0 }, { name = "lookback", dur = 2.4 },
+	}
+	local candidates = {} -- every standing NPC model in town
+	local idlers = {}     -- model -> idle state (only while animating)
+
+	local function about(pivot, rot)
+		return pivot * rot * pivot:Inverse()
+	end
+
+	local function startIdle(npc)
+		local torso = npc:FindFirstChild("Torso")
+		if not (torso and torso.Anchored and npc:FindFirstChild("Head")) then return nil end
+		local ref = torso.CFrame
+		local rng = Random.new(math.floor(ref.X * 7 + ref.Z * 13))
+		local st = {
+			ref = ref, rng = rng, list = {}, phase = rng:NextNumber() * 10,
+			lookYaw = 0, lookTarget = 0, nextLook = os.clock() + rng:NextNumber(1, 4),
+			nextGesture = os.clock() + rng:NextNumber(4, 12),
+		}
+		local head = npc.Head
+		for _, p in ipairs(npc:GetDescendants()) do
+			if p:IsA("BasePart") and p.Anchored then
+				local kind = "torso" -- anything else rides along with the torso
+				if p == head or p.Name == "Hair" or (p.Parent and p.Parent:IsA("Accessory")) then kind = "head"
+				elseif p.Name == "Left Arm" then kind = "lArm"
+				elseif p.Name == "Right Arm" then kind = "rArm"
+				elseif p.Name == "Left Leg" or p.Name == "Right Leg" then kind = p.Name == "Right Leg" and "rLeg" or "leg"
+				end
+				table.insert(st.list, { part = p, kind = kind, rel = ref:ToObjectSpace(p.CFrame) })
+			end
+		end
+		-- sitting NPCs have their legs swung forward: no foot taps for them
+		local rLeg = npc:FindFirstChild("Right Leg")
+		st.seated = rLeg ~= nil and ref:VectorToObjectSpace(rLeg.CFrame.UpVector).Y < 0.5
+		return st
+	end
+
+	local function restIdle(npc)
+		local st = idlers[npc]
+		idlers[npc] = nil
+		if not st then return end
+		local parts, cfs = {}, {}
+		for i, e in ipairs(st.list) do
+			if e.part.Parent then
+				parts[#parts + 1] = e.part
+				cfs[#cfs + 1] = st.ref * e.rel
+			end
+		end
+		workspace:BulkMoveTo(parts, cfs, Enum.BulkMoveMode.FireCFrameChanged)
+	end
+	_G.NPCIdleRest = restIdle
+
+	-- find the standing NPCs once the town is built
+	task.spawn(function()
+		local town = workspace:WaitForChild("DiscoveryBay", 300)
+		if not town then return end
+		while not town:GetAttribute("BuildComplete") do task.wait(1) end
+		for i, d in ipairs(town:GetDescendants()) do
+			if d:IsA("Model") and d:FindFirstChild("Torso") and d:FindFirstChild("Head")
+				and d:FindFirstChild("Left Arm") and d:FindFirstChild("Right Arm") then
+				candidates[#candidates + 1] = d
+			end
+			if i % 5000 == 0 then task.wait() end
+		end
+	end)
+
+	local parts, cfs = {}, {}
+	local frame = 0
+	RunService.Heartbeat:Connect(function(dt)
+		frame += 1
+		if frame % 2 == 1 then return end -- 30 fps is plenty for idling
+		dt *= 2
+		local cam = workspace.CurrentCamera
+		if not cam then return end
+		local camPos = cam.CFrame.Position
+		local now = os.clock()
+		table.clear(parts)
+		table.clear(cfs)
+		for _, npc in ipairs(candidates) do
+			local torso = npc.Parent and npc:FindFirstChild("Torso")
+			local busy = not torso or not torso.Anchored or savedNPCJoints[npc] ~= nil
+				or currentCutsceneNPC == npc or ldmOn
+			local st = idlers[npc]
+			if busy then
+				if st and ldmOn and torso and torso.Anchored then
+					restIdle(npc) -- low detail mode: stand still, properly at rest
+				else
+					-- a conversation / car hit took over: let go (the talk code already snapped it to rest)
+					idlers[npc] = nil
+				end
+			elseif (torso.Position - camPos).Magnitude > IDLE_RANGE then
+				if st then restIdle(npc) end
+			else
+				if not st then
+					st = startIdle(npc)
+					idlers[npc] = st
+				end
+				if st then
+					local t = now + st.phase
+					local rng = st.rng
+					-- breathing + a slow weight shift from foot to foot
+					local breath = math.sin(t * 1.8)
+					local shift = math.sin(t * 0.5)
+					local bodyY, bodyPitch, bodyYaw = 0.035 * breath, 0.012 * breath, 0
+					-- glance around now and then
+					if now > st.nextLook then
+						st.lookTarget = rng:NextNumber() < 0.3 and 0 or math.rad(rng:NextNumber(-35, 35))
+						st.nextLook = now + rng:NextNumber(1.5, 4.5)
+					end
+					st.lookYaw += (st.lookTarget - st.lookYaw) * math.min(1, dt * 3)
+					local headPitch, headYaw, headRoll = math.rad(3 * math.sin(t * 0.7)), st.lookYaw, 0
+					local lA = CFrame.Angles(math.rad(2 * math.sin(t * 1.8 + 1)), 0, math.rad(-2 - breath))
+					local rA = CFrame.Angles(math.rad(2 * math.sin(t * 1.8 + 2)), 0, math.rad(2 + breath))
+					local rL = CFrame.new()
+
+					-- the occasional gesture, eased in and out
+					if not st.g and now > st.nextGesture then
+						local g = GESTURES[rng:NextInteger(1, #GESTURES)]
+						if g.name == "tap" and st.seated then g = GESTURES[1] end
+						st.g = { name = g.name, t0 = now, dur = g.dur, side = rng:NextNumber() < 0.5 and 1 or -1 }
+					end
+					if st.g then
+						local u = (now - st.g.t0) / st.g.dur
+						if u >= 1 then
+							st.g = nil
+							st.nextGesture = now + rng:NextNumber(4, 12)
+						else
+							local e = math.clamp(math.min(u, 1 - u) / 0.2, 0, 1)
+							e = e * e * (3 - 2 * e)
+							local name = st.g.name
+							if name == "watch" then -- left wrist up in front of the chest, look down at it
+								lA = lA * CFrame.Angles(math.rad(85 * e), 0, math.rad(35 * e))
+								headPitch, headYaw = headPitch - math.rad(22) * e, headYaw * (1 - e) + math.rad(15) * e
+							elseif name == "scratch" then -- right hand up to the head, a little scratch
+								rA = rA * CFrame.Angles(math.rad((150 + 8 * math.sin(t * 25)) * e), 0, math.rad(-20 * e))
+								headRoll = math.rad(8) * e
+							elseif name == "stretch" then -- both arms overhead, up on the toes
+								lA = lA * CFrame.Angles(math.rad(165 * e), 0, math.rad(-12 * e))
+								rA = rA * CFrame.Angles(math.rad(165 * e), 0, math.rad(12 * e))
+								bodyY += 0.08 * e
+								headPitch += math.rad(12) * e
+							elseif name == "wave" then -- right arm out to the side, waving
+								rA = rA * CFrame.Angles(0, 0, math.rad((140 + 22 * math.sin(t * 10)) * e))
+							elseif name == "tap" then -- impatient toe taps
+								rL = CFrame.Angles(math.rad(9 * math.max(0, math.sin(t * 14))) * e, 0, 0)
+							elseif name == "lookback" then -- turn and look over a shoulder
+								headYaw = headYaw * (1 - e) + math.rad(70 * st.g.side) * e
+								bodyYaw = math.rad(14 * st.g.side) * e
+							end
+						end
+					end
+
+					local body = CFrame.new(0.06 * shift, bodyY, 0)
+						* CFrame.Angles(bodyPitch, bodyYaw, math.rad(1.5) * shift)
+					local headT = body * about(NECK, CFrame.Angles(headPitch, headYaw, headRoll))
+					local lAT = body * about(L_SHOULDER, lA)
+					local rAT = body * about(R_SHOULDER, rA)
+					local rLT = about(R_HIP, rL)
+					for _, e in ipairs(st.list) do
+						local k = e.kind
+						local tf = (k == "head" and headT) or (k == "lArm" and lAT) or (k == "rArm" and rAT)
+							or (k == "rLeg" and rLT) or (k == "leg" and CFrame.new()) or body
+						parts[#parts + 1] = e.part
+						cfs[#cfs + 1] = st.ref * tf * e.rel
+					end
+				end
+			end
+		end
+		if #parts > 0 then
+			workspace:BulkMoveTo(parts, cfs, Enum.BulkMoveMode.FireCFrameChanged)
+		end
 	end)
 end
 ]]></string>

@@ -36,7 +36,7 @@ local DAY_LENGTH = 600
 local START_CASH = 100
 local WALK_SPEED = 16
 local SCOOTER_SPEED = 30
-local VERSION = "v164"
+local VERSION = "v166"
 
 -- ==============================================================================================
 -- LIGHTING, DYNAMIC SUNSET & STARRY NIGHT SKY SYSTEM
@@ -327,7 +327,7 @@ local CLASSIC_FACE_CATALOG = {
 	Puck            = 20298988,
 	Sniffles        = 14516578,
 	Vampire         = 7074836,
-	Skeptic         = 31117192,
+	Skeptic         = 20337343,  -- (31117192 was a plain image, not a face: uses Disbelief)
 	-- open-mouth faces the client flips to while an NPC is talking
 	OpenO           = 7317773,   -- ":-o"
 	JoyfulSmile     = 209995366,
@@ -2069,6 +2069,14 @@ local function hookDoor(part)
 	local dist = part:GetAttribute("SlideDist") or 3.5
 	local openCf = closedCf * CFrame.new(dist, 0, 0)
 	local isOpen = false
+	-- the little shop bell over the door: rings whenever the door opens (3D, so only people nearby hear it)
+	local bell = Instance.new("Sound")
+	bell.Name = "ShopBell"
+	bell.SoundId = "rbxassetid://9125935023" -- Pro Sound Effects "Shop Door Bell" (public, licensed)
+	bell.Volume = 0.7
+	bell.RollOffMinDistance = 8
+	bell.RollOffMaxDistance = 45
+	bell.Parent = part
 	task.spawn(function()
 		while part.Parent do
 			local near = false
@@ -2082,6 +2090,7 @@ local function hookDoor(part)
 			end
 			if near ~= isOpen then
 				isOpen = near
+				if isOpen then bell:Play() end
 				TweenService:Create(part, TweenInfo.new(0.4, Enum.EasingStyle.Quad,
 					Enum.EasingDirection.Out), { CFrame = isOpen and openCf or closedCf }):Play()
 			end

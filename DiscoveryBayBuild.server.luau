@@ -1,4 +1,4 @@
--- DISCOVERY BAY, CALIFORNIA — OSM-accurate procedural Roblox build (v164)
+-- DISCOVERY BAY, CALIFORNIA — OSM-accurate procedural Roblox build (v166)
 --==============================================================================================
 -- Builds the real Discovery Bay from OpenStreetMap geometry (© OpenStreetMap contributors):
 --   * real terrain raster: every lagoon/bay polygon, Old River, golf fairways/greens/
@@ -692,7 +692,7 @@ local function buildCar()
 	end
 	local driverDesigns = {
 		{ face = "rbxassetid://7074749", shirtTemplate = "rbxassetid://607785314", pantsTemplate = "rbxassetid://129458426", noPrompt = true, sit = true },
-		{ face = "rbxassetid://134079000", shirtTemplate = "rbxassetid://398633812", pantsTemplate = "rbxassetid://144076370", noPrompt = true, sit = true },
+		{ face = "rbxassetid://7699174", shirtTemplate = "rbxassetid://398633812", pantsTemplate = "rbxassetid://129458426", noPrompt = true, sit = true },
 		{ face = "rbxassetid://7699174", shirtColor = Color3.fromRGB(150, 50, 50), pantsColor = Color3.fromRGB(45, 90, 160), noPrompt = true, sit = true }
 	}
 	local driver = buildNPC(m, "Driver", CFrame.new(1.3 * S, 0.1 * S, 0.6 * S), driverDesigns[math.random(1, #driverDesigns)])
@@ -1054,9 +1054,9 @@ local function buildRoad(rd, roadIndex)
 					local roadCenter = (CFrame.lookAt(mid, mid + dir) * CFrame.new(0, ROAD_THICK / 2, 0)).Position
 					local spot = CFrame.lookAt(baseSpot, Vector3.new(roadCenter.X, baseSpot.Y, roadCenter.Z))
 					local peds = {
-						{ face = "rbxassetid://134079000", shirtTemplate = "rbxassetid://607785314", pantsTemplate = "rbxassetid://129458426" },
-						{ face = "rbxassetid://7699174", shirtTemplate = "rbxassetid://398633812", pantsTemplate = "rbxassetid://144076370" },
-						{ face = "rbxassetid://144075591", shirtTemplate = "rbxassetid://144076358", pantsTemplate = "rbxassetid://144076370" }
+						{ face = "rbxassetid://7699174", shirtTemplate = "rbxassetid://607785314", pantsTemplate = "rbxassetid://129458426" },
+						{ face = "rbxassetid://7699174", shirtTemplate = "rbxassetid://398633812", pantsTemplate = "rbxassetid://129458426" },
+						{ face = "rbxassetid://144075659", shirtTemplate = "rbxassetid://144076358", pantsTemplate = "rbxassetid://129458426" }
 					}
 					local design = peds[rng:NextInteger(1, #peds)]
 					-- No prompt text here, the client hooks it up
@@ -1889,12 +1889,12 @@ local function buildPlaza()
 	newPart(shell, "Counter", Vector3.new(8, 3.2, 2.5) * S, K * CFrame.new(-7 * S, 2.05 * S, -5 * S),
 		Color3.fromRGB(120, 90, 70), Enum.Material.Wood)
 	buildNPC(shell, "Sal", K * CFrame.new(-7 * S, 0.4 * S, -2 * S),
-		{ face = "rbxassetid://7699174", hairAccessory = "63690008", hatAccessory = "1033284090", shirtTemplate = "rbxassetid://607785314", pantsTemplate = "rbxassetid://129458426" },
+		{ face = "rbxassetid://7699174", hairAccessory = "63690008", hatAccessory = "48474313", shirtTemplate = "rbxassetid://607785314", pantsTemplate = "rbxassetid://129458426" },
 		"Welcome to ShellBlox! Fuel for cars, Bloxy Cola for scooters - every can makes that scooter a little quicker. Stacks five times!",
 		{ { "Anything else?",
 			"Snacks, lots of snacks. And don't let Callahan tell you ice cream is fuel. It is delicious though." } })
 	buildNPC(shell, "Thirsty Terry", K * CFrame.new(0, 0.4 * S, 14 * S) * CFrame.Angles(0, math.pi, 0),
-		{ face = "rbxassetid://13014074", hairAccessory = "20573078", shirtTemplate = "rbxassetid://398633812", pantsTemplate = "rbxassetid://144076370" })
+		{ face = "rbxassetid://10907541", hairAccessory = "20573078", shirtTemplate = "rbxassetid://398633812", pantsTemplate = "rbxassetid://129458426" })
 	for _, sy in ipairs({ 2.2, 4.8 }) do
 		newPart(shell, "Shelf", Vector3.new(1.8, 0.3, 12) * S, K * CFrame.new(10.4 * S, sy * S, 0),
 			Color3.fromRGB(170, 165, 155), Enum.Material.Metal)
@@ -2038,7 +2038,7 @@ local function buildPlaza()
 	eggPrompt.Parent = egg
 	-- Eggbert stands RIGHT beside the egg pedestal, greeting customers
 	buildNPC(m, "Eggbert", rowCf * CFrame.new(14 * S, 0, 2 * S),
-		{ face = "rbxassetid://134079000", hairAccessory = "20573078", shirtTemplate = "rbxassetid://398633812", pantsTemplate = "rbxassetid://129458426" },
+		{ face = "rbxassetid://7699174", hairAccessory = "20573078", shirtTemplate = "rbxassetid://398633812", pantsTemplate = "rbxassetid://129458426" },
 		"Psst! Mystery dogs in these eggs. Mostly Mary or Jolene... but one in a HUNDRED hatches Linus. Rent a house first - pups need a home!",
 		{ { "Who's Linus?",
 			"A golden legend. Pays $100 a pet. I saw him hatch once. Changed my whole life." } })
@@ -2186,7 +2186,7 @@ local function buildPlaza()
 		newPart(mF, "WelcomeMat", Vector3.new(4.4, 0.1, 2.4) * S, fSh * CFrame.new(0, 0.47 * S, (-d / 2 + 2) * S), Color3.fromRGB(70, 60, 50), Enum.Material.Fabric)
 
 		buildNPC(mF, "Captain Finn", fSh * CFrame.new(5.5 * S, 0.4 * S, 9 * S),
-			{ face = "rbxassetid://7074786", hatAccessory = "234479549", shirtTemplate = "rbxassetid://607785314", pantsTemplate = "rbxassetid://129458426" },
+			{ face = "rbxassetid://7074786", hatAccessory = "48474313", shirtTemplate = "rbxassetid://607785314", pantsTemplate = "rbxassetid://129458426" },
 			"Ahoy! Grab a rod, grab bait, and cast into ANY water in the bay. When the bobber glows - REEL! I buy every fish in your inventory.",
 			{ { "Any secret fish?",
 				"They whisper of THE LIONEL. One cast in a hundred. Worth five hundred bucks. Never landed it myself... yet." } })
@@ -2312,7 +2312,7 @@ local function buildPlaza()
 		end
 
 		buildNPC(mS, "Rider Rick", sSh * CFrame.new(-8 * S, 0.4 * S, -4 * S),
-			{ face = "rbxassetid://144075591", hairAccessory = "12270336", hatAccessory = "61208920", shirtTemplate = "rbxassetid://144076358", pantsTemplate = "rbxassetid://144076370" },
+			{ face = "rbxassetid://144075659", hairAccessory = "12270336", shirtTemplate = "rbxassetid://144076358", pantsTemplate = "rbxassetid://129458426" },
 			"Looking to upgrade? The Fast Scooter bumps your base speed up by 20. And yes, it stacks with the Speed Pass. Pure adrenaline.",
 			{ { "Why gold?",
 				"Because you want everyone to know you're rich and fast. Mostly fast." } })
@@ -2420,7 +2420,7 @@ local function buildPlaza()
 		end
 
 		buildNPC(mC, "Callahan", cSh * CFrame.new(-4 * S, 0.4 * S, 8 * S),
-			{ face = "rbxassetid://240928159", hairAccessory = "376527350", shirtTemplate = "rbxassetid://607785314", pantsTemplate = "rbxassetid://129458426" },
+			{ face = "rbxassetid://7317793", hairAccessory = "376527350", shirtTemplate = "rbxassetid://607785314", pantsTemplate = "rbxassetid://129458426" },
 			"Welcome to Callahan's Coffee and Cones! Chocolate makes your legs faster, Vanilla feeds your scooter, and Mint... Mint DOUBLES your trick money!",
 			{ { "Which one should I get?",
 				"Mint, if you can afford it. I've watched kids earn it back in one lap around Willow Lake." } })
@@ -2515,7 +2515,7 @@ local function buildPlaza()
 		newBall(mJ, "WaterJug", 1.4 * S, wc * CFrame.new(0, 4.1 * S, 0), Color3.fromRGB(120, 180, 240), Enum.Material.Glass)
 
 		buildNPC(mJ, "Sensei", jSh * CFrame.new(12 * S, 0.4 * S, 8 * S),
-			{ face = "rbxassetid://161246543", shirtColor = Color3.fromRGB(20, 20, 20), pantsColor = Color3.fromRGB(20, 20, 20) },
+			{ face = "rbxassetid://19398554", shirtColor = Color3.fromRGB(20, 20, 20), pantsColor = Color3.fromRGB(20, 20, 20) },
 			"Step on the grey mat to begin your training. Seven buttons. Five seconds each. Miss and you PAY. Win, and you feast: $50.",
 			{ { "Any advice?",
 				"Never leave the mat mid-fight. And never, EVER, challenge me on a Monday." } })
@@ -2684,7 +2684,7 @@ local function buildBigSchool(parent, lm)
 	sp.RequiresLineOfSight = false
 	sp.Parent = button
 	buildNPC(m, "Ms. Wheeler", cf * CFrame.new(8 * S, 0.4 * S, (d / 2 - 6) * S),
-		{ face = "rbxassetid://134079000", hairAccessory = "12270336", shirtColor = Color3.fromRGB(200, 100, 150) },
+		{ face = "rbxassetid://7699174", hairAccessory = "12270336", shirtColor = Color3.fromRGB(200, 100, 150) },
 		"Welcome to Room 103, History of Scooters. Hold the red button to study - smart riders are FAST riders.",
 		{ { "Is studying worth it?",
 			"Plus ten speed for fifteen whole minutes. Homework has never paid better." } })
@@ -2903,7 +2903,7 @@ local function buildBloxway()
 	end
 
 	local bob = buildNPC(m, "Manager Bob", cf * CFrame.new(26 * S, 0.4 * S, (-d / 2 + 18) * S),
-		{ face = "rbxassetid://7074749", hairAccessory = "63690008", shirtTemplate = "rbxassetid://144076358", pantsTemplate = "rbxassetid://144076370" })
+		{ face = "rbxassetid://7074749", hairAccessory = "63690008", shirtTemplate = "rbxassetid://144076358", pantsTemplate = "rbxassetid://129458426" })
 end
 
 -- Yacht harbor + lighthouse at the real end of Marina Road
