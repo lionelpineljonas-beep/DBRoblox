@@ -36,7 +36,7 @@ local DAY_LENGTH = 600
 local START_CASH = 100
 local WALK_SPEED = 16
 local SCOOTER_SPEED = 30
-local VERSION = "v166"
+local VERSION = "v174"
 
 -- ==============================================================================================
 -- LIGHTING, DYNAMIC SUNSET & STARRY NIGHT SKY SYSTEM
@@ -1040,6 +1040,8 @@ local QUESTS = {
 	RickTricks  = { npc = "Rider Rick",   kind = "trick", goal = 15, reward = 200, title = "Trick Master" },
 	SenseiMat   = { npc = "Sensei",       kind = "jjwin", goal = 3,  reward = 250, title = "Way of the Mat" },
 	EggbertEggs = { npc = "Eggbert",      kind = "hatch", goal = 3,  reward = 120, title = "Puppy Collector" },
+	-- the welcome quest everyone gets on their first visit: one time only (once = true), saved like the rest
+	BobWelcome  = { npc = "Bob",          kind = "soda",  goal = 1,  reward = 250, title = "Welcome to the Bay", once = true },
 }
 local QuestAction = remote("QuestAction")
 local questNPCs = {} -- npc name -> model (found once)
@@ -1075,7 +1077,7 @@ QuestAction.OnServerEvent:Connect(function(plr, id, action)
 	if not q or not nearNPC(plr, q.npc) then return end
 	local key = "QuestState_" .. id
 	local state = plr:GetAttribute(key)
-	if action == "accept" and (state == nil or state == "done") then
+	if action == "accept" and (state == nil or (state == "done" and not q.once)) then
 		plr:SetAttribute(key, "active")
 		plr:SetAttribute("QuestProgress_" .. id, 0)
 		TrickResult:FireClient(plr, "New job: " .. q.title .. " (0/" .. q.goal .. ")", 0)
@@ -1924,6 +1926,9 @@ local function hookProduct(part)
 			if msg then
 				TrickResult:FireClient(plr, msg, 0)
 			end
+		end
+		if product == "Bloxy Cola" then
+			questProgress(plr, "soda") -- Bob's welcome quest
 		end
 	end)
 end

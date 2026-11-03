@@ -11,11 +11,240 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 
-local VERSION = "v166"
+local VERSION = "v174"
 local SPEED_PASS_ID = 0 -- paste the real Game Pass ID here (same one as in DiscoveryBayShop)
 local RunService = game:GetService("RunService")
 local Lighting = game:GetService("Lighting")
 local plr = Players.LocalPlayer
+
+--==============================================================================================
+-- STUDIO SPLASH (5 s): "YOU Groups presents" over black the moment you join. A glow breathes in,
+-- the name rises in letter by letter, a gold line draws under it, a shine runs across, then it all
+-- drifts up and dissolves into the start screen, with sound effects on each beat. Click skips.
+--==============================================================================================
+do
+	local GROUP_ID = 32459648 -- YOU Groups
+	local NAME = "YOU Groups"
+	local splash = Instance.new("ScreenGui")
+	splash.Name = "StudioSplash"
+	splash.IgnoreGuiInset = true
+	splash.ResetOnSpawn = false
+	splash.DisplayOrder = 100 -- over the start screen
+	splash.Parent = plr:WaitForChild("PlayerGui")
+
+	local bg = Instance.new("Frame")
+	bg.Size = UDim2.fromScale(1, 1)
+	bg.BackgroundColor3 = Color3.fromRGB(6, 6, 12)
+	bg.BorderSizePixel = 0
+	bg.Active = true -- swallow clicks so nothing underneath reacts
+	bg.Parent = splash
+
+	-- soft violet glow behind the name, breathing in from nothing
+	local glow = Instance.new("Frame")
+	glow.AnchorPoint = Vector2.new(0.5, 0.5)
+	glow.Position = UDim2.fromScale(0.5, 0.5)
+	glow.Size = UDim2.fromScale(1.2, 1.2)
+	glow.BackgroundColor3 = Color3.fromRGB(70, 56, 130)
+	glow.BackgroundTransparency = 1
+	glow.BorderSizePixel = 0
+	glow.Parent = bg
+	local glowShape = Instance.new("UIGradient")
+	glowShape.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.5, 0.35), NumberSequenceKeypoint.new(1, 1),
+	})
+	glowShape.Parent = glow
+	local glowCorner = Instance.new("UICorner")
+	glowCorner.CornerRadius = UDim.new(0.5, 0)
+	glowCorner.Parent = glow
+
+	-- everything that moves together, with a very slow push-in so it never feels frozen
+	local group = Instance.new("Frame")
+	group.AnchorPoint = Vector2.new(0.5, 0.5)
+	group.Position = UDim2.fromScale(0.5, 0.5)
+	group.Size = UDim2.fromOffset(640, 300)
+	group.BackgroundTransparency = 1
+	group.Parent = bg
+	local groupScale = Instance.new("UIScale")
+	groupScale.Scale = 0.94
+	groupScale.Parent = group
+
+	local emblem = Instance.new("ImageLabel")
+	emblem.AnchorPoint = Vector2.new(0.5, 1)
+	emblem.Position = UDim2.new(0.5, 0, 0.5, -46)
+	emblem.Size = UDim2.fromOffset(96, 96)
+	emblem.BackgroundTransparency = 1
+	emblem.ImageTransparency = 1
+	emblem.Parent = group
+	local emblemCorner = Instance.new("UICorner")
+	emblemCorner.CornerRadius = UDim.new(0.22, 0)
+	emblemCorner.Parent = emblem
+
+	-- the name, one label per letter so each can rise in on its own
+	local row = Instance.new("Frame")
+	row.AnchorPoint = Vector2.new(0.5, 0.5)
+	row.Position = UDim2.fromScale(0.5, 0.5)
+	row.Size = UDim2.new(1, 0, 0, 84)
+	row.BackgroundTransparency = 1
+	row.Parent = group
+	local layout = Instance.new("UIListLayout")
+	layout.FillDirection = Enum.FillDirection.Horizontal
+	layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	layout.VerticalAlignment = Enum.VerticalAlignment.Center
+	layout.SortOrder = Enum.SortOrder.LayoutOrder
+	layout.Parent = row
+	local letters = {}
+	for i = 1, #NAME do
+		local ch = NAME:sub(i, i)
+		local slot = Instance.new("Frame") -- fixed slot; the letter moves inside it, the row never reflows
+		slot.BackgroundTransparency = 1
+		slot.Size = UDim2.fromOffset(ch == " " and 22 or 40, 84)
+		slot.LayoutOrder = i
+		slot.Parent = row
+		if ch ~= " " then
+			local l = Instance.new("TextLabel")
+			l.BackgroundTransparency = 1
+			l.Size = UDim2.fromScale(1, 1)
+			l.Position = UDim2.fromOffset(0, 18)
+			l.Font = Enum.Font.PermanentMarker
+			l.Text = ch
+			l.TextSize = 70
+			l.TextColor3 = Color3.new(1, 1, 1)
+			l.TextTransparency = 1
+			l.Parent = slot
+			local sheen = Instance.new("UIGradient") -- the gold shine passes through each letter in turn
+			sheen.Color = ColorSequence.new({
+				ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
+				ColorSequenceKeypoint.new(0.4, Color3.fromRGB(255, 255, 255)),
+				ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 205, 110)),
+				ColorSequenceKeypoint.new(0.6, Color3.fromRGB(255, 255, 255)),
+				ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 255, 255)),
+			})
+			sheen.Offset = Vector2.new(-1, 0)
+			sheen.Parent = l
+			-- PermanentMarker is narrow: size each slot to its letter so the word keeps natural spacing
+			local w = game:GetService("TextService"):GetTextSize(ch, 70, Enum.Font.PermanentMarker, Vector2.new(200, 100)).X
+			slot.Size = UDim2.fromOffset(w + 2, 84)
+			table.insert(letters, { label = l, sheen = sheen })
+		end
+	end
+
+	local line = Instance.new("Frame")
+	line.AnchorPoint = Vector2.new(0.5, 0.5)
+	line.Position = UDim2.new(0.5, 0, 0.5, 50)
+	line.Size = UDim2.fromOffset(0, 2)
+	line.BackgroundColor3 = Color3.fromRGB(255, 200, 100)
+	line.BorderSizePixel = 0
+	line.Parent = group
+	local lineFade = Instance.new("UIGradient") -- fades out at both ends
+	lineFade.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.5, 0), NumberSequenceKeypoint.new(1, 1),
+	})
+	lineFade.Parent = line
+
+	local presents = Instance.new("TextLabel")
+	presents.AnchorPoint = Vector2.new(0.5, 0)
+	presents.Position = UDim2.new(0.5, 0, 0.5, 70)
+	presents.Size = UDim2.new(1, 0, 0, 30)
+	presents.BackgroundTransparency = 1
+	presents.Font = Enum.Font.PermanentMarker
+	presents.Text = "presents"
+	presents.TextSize = 24
+	presents.TextColor3 = Color3.fromRGB(200, 196, 220)
+	presents.TextTransparency = 1
+	presents.Parent = group
+
+	-- the group's own emblem, if Roblox hands it over in time (the splash works fine without it)
+	task.spawn(function()
+		local ok, info = pcall(function()
+			return game:GetService("GroupService"):GetGroupInfoAsync(GROUP_ID)
+		end)
+		if ok and info and info.EmblemUrl and info.EmblemUrl ~= "" and emblem.Parent then
+			emblem.Image = info.EmblemUrl
+		end
+	end)
+
+	-- licensed / public sound effects, cued on the timeline below
+	local function sfx(id, volume)
+		local s = Instance.new("Sound")
+		s.SoundId = id
+		s.Volume = volume
+		s.Parent = splash
+		return s
+	end
+	local CUES = {
+		{ at = 0.0, sound = sfx("rbxassetid://9119421195", 0.35) },   -- soft airy whoosh as the glow comes up
+		{ at = 0.75, sound = sfx("rbxassetid://9125484367", 0.45) },  -- deep cinematic boom as the letters land
+		{ at = 2.2, sound = sfx("rbxassetid://9114369623", 0.4) },   -- "fairy dust" chime with the gold shine
+		{ at = 3.6, sound = sfx("rbxassetid://9119422012", 0.3) },    -- soft whoosh out
+	}
+
+	-- easing helpers on a 0..1 progress
+	local function prog(t, start, len) return math.clamp((t - start) / len, 0, 1) end
+	local function outQuint(x) return 1 - (1 - x) ^ 5 end
+	local function outSine(x) return math.sin(x * math.pi / 2) end
+	local function inSine(x) return 1 - math.cos(x * math.pi / 2) end
+	local function inOutSine(x) return -(math.cos(math.pi * x) - 1) / 2 end
+
+	-- The animation runs on its OWN clock: normal frames count in full (so it's 5 s at any frame rate),
+	-- but a freeze (a frame over 1/4 s, like the loading hitches right after you join) only counts as
+	-- one short step, so it pauses the intro instead of skipping it. You always see the whole 5 seconds.
+	local TOTAL, EXIT = 5.0, 3.6
+	local t, speed = 0, 1
+	bg.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			t = math.max(t, EXIT) -- skip straight to the fade-out, and play it quicker
+			speed = 2
+		end
+	end)
+
+	task.spawn(function()
+		-- black until the game has loaded and the big loading freezes are over (or 4 s, whichever first)
+		if not game:IsLoaded() then game.Loaded:Wait() end
+		local sounds = {}
+		for _, c in ipairs(CUES) do table.insert(sounds, c.sound) end
+		task.spawn(function()
+			pcall(function() game:GetService("ContentProvider"):PreloadAsync(sounds) end)
+		end)
+		local smooth, waited = 0, 0
+		while smooth < 8 and waited < 4 do
+			local dt = RunService.RenderStepped:Wait()
+			waited += dt
+			smooth = dt < 0.25 and smooth + 1 or 0
+		end
+
+		local cued = 0
+		local conn
+		conn = RunService.RenderStepped:Connect(function(dt)
+			t += (dt > 0.25 and 1 / 30 or dt) * speed
+			while cued < #CUES and t >= CUES[cued + 1].at do
+				cued += 1
+				if speed == 1 or CUES[cued].at >= EXIT then CUES[cued].sound:Play() end
+			end
+
+			local out = 1 - inSine(prog(t, EXIT, 0.9)) -- everything fades together at the end
+			glow.BackgroundTransparency = 1 - outSine(prog(t, 0, 1.6)) * out
+			groupScale.Scale = 0.94 + 0.08 * inOutSine(prog(t, 0, TOTAL))
+			group.Position = UDim2.new(0.5, 0, 0.5, -24 * (1 - out))
+			emblem.ImageTransparency = 1 - outQuint(prog(t, 0.6, 1.2)) * out
+			for i, e in ipairs(letters) do
+				local a = outQuint(prog(t, 0.6 + (i - 1) * 0.07, 0.9))
+				e.label.TextTransparency = 1 - a * out
+				e.label.Position = UDim2.fromOffset(0, 18 * (1 - a))
+				e.sheen.Offset = Vector2.new(-1 + 2 * inOutSine(prog(t, 2.2 + (i - 1) * 0.06, 0.7)), 0)
+			end
+			line.Size = UDim2.fromOffset(300 * outQuint(prog(t, 1.7, 0.9)), 2)
+			line.BackgroundTransparency = 1 - out
+			presents.TextTransparency = 1 - 0.9 * outSine(prog(t, 1.7, 1.0)) * out
+			bg.BackgroundTransparency = inOutSine(prog(t, 4.15, 0.85))
+
+			if t >= TOTAL then
+				conn:Disconnect()
+				task.delay(4, function() splash:Destroy() end) -- (lets the last sounds finish)
+				bg.Visible = false
+			end
+		end)
+	end)
+end
 
 --==============================================================================================
 -- NIGHT SKY SHOOTING STARS & STARLIGHT SHIMMER
@@ -165,8 +394,11 @@ task.spawn(function()
 		activeTrack = newTrack
 	end
 	
+	-- no music over the intro / start screen: it starts once you press PLAY (that's when the HUD appears)
+	local hud = plr:WaitForChild("PlayerGui"):WaitForChild("DiscoveryBayHUD")
+	while not hud.Enabled do hud:GetPropertyChangedSignal("Enabled"):Wait() end
 	playTrack(OUTDOOR_MUSIC, 0.4, OUTDOOR_SPEED)
-	
+
 	while true do
 		task.wait(1)
 		local char = plr.Character
@@ -1038,6 +1270,7 @@ local npcFaceUIs = {}
 
 local NPC_CLASSIC_FACE_MAP = {
 	-- *Talk faces are open-mouth classic faces; the mouth-flap loop swaps between the stage face and its Talk face
+	["Bob"]           = { idle = "Smile",           interact = "JoyfulSmile",     interactTalk = "JoyousSurprise", answer = "HappyWink",      answerTalk = "OpenO" },
 	["Manager Bob"]   = { idle = "Stare",           interact = "Disbelief",       interactTalk = "Roar",           answer = "MrChuckles",     answerTalk = "OpenO" },
 	["Eggbert"]       = { idle = "GoodIntentioned", interact = "Skeptic",         interactTalk = "JoyousSurprise", answer = "GoodIntentioned", answerTalk = "JoyfulSmile" },
 	["Captain Finn"]  = { idle = "CheckIt",         interact = "Winky",           interactTalk = "JoyfulSmile",    answer = "Disbelief",      answerTalk = "OpenO" },
@@ -2153,6 +2386,12 @@ local NPC_QUESTS = {
 		accept = "Excellent. Remember - pups need a rented house first!",
 		progress = "%d of 3 eggs hatched. The science is going GREAT.",
 		ready = "Three hatchlings! The data is beautiful. Here's $120!" },
+	["Bob"] = { id = "BobWelcome", reward = 250, once = true,
+		offer = "Hey hey, you must be new! I'm Bob. First thing every Bay local does: grab a Bloxy Cola at ShellBlox - the gas station with the big yellow sign. It makes your scooter faster! Do that and I'll give you $250.",
+		again = "",
+		accept = "Follow the marker to ShellBlox. Walk in, buy a Bloxy Cola, then come back to me!",
+		progress = "No Bloxy Cola yet? ShellBlox - big yellow sign, right by the plaza. (%d of 1)",
+		ready = "There it is! Feel that speed? Welcome to the Bay, local. Here's your $250!" },
 }
 local QuestAction = remotes:WaitForChild("QuestAction", 10)
 
@@ -2161,6 +2400,7 @@ local function withQuestChoice(npcName, choices)
 	local q = NPC_QUESTS[npcName]
 	if not q or not QuestAction then return choices end
 	local state = plr:GetAttribute("QuestState_" .. q.id)
+	if q.once and state == "done" then return choices end
 	local label = (state == "ready") and ("Claim $" .. q.reward .. "!") or (state == "active") and "My job?" or "Got a job?"
 	table.insert(choices, 1, { id = "quest", text = label })
 	return choices
@@ -2235,6 +2475,19 @@ local function hookNPC(prompt)
 					showDialogue("Eggbert", "A golden legend. Pays $100 a pet. I saw him hatch once. Changed my whole life.", {}, nil)
 				end
 			end)
+		elseif npcName == "Bob" then
+			if plr:GetAttribute("QuestState_BobWelcome") ~= "done" then
+				-- until his quest is done, Bob gets straight to it: the offer, how it's going, or the reward
+				handleQuestChoice("Bob")
+			else
+				showDialogue("Bob", "Look at you - a real Bay local now! Rider Rick at the scooter shop pays cash for tricks, by the way.", {
+					{ id = "tips", text = "Any tips?" }
+				}, function(choiceId)
+					if choiceId == "tips" then
+						showDialogue("Bob", "Cars do NOT stop for you, so watch the road! Press T for scooter tricks, and every Bloxy Cola makes you faster. It stacks!", {}, nil)
+					end
+				end)
+			end
 		elseif npcName == "Captain Finn" then
 			showDialogue("Captain Finn", "Ahoy! Grab a rod, grab bait, and cast into ANY water in the bay. When the bobber glows - REEL! I buy every fish in your inventory.", withQuestChoice("Captain Finn", {
 				{ id = "secret", text = "Any secret fish?" }
@@ -3549,6 +3802,110 @@ if UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled then
 		refreshLdmBtn()
 	end)
 end
+
+-- SHADERS: an extra cinematic grade on top of the normal lighting (Roblox has no custom shaders, so
+-- it's post-processing): richer contrast and colour, a warm film tint, a soft glow on bright things,
+-- sun rays, a gentle distance blur and a vignette. On by default on PC, off on phones; LDM turns it off.
+local shadersOn = not (UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled)
+local shaderFx = {}
+do
+	local grade = Instance.new("ColorCorrectionEffect")
+	grade.Name = "ShaderGrade"
+	grade.Contrast = 0.12
+	grade.Saturation = 0.12
+	grade.TintColor = Color3.fromRGB(255, 246, 232)
+	local glow = Instance.new("BloomEffect")
+	glow.Name = "ShaderGlow"
+	glow.Intensity = 0.35
+	glow.Size = 40
+	glow.Threshold = 2.2
+	local rays = Instance.new("SunRaysEffect")
+	rays.Name = "ShaderRays"
+	rays.Intensity = 0.06
+	rays.Spread = 0.6
+	local depth = Instance.new("DepthOfFieldEffect")
+	depth.Name = "ShaderDepth"
+	depth.FocusDistance = 60
+	depth.InFocusRadius = 50
+	depth.NearIntensity = 0
+	depth.FarIntensity = 0.25
+	shaderFx = { grade, glow, rays, depth }
+	for _, e in ipairs(shaderFx) do
+		e.Enabled = false
+		e.Parent = Lighting
+	end
+end
+-- the vignette: four soft dark screen edges, over the world but under the HUD
+local vignette = Instance.new("ScreenGui")
+vignette.Name = "ShaderVignette"
+vignette.IgnoreGuiInset = true
+vignette.ResetOnSpawn = false
+vignette.DisplayOrder = -1
+vignette.Enabled = false
+vignette.Parent = plr:WaitForChild("PlayerGui")
+for _, edge in ipairs({
+	{ pos = UDim2.fromScale(0, 0), size = UDim2.fromScale(1, 0.28), rot = 90 },    -- top
+	{ pos = UDim2.fromScale(0, 0.72), size = UDim2.fromScale(1, 0.28), rot = 270 }, -- bottom
+	{ pos = UDim2.fromScale(0, 0), size = UDim2.fromScale(0.22, 1), rot = 0 },      -- left
+	{ pos = UDim2.fromScale(0.78, 0), size = UDim2.fromScale(0.22, 1), rot = 180 }, -- right
+}) do
+	local f = Instance.new("Frame")
+	f.Position = edge.pos
+	f.Size = edge.size
+	f.BackgroundColor3 = Color3.new(0, 0, 0)
+	f.BorderSizePixel = 0
+	f.Parent = vignette
+	local g = Instance.new("UIGradient")
+	g.Rotation = edge.rot
+	g.Transparency = NumberSequence.new(0.55, 1) -- darkest at the screen edge, gone towards the middle
+	g.Parent = f
+	table.insert(shaderFx, g) -- (tracked so the night tweak below can soften it)
+end
+local function applyShaders()
+	local on = shadersOn and not ldmOn
+	for _, e in ipairs(shaderFx) do
+		if not e:IsA("UIGradient") then e.Enabled = on end
+	end
+	vignette.Enabled = on
+end
+-- full strength by day; at night the extra contrast and vignette crush the darks, so ease off
+task.spawn(function()
+	while true do
+		local nightW = math.clamp((math.abs(Lighting.ClockTime - 12) - 5.5) / 1.5, 0, 1)
+		for _, e in ipairs(shaderFx) do
+			if e.Name == "ShaderGrade" then
+				e.Contrast = 0.12 - 0.09 * nightW
+				e.Saturation = 0.12 - 0.04 * nightW
+			elseif e:IsA("UIGradient") then
+				e.Transparency = NumberSequence.new(0.55 + 0.3 * nightW, 1)
+			end
+		end
+		task.wait(2)
+	end
+end)
+
+local shaderBtn = Instance.new("TextButton")
+shaderBtn.Name = "ShadersToggle"
+shaderBtn.AnchorPoint = Vector2.new(1, 0)
+shaderBtn.Position = UDim2.new(1, -18, 0, 112)
+shaderBtn.Size = UDim2.new(0, 136, 0, 38)
+shaderBtn.Font = Enum.Font.PermanentMarker
+shaderBtn.TextSize = 15
+shaderBtn.TextColor3 = Color3.new(1, 1, 1)
+shaderBtn.Parent = gui
+local function refreshShaderBtn()
+	shaderBtn.Text = shadersOn and "SHADERS: ON" or "SHADERS: OFF"
+	shaderBtn.BackgroundColor3 = shadersOn and Color3.fromRGB(150, 90, 200) or Color3.fromRGB(90, 95, 110)
+end
+refreshShaderBtn()
+styleHudButton(shaderBtn, "✨")
+shaderBtn.Activated:Connect(function()
+	shadersOn = not shadersOn
+	refreshShaderBtn()
+	applyShaders()
+end)
+ldmBtn.Activated:Connect(applyShaders) -- LDM on = shaders off (and back when LDM goes off)
+applyShaders()
 
 -- Global UI sound effects
 for _, child in ipairs(gui:GetDescendants()) do
@@ -5486,6 +5843,7 @@ do
 	}
 	local candidates = {} -- every standing NPC model in town
 	local idlers = {}     -- model -> idle state (only while animating)
+	local movedByOthers = setmetatable({}, { __mode = "k" }) -- NPCs something else moves: never idle them
 
 	local function about(pivot, rot)
 		return pivot * rot * pivot:Inverse()
@@ -5540,8 +5898,10 @@ do
 		if not town then return end
 		while not town:GetAttribute("BuildComplete") do task.wait(1) end
 		for i, d in ipairs(town:GetDescendants()) do
+			-- (not car drivers: their car moves them, and idling would pin the body where the car was)
 			if d:IsA("Model") and d:FindFirstChild("Torso") and d:FindFirstChild("Head")
-				and d:FindFirstChild("Left Arm") and d:FindFirstChild("Right Arm") then
+				and d:FindFirstChild("Left Arm") and d:FindFirstChild("Right Arm")
+				and d.Name ~= "Driver" and not d:FindFirstAncestor("TrafficCar") then
 				candidates[#candidates + 1] = d
 			end
 			if i % 5000 == 0 then task.wait() end
@@ -5562,9 +5922,16 @@ do
 		table.clear(cfs)
 		for _, npc in ipairs(candidates) do
 			local torso = npc.Parent and npc:FindFirstChild("Torso")
-			local busy = not torso or not torso.Anchored or savedNPCJoints[npc] ~= nil
-				or currentCutsceneNPC == npc or ldmOn
 			local st = idlers[npc]
+			-- something else moved this NPC since our last frame (a car, a script): stop idling it for
+			-- good instead of pinning its body where it used to be
+			if st and torso and st.lastTorso and (torso.Position - st.lastTorso).Magnitude > 0.5 then
+				idlers[npc] = nil
+				movedByOthers[npc] = true
+				st = nil
+			end
+			local busy = not torso or not torso.Anchored or savedNPCJoints[npc] ~= nil
+				or currentCutsceneNPC == npc or ldmOn or movedByOthers[npc]
 			if busy then
 				if st and ldmOn and torso and torso.Anchored then
 					restIdle(npc) -- low detail mode: stand still, properly at rest
@@ -5646,6 +6013,7 @@ do
 							or (k == "rLeg" and rLT) or (k == "leg" and CFrame.new()) or body
 						parts[#parts + 1] = e.part
 						cfs[#cfs + 1] = st.ref * tf * e.rel
+						if e.part == torso then st.lastTorso = cfs[#cfs].Position end
 					end
 				end
 			end
@@ -5653,5 +6021,124 @@ do
 		if #parts > 0 then
 			workspace:BulkMoveTo(parts, cfs, Enum.BulkMoveMode.FireCFrameChanged)
 		end
+	end)
+end
+
+-- WELCOME QUEST TRACKER: after PLAY, until Bob's quest is done, a line at the top says what to do
+-- next and a marker floats over where to go (Bob -> ShellBlox -> back to Bob). Gone once it's done.
+do
+	local QUEST_KEY = "QuestState_BobWelcome"
+	task.spawn(function()
+		if plr:GetAttribute(QUEST_KEY) == "done" then return end
+		local town = workspace:WaitForChild("DiscoveryBay", 300)
+		if not town then return end
+		while not town:GetAttribute("BuildComplete") do task.wait(1) end
+		local hud = plr:WaitForChild("PlayerGui"):WaitForChild("DiscoveryBayHUD")
+		while not hud.Enabled do hud:GetPropertyChangedSignal("Enabled"):Wait() end
+		task.wait(1) -- (the save loads right after joining: a returning player may already be done)
+		if plr:GetAttribute(QUEST_KEY) == "done" then return end
+
+		local bob = town:FindFirstChild("Bob", true)
+		local bobHead = bob and bob:FindFirstChild("Head")
+		local cola -- the Bloxy Cola on the ShellBlox shelf
+		for _, d in ipairs(town:GetDescendants()) do
+			if d:IsA("BasePart") and d:GetAttribute("Product") == "Bloxy Cola" then
+				cola = d
+				break
+			end
+		end
+
+		local tracker = Instance.new("ScreenGui")
+		tracker.Name = "QuestTracker"
+		tracker.ResetOnSpawn = false
+		tracker.DisplayOrder = 5
+		tracker.Parent = plr.PlayerGui
+		local card = Instance.new("Frame")
+		card.AnchorPoint = Vector2.new(0.5, 0)
+		card.Position = UDim2.new(0.5, 0, 0, 8)
+		card.Size = UDim2.fromOffset(420, 52)
+		card.BackgroundColor3 = Color3.fromRGB(20, 22, 34)
+		card.BackgroundTransparency = 0.2
+		card.Parent = tracker
+		local corner = Instance.new("UICorner")
+		corner.CornerRadius = UDim.new(0, 14)
+		corner.Parent = card
+		local stroke = Instance.new("UIStroke")
+		stroke.Color = Color3.fromRGB(255, 170, 60)
+		stroke.Thickness = 2
+		stroke.Parent = card
+		local heading = Instance.new("TextLabel")
+		heading.BackgroundTransparency = 1
+		heading.Position = UDim2.fromOffset(0, 4)
+		heading.Size = UDim2.new(1, 0, 0, 18)
+		heading.Font = Enum.Font.PermanentMarker
+		heading.TextSize = 15
+		heading.TextColor3 = Color3.fromRGB(255, 190, 90)
+		heading.Text = "WELCOME TO THE BAY"
+		heading.Parent = card
+		local task_ = Instance.new("TextLabel")
+		task_.BackgroundTransparency = 1
+		task_.Position = UDim2.fromOffset(10, 22)
+		task_.Size = UDim2.new(1, -20, 0, 26)
+		task_.Font = Enum.Font.PermanentMarker
+		task_.TextSize = 20
+		task_.TextColor3 = Color3.new(1, 1, 1)
+		task_.TextScaled = true
+		task_.Parent = card
+
+		-- the floating marker over where to go, visible through walls
+		local marker = Instance.new("BillboardGui")
+		marker.Name = "QuestMarker"
+		marker.AlwaysOnTop = true
+		marker.Size = UDim2.fromOffset(120, 70)
+		marker.StudsOffset = Vector3.new(0, 4, 0)
+		marker.LightInfluence = 0
+		marker.Parent = tracker
+		local icon = Instance.new("TextLabel")
+		icon.BackgroundTransparency = 1
+		icon.Size = UDim2.new(1, 0, 0, 44)
+		icon.Font = Enum.Font.PermanentMarker
+		icon.TextSize = 42
+		icon.TextColor3 = Color3.fromRGB(255, 200, 60)
+		icon.TextStrokeTransparency = 0.2
+		icon.Text = "!"
+		icon.Parent = marker
+		local dist = Instance.new("TextLabel")
+		dist.BackgroundTransparency = 1
+		dist.Position = UDim2.fromOffset(0, 44)
+		dist.Size = UDim2.new(1, 0, 0, 22)
+		dist.Font = Enum.Font.PermanentMarker
+		dist.TextSize = 16
+		dist.TextColor3 = Color3.new(1, 1, 1)
+		dist.TextStrokeTransparency = 0.3
+		dist.Parent = marker
+
+		local t0 = os.clock()
+		while tracker.Parent do
+			local state = plr:GetAttribute(QUEST_KEY)
+			if state == "done" then break end
+			local target, place, text
+			if state == "active" then
+				target, place, text = cola, "ShellBlox", "Buy a Bloxy Cola at ShellBlox"
+			elseif state == "ready" then
+				target, place, text = bobHead, "Bob", "Bring the Bloxy Cola back to Bob!"
+			else
+				target, place, text = bobHead, "Bob", "Talk to Bob and take his job!"
+			end
+			task_.Text = text
+			-- hidden while you're in a conversation
+			local talking = currentCutsceneNPC ~= nil
+			card.Visible = not talking
+			marker.Adornee = target
+			marker.Enabled = target ~= nil and not talking
+			local root = plr.Character and plr.Character:FindFirstChild("HumanoidRootPart")
+			if target and root then
+				dist.Text = place .. " - " .. math.floor((target.Position - root.Position).Magnitude) .. " studs"
+			end
+			icon.Position = UDim2.fromOffset(0, math.sin((os.clock() - t0) * 4) * 4) -- a gentle bob
+			stroke.Transparency = 0.25 + 0.25 * math.sin((os.clock() - t0) * 3)
+			task.wait(0.05)
+		end
+		tracker:Destroy()
 	end)
 end

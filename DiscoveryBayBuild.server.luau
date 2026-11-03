@@ -1,4 +1,4 @@
--- DISCOVERY BAY, CALIFORNIA — OSM-accurate procedural Roblox build (v166)
+-- DISCOVERY BAY, CALIFORNIA — OSM-accurate procedural Roblox build (v174)
 --==============================================================================================
 -- Builds the real Discovery Bay from OpenStreetMap geometry (© OpenStreetMap contributors):
 --   * real terrain raster: every lagoon/bay polygon, Old River, golf fairways/greens/
@@ -421,6 +421,24 @@ end
 -- shopkeeper NPC: a proper classic Robloxian (R6 proportions, bevelled head via the
 -- engine's Head mesh, default smiley face, Humanoid name tag) with Roblox's native
 -- Dialog "talk" feature. cf = base at floor level, facing local -Z. Absolute studs.
+-- hats / hair: each catalog item is loaded ONCE and cloned for every NPC wearing it (hundreds of
+-- pedestrians would otherwise each download their own copy)
+local accCache, accLoading = {}, {}
+local function getAccessory(id)
+	if not id then return nil end
+	while accLoading[id] do task.wait(0.1) end
+	if accCache[id] == nil then
+		accLoading[id] = true
+		local ok, m = pcall(function() return game:GetService("InsertService"):LoadAsset(id) end)
+		local acc = ok and m and m:FindFirstChildOfClass("Accessory")
+		if acc then acc.Parent = nil end
+		if ok and m then m:Destroy() end
+		accCache[id] = acc or false
+		accLoading[id] = nil
+	end
+	return accCache[id] and accCache[id]:Clone() or nil
+end
+
 local function buildNPC(parent, npcName, cf, design, promptText, choices)
 	if typeof(design) == "Color3" then design = { shirtColor = design } end
 	local n = newModel(parent, npcName)
@@ -519,9 +537,7 @@ local function buildNPC(parent, npcName, cf, design, promptText, choices)
 	local function attachAcc(catalogId)
 		task.spawn(function()
 			pcall(function()
-				local id = tonumber(string.match(catalogId, "%d+"))
-				local m = game:GetService("InsertService"):LoadAsset(id)
-				local acc = m:FindFirstChildOfClass("Accessory")
+				local acc = getAccessory(tonumber(string.match(catalogId, "%d+")))
 				if acc then
 					local handle = acc:FindFirstChild("Handle")
 					if handle then
@@ -537,7 +553,6 @@ local function buildNPC(parent, npcName, cf, design, promptText, choices)
 					end
 					acc.Parent = n
 				end
-				m:Destroy()
 			end)
 		end)
 	end
@@ -884,6 +899,16 @@ end
 --==============================================================================================
 -- 8. ROADS (+ bulbs, causeways, street signs, cartpaths, streetlights)
 --==============================================================================================
+-- pedestrians on the sidewalks: spaced out across town, each with their own face and hair
+local PED_SPACING = 260 -- studs
+local pedSpots = {}
+local pedRng = Random.new(CONFIG.seed + 7)
+local PED_FACES = { "rbxassetid://7699174", "rbxassetid://144075659", "rbxassetid://7317793", "rbxassetid://10907541",
+	"rbxassetid://7074786", "rbxassetid://7506141", "rbxassetid://236399287", "rbxassetid://28999228" }
+local PED_HAIR = { "12270336", "20573078", "376527350", "63690008", "62234425", "62724852", "451220849",
+	"13477818", "16630147", "32278814", "1772336109" } -- all Roblox-made, so they load in a published game
+local PED_SHIRTS = { "rbxassetid://607785314", "rbxassetid://398633812", "rbxassetid://144076358" }
+
 local function ftDist(a, b)
 	local dx, dz = a[1] - b[1], a[2] - b[2]
 	return math.sqrt(dx * dx + dz * dz)
@@ -1047,20 +1072,31 @@ local function buildRoad(rd, roadIndex)
 				newPart(model, "Sidewalk", Vector3.new(sw, ROAD_THICK, lenFt * S),
 					CFrame.lookAt(mid, mid + dir) * CFrame.new(offX, 0.006 * S, 0), swColor, swMat)
 				
-				-- Randomly spawn a pedestrian on the sidewalk
-				if rng:NextNumber() < 0.1 then
-					local side = rng:NextNumber() > 0.5 and offX or -offX
+				-- now and then a pedestrian on the sidewalk: likelier on long stretches (curvy roads are
+				-- many short segments, which used to bunch them up), never within PED_SPACING of another
+				if pedRng:NextNumber() < math.clamp(lenFt * S / 300, 0.03, 0.6) then
+					local side = pedRng:NextNumber() > 0.5 and offX or -offX
 					local baseSpot = (CFrame.lookAt(mid, mid + dir) * CFrame.new(side, ROAD_THICK / 2, 0)).Position
-					local roadCenter = (CFrame.lookAt(mid, mid + dir) * CFrame.new(0, ROAD_THICK / 2, 0)).Position
-					local spot = CFrame.lookAt(baseSpot, Vector3.new(roadCenter.X, baseSpot.Y, roadCenter.Z))
-					local peds = {
-						{ face = "rbxassetid://7699174", shirtTemplate = "rbxassetid://607785314", pantsTemplate = "rbxassetid://129458426" },
-						{ face = "rbxassetid://7699174", shirtTemplate = "rbxassetid://398633812", pantsTemplate = "rbxassetid://129458426" },
-						{ face = "rbxassetid://144075659", shirtTemplate = "rbxassetid://144076358", pantsTemplate = "rbxassetid://129458426" }
-					}
-					local design = peds[rng:NextInteger(1, #peds)]
-					-- No prompt text here, the client hooks it up
-					buildNPC(model, "Pedestrian", spot, design, "")
+					local crowded = false
+					for _, q in ipairs(pedSpots) do
+						if (q - baseSpot).Magnitude < PED_SPACING then
+							crowded = true
+							break
+						end
+					end
+					if not crowded then
+						table.insert(pedSpots, baseSpot)
+						local roadCenter = (CFrame.lookAt(mid, mid + dir) * CFrame.new(0, ROAD_THICK / 2, 0)).Position
+						local spot = CFrame.lookAt(baseSpot, Vector3.new(roadCenter.X, baseSpot.Y, roadCenter.Z))
+						local design = {
+							face = PED_FACES[pedRng:NextInteger(1, #PED_FACES)],
+							shirtTemplate = PED_SHIRTS[pedRng:NextInteger(1, #PED_SHIRTS)],
+							pantsTemplate = "rbxassetid://129458426",
+							hairAccessory = pedRng:NextNumber() < 0.85 and PED_HAIR[pedRng:NextInteger(1, #PED_HAIR)] or nil,
+						}
+						-- No prompt text here, the client hooks it up
+						buildNPC(model, "Pedestrian", spot, design, "")
+					end
 				end
 				
 				-- Add yellow centerline
@@ -1889,7 +1925,7 @@ local function buildPlaza()
 	newPart(shell, "Counter", Vector3.new(8, 3.2, 2.5) * S, K * CFrame.new(-7 * S, 2.05 * S, -5 * S),
 		Color3.fromRGB(120, 90, 70), Enum.Material.Wood)
 	buildNPC(shell, "Sal", K * CFrame.new(-7 * S, 0.4 * S, -2 * S),
-		{ face = "rbxassetid://7699174", hairAccessory = "63690008", hatAccessory = "48474313", shirtTemplate = "rbxassetid://607785314", pantsTemplate = "rbxassetid://129458426" },
+		{ face = "rbxassetid://7699174", hairAccessory = "63690008", shirtTemplate = "rbxassetid://607785314", pantsTemplate = "rbxassetid://129458426" },
 		"Welcome to ShellBlox! Fuel for cars, Bloxy Cola for scooters - every can makes that scooter a little quicker. Stacks five times!",
 		{ { "Anything else?",
 			"Snacks, lots of snacks. And don't let Callahan tell you ice cream is fuel. It is delicious though." } })
@@ -2038,7 +2074,7 @@ local function buildPlaza()
 	eggPrompt.Parent = egg
 	-- Eggbert stands RIGHT beside the egg pedestal, greeting customers
 	buildNPC(m, "Eggbert", rowCf * CFrame.new(14 * S, 0, 2 * S),
-		{ face = "rbxassetid://7699174", hairAccessory = "20573078", shirtTemplate = "rbxassetid://398633812", pantsTemplate = "rbxassetid://129458426" },
+		{ face = "rbxassetid://7699174", hairAccessory = "32278814", shirtTemplate = "rbxassetid://398633812", pantsTemplate = "rbxassetid://129458426" },
 		"Psst! Mystery dogs in these eggs. Mostly Mary or Jolene... but one in a HUNDRED hatches Linus. Rent a house first - pups need a home!",
 		{ { "Who's Linus?",
 			"A golden legend. Pays $100 a pet. I saw him hatch once. Changed my whole life." } })
@@ -2047,7 +2083,7 @@ local function buildPlaza()
 	-- counter, rods and live bait inside, and the sell counter buys your catch
 	do
 		-- west end of the row, past the dojo (the east end runs into ShellBlox)
-		local fSh = rowCf * CFrame.new(-106 * S, 0, 18 * S) -- local -Z = storefront
+		local fSh = rowCf * CFrame.new(-136 * S, 0, 18 * S) -- local -Z = storefront
 		local mF = newModel(m, "Fish N Bait")
 		local w, d, h = 30, 24, 12
 		local wallF = Color3.fromRGB(200, 214, 224)
@@ -2194,7 +2230,7 @@ local function buildPlaza()
 	
 	-- Discovery Bay Scooters: a walk-in shop selling the $1000 Fast Scooter upgrade
 	do
-		local sSh = rowCf * CFrame.new(-140 * S, 0, 18 * S) -- local -Z = storefront
+		local sSh = rowCf * CFrame.new(-180 * S, 0, 18 * S) -- local -Z = storefront
 		local mS = newModel(m, "Discovery Bay Scooters")
 		local w, d, h = 30, 24, 12
 		local wallS = Color3.fromRGB(40, 40, 45) -- sleek dark grey exterior
@@ -2320,7 +2356,7 @@ local function buildPlaza()
 
 	-- Callahan's Coffee and Cones (REQUIRED): a walk-in ice cream shop
 	do
-		local cSh = rowCf * CFrame.new(-36 * S, 0, 18 * S) -- shop base; local -Z = storefront
+		local cSh = rowCf * CFrame.new(-46 * S, 0, 18 * S) -- shop base; local -Z = storefront
 		local mC = newModel(m, "Callahan's Coffee and Cones")
 		local w, d, h = 30, 24, 12
 		local wallC = Color3.fromRGB(240, 224, 214)
@@ -2428,7 +2464,7 @@ local function buildPlaza()
 
 	-- Discovery Bay Jiu Jitsu (REQUIRED): a walk-in dojo with the challenge mat
 	do
-		local jSh = rowCf * CFrame.new(-70 * S, 0, 18 * S) -- dojo base; local -Z = storefront
+		local jSh = rowCf * CFrame.new(-90 * S, 0, 18 * S) -- dojo base; local -Z = storefront
 		local mJ = newModel(m, "Discovery Bay Jiu Jitsu")
 		local w, d, h = 32, 24, 13
 		local wallJ = Color3.fromRGB(60, 64, 70)
@@ -2521,7 +2557,7 @@ local function buildPlaza()
 				"Never leave the mat mid-fight. And never, EVER, challenge me on a Monday." } })
 	end
 	-- giant ice-cream prop by Callahan's
-	local ic = (rowCf * CFrame.new(-24 * S, 0, 2 * S)).Position
+	local ic = (rowCf * CFrame.new(-23 * S, 0, 2 * S)).Position
 	-- a waffle cone (tapered from stacked rings, point down) with two scoops and a cherry
 	newDisc(m, "ConeBase", 3.4 * S, 0.6 * S, CFrame.new(ic + Vector3.new(0, 0.3 * S, 0)), Color3.fromRGB(150, 145, 138), Enum.Material.Slate)
 	for k, dia in ipairs({ 0.8, 1.4, 2.0, 2.6, 3.1 }) do
@@ -2534,10 +2570,27 @@ local function buildPlaza()
 	newPart(m, "CherryStem", Vector3.new(0.12, 0.8, 0.12) * S, CFrame.new(ic + Vector3.new(0.15 * S, 11.9 * S, 0)) * CFrame.Angles(0, 0, math.rad(-20)),
 		Color3.fromRGB(60, 110, 40))
 	-- sidewalk + curb along the whole shop row
-	newPart(m, "RowSidewalk", Vector3.new(172, 0.3, 5) * S, rowCf * CFrame.new(-70 * S, 0.15 * S, 3.5 * S),
+	newPart(m, "RowSidewalk", Vector3.new(214, 0.3, 5) * S, rowCf * CFrame.new(-90 * S, 0.15 * S, 3.5 * S),
 		Color3.fromRGB(196, 192, 184), Enum.Material.Concrete)
-	newPart(m, "RowCurb", Vector3.new(172.2, 0.5, 0.5) * S, rowCf * CFrame.new(-70 * S, 0.25 * S, 1.2 * S),
+	newPart(m, "RowCurb", Vector3.new(214.2, 0.5, 0.5) * S, rowCf * CFrame.new(-90 * S, 0.25 * S, 1.2 * S),
 		Color3.fromRGB(170, 166, 158), Enum.Material.Concrete)
+	-- the gaps between the shops: paved, with a bench out front and a planter behind it
+	for _, gx in ipairs({ -67.5, -113.5, -158 }) do
+		local g = rowCf * CFrame.new(gx * S, 0, 0)
+		newPart(m, "GapPaving", Vector3.new(10, 0.3, 25.8) * S, g * CFrame.new(0, 0.15 * S, 19 * S),
+			Color3.fromRGB(196, 192, 184), Enum.Material.Concrete)
+		newPart(m, "BenchSeat", Vector3.new(5, 0.35, 1.4) * S, g * CFrame.new(0, 1.6 * S, 8 * S),
+			Color3.fromRGB(150, 105, 65), Enum.Material.WoodPlanks)
+		newPart(m, "BenchBack", Vector3.new(5, 1.4, 0.3) * S, g * CFrame.new(0, 2.5 * S, 8.6 * S),
+			Color3.fromRGB(150, 105, 65), Enum.Material.WoodPlanks)
+		for _, lx in ipairs({ -2.1, 2.1 }) do
+			newPart(m, "BenchLeg", Vector3.new(0.3, 1.4, 1.2) * S, g * CFrame.new(lx * S, 1.0 * S, 8 * S),
+				Color3.fromRGB(45, 45, 50), Enum.Material.Metal)
+		end
+		newPart(m, "Planter", Vector3.new(3, 1.6, 3) * S, g * CFrame.new(0, 1.1 * S, 14 * S),
+			Color3.fromRGB(120, 110, 100), Enum.Material.Brick)
+		newBall(m, "PlanterBush", 3.4 * S, g * CFrame.new(0, 2.9 * S, 14 * S), Color3.fromRGB(70, 140, 60), Enum.Material.Grass)
+	end
 	-- shared parking + cars
 	local pk = rowCf * CFrame.new(-30 * S, 0, -16 * S)
 	newPart(m, "Parking", Vector3.new(92, 0.35, 34) * S, pk * CFrame.new(0, 0.18 * S, 0),
@@ -2553,6 +2606,11 @@ local function buildPlaza()
 	-- open corner of the parking lot, in the plaza's own frame: always clear pavement,
 	-- tucked on the shop side of the lot (as far from lethal Discovery Bay Blvd as it gets)
 	plazaSpawnPos = (pk * CFrame.new(26 * S, 0.6 * S, 14 * S)).Position
+	-- Bob, a few steps from where you spawn, facing you: gives the "Welcome to the Bay" quest
+	local bobPos = (pk * CFrame.new(26 * S, 0.4 * S, 4 * S)).Position -- open pavement, 10 studs out from spawn
+	buildNPC(m, "Bob", CFrame.lookAt(bobPos, Vector3.new(plazaSpawnPos.X, bobPos.Y, plazaSpawnPos.Z)),
+		{ face = "rbxassetid://144075659", hairAccessory = "1772336109", shirtColor = Color3.fromRGB(255, 140, 40),
+			pantsTemplate = "rbxassetid://129458426" })
 end
 
 -- the big walk-in Discovery Bay Elementary: corridor, four classrooms, and the
@@ -2684,7 +2742,7 @@ local function buildBigSchool(parent, lm)
 	sp.RequiresLineOfSight = false
 	sp.Parent = button
 	buildNPC(m, "Ms. Wheeler", cf * CFrame.new(8 * S, 0.4 * S, (d / 2 - 6) * S),
-		{ face = "rbxassetid://7699174", hairAccessory = "12270336", shirtColor = Color3.fromRGB(200, 100, 150) },
+		{ face = "rbxassetid://7699174", hairAccessory = "451220849", shirtColor = Color3.fromRGB(200, 100, 150) },
 		"Welcome to Room 103, History of Scooters. Hold the red button to study - smart riders are FAST riders.",
 		{ { "Is studying worth it?",
 			"Plus ten speed for fifteen whole minutes. Homework has never paid better." } })
@@ -2903,7 +2961,7 @@ local function buildBloxway()
 	end
 
 	local bob = buildNPC(m, "Manager Bob", cf * CFrame.new(26 * S, 0.4 * S, (-d / 2 + 18) * S),
-		{ face = "rbxassetid://7074749", hairAccessory = "63690008", shirtTemplate = "rbxassetid://144076358", pantsTemplate = "rbxassetid://129458426" })
+		{ face = "rbxassetid://7074749", hairAccessory = "62234425", shirtTemplate = "rbxassetid://144076358", pantsTemplate = "rbxassetid://129458426" })
 end
 
 -- Yacht harbor + lighthouse at the real end of Marina Road
