@@ -11,7 +11,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 
-local VERSION = "v174"
+local VERSION = "v177"
 local SPEED_PASS_ID = 0 -- paste the real Game Pass ID here (same one as in DiscoveryBayShop)
 local RunService = game:GetService("RunService")
 local Lighting = game:GetService("Lighting")
@@ -4525,6 +4525,7 @@ end)
 -- 60fps Scooter Trick & Riding Movement Animator -------------------------------------------------
 do
 	local activeTrick = nil
+	local remoteTricks = setmetatable({}, { __mode = "k" }) -- other players' tricks we're showing: char -> trick
 	local smoothSteer = 0
 	local smoothSpeed = 0
 	local smoothCrouch = 0
@@ -4790,6 +4791,165 @@ do
 		setIKEnabled(j.hum, false)
 	end
 
+	-- one frame of a trick on any rider (yours, or another player's you're watching): true when it's over
+	local function poseTrick(j, at)
+		local elapsed = os.clock() - at.t0
+		local p = math.clamp(elapsed / at.dur, 0, 1)
+		local wave = math.sin(p * math.pi)
+		local ang = p * math.pi * 2
+		local name = at.name
+
+		-- Only release hand IK during No-Hander and Kickflip; for Tailwhip, 360 Spin, Backflip,
+		-- and Frontflip, keep hands holding the handlebars as the scooter flips/spins with you!
+		local releaseHands = (name == "No-Hander" or name == "Kickflip")
+		setIKEnabled(j.hum, false)
+		setSpeedPulse(j.hum, 1) -- no kicking mid-trick
+
+		-- Clear default R15/R6 Animate Transform on legs/torso (and arms only when IK is released)
+		local clearKeys = releaseHands and {
+			"root", "waist", "neck", "lShoulder", "rShoulder",
+			"lElbow", "rElbow", "lHip", "rHip", "lKnee", "rKnee",
+		} or {
+			"root", "waist", "neck", "lHip", "rHip", "lKnee", "rKnee",
+		}
+		for _, k in ipairs(clearKeys) do
+			local m = j[k]
+			if m and m:IsA("Motor6D") then
+				m.Transform = CFrame.new()
+			end
+		end
+
+		if name == "Tailwhip" then
+			local pivot = CFrame.new(0, j.deckY, -2.2)
+			local deckRot = CFrame.Angles(0, ang, 0)
+			if j.deckMount then
+				setC0(j.deckMount, getBaseC0(j.deckMount) * pivot * deckRot * pivot:Inverse())
+			end
+			if j.barMount then
+				setC0(j.barMount, getBaseC0(j.barMount) * CFrame.Angles(math.rad(-10 * wave), math.rad(22 * math.sin(ang)), math.rad(12 * math.sin(ang))))
+			end
+			if j.root then
+				pose(j.root, CFrame.new(0, 0.85 * wave, 0) * CFrame.Angles(math.rad(-10 * wave), 0, 0))
+			end
+			if j.waist then
+				pose(j.waist, CFrame.Angles(math.rad(-20 * wave), 0, 0))
+			end
+			if j.lHip and not j.isR6Hip then
+				pose(j.lHip, CFrame.Angles(math.rad(65 * wave), 0, math.rad(10 * wave)))
+			end
+			if j.rHip and not j.isR6Hip then
+				pose(j.rHip, CFrame.Angles(math.rad(65 * wave), 0, math.rad(-10 * wave)))
+			end
+			if j.lKnee then pose(j.lKnee, CFrame.Angles(math.rad(-65 * wave), 0, 0)) end
+			if j.rKnee then pose(j.rKnee, CFrame.Angles(math.rad(-65 * wave), 0, 0)) end
+
+		elseif name == "Kickflip" then
+			local pivot = CFrame.new(0, j.deckY + 1.1, -0.4)
+			local rollRot = CFrame.Angles(0, 0, ang)
+			if j.deckMount then
+				setC0(j.deckMount, getBaseC0(j.deckMount) * pivot * rollRot * pivot:Inverse())
+			end
+			if j.barMount then
+				setC0(j.barMount, getBaseC0(j.barMount) * pivot * rollRot * pivot:Inverse())
+			end
+			if j.root then
+				pose(j.root, CFrame.new(0, 0.95 * wave, 0) * CFrame.Angles(math.rad(10 * wave), 0, math.rad(16 * wave)))
+			end
+			if j.waist then
+				pose(j.waist, CFrame.Angles(0, 0, math.rad(-20 * wave)))
+			end
+			if j.lHip and not j.isR6Hip then
+				pose(j.lHip, CFrame.Angles(math.rad(58 * wave), 0, math.rad(25 * wave)))
+			end
+			if j.rHip and not j.isR6Hip then
+				pose(j.rHip, CFrame.Angles(math.rad(-35 * wave), math.rad(-15 * wave), math.rad(-68 * wave)))
+			end
+			if j.lKnee then pose(j.lKnee, CFrame.Angles(math.rad(-55 * wave), 0, 0)) end
+			if j.rKnee then pose(j.rKnee, CFrame.Angles(math.rad(-20 * wave), 0, 0)) end
+			if j.lShoulder then
+				pose(j.lShoulder, CFrame.Angles(math.rad(55 * wave), 0, math.rad(-42 * wave)))
+			end
+			if j.rShoulder then
+				pose(j.rShoulder, CFrame.Angles(math.rad(55 * wave), 0, math.rad(42 * wave)))
+			end
+
+		elseif name == "360 Spin" then
+			local dir = at.spinDir
+			local spinCF = CFrame.new(0, 0.75 * wave, 0) * CFrame.Angles(0, ang * dir, math.rad(14 * wave * dir))
+			if j.root then
+				pose(j.root, spinCF)
+			end
+			if j.deckMount then
+				setC0(j.deckMount, getBaseC0(j.deckMount) * spinCF)
+			end
+			if j.barMount then
+				setC0(j.barMount, getBaseC0(j.barMount) * spinCF * CFrame.Angles(0, math.rad(45 * wave * dir), 0))
+			end
+			if j.waist then
+				pose(j.waist, CFrame.Angles(math.rad(-14 * wave), math.rad(25 * wave * dir), 0))
+			end
+			if j.neck then
+				pose(j.neck, CFrame.Angles(0, math.rad(30 * wave * dir), 0))
+			end
+			if j.lHip and not j.isR6Hip then pose(j.lHip, CFrame.Angles(math.rad(48 * wave), 0, 0)) end
+			if j.rHip and not j.isR6Hip then pose(j.rHip, CFrame.Angles(math.rad(48 * wave), 0, 0)) end
+			if j.lKnee then pose(j.lKnee, CFrame.Angles(math.rad(-52 * wave), 0, 0)) end
+			if j.rKnee then pose(j.rKnee, CFrame.Angles(math.rad(-52 * wave), 0, 0)) end
+
+		elseif name == "Backflip" or name == "Frontflip" then
+			local sign = (name == "Backflip") and 1 or -1
+			local flipCF = CFrame.new(0, 1.3 * wave, 0) * CFrame.Angles(ang * sign, 0, 0)
+			if j.root then
+				pose(j.root, flipCF)
+			end
+			if j.deckMount then
+				setC0(j.deckMount, getBaseC0(j.deckMount) * flipCF)
+			end
+			if j.barMount then
+				setC0(j.barMount, getBaseC0(j.barMount) * flipCF)
+			end
+			if j.waist then
+				pose(j.waist, CFrame.Angles(math.rad(26 * wave * sign), 0, 0))
+			end
+			if j.neck then
+				pose(j.neck, CFrame.Angles(math.rad(30 * wave * sign), 0, 0))
+			end
+			if j.lHip and not j.isR6Hip then pose(j.lHip, CFrame.Angles(math.rad(62 * wave), 0, 0)) end
+			if j.rHip and not j.isR6Hip then pose(j.rHip, CFrame.Angles(math.rad(62 * wave), 0, 0)) end
+			if j.lKnee then pose(j.lKnee, CFrame.Angles(math.rad(-72 * wave), 0, 0)) end
+			if j.rKnee then pose(j.rKnee, CFrame.Angles(math.rad(-72 * wave), 0, 0)) end
+
+		elseif name == "No-Hander" then
+			local scooterTilt = CFrame.new(0, 0.5 * wave, 0) * CFrame.Angles(math.rad(22 * wave), 0, 0)
+			if j.deckMount then setC0(j.deckMount, getBaseC0(j.deckMount) * scooterTilt) end
+			if j.barMount then setC0(j.barMount, getBaseC0(j.barMount) * scooterTilt) end
+			if j.root then
+				pose(j.root, CFrame.new(0, 0.65 * wave, 0) * CFrame.Angles(math.rad(14 * wave), 0, 0))
+			end
+			if j.waist then
+				pose(j.waist, CFrame.Angles(math.rad(28 * wave), 0, 0))
+			end
+			if j.neck then
+				pose(j.neck, CFrame.Angles(math.rad(18 * wave), 0, 0))
+			end
+			if j.lShoulder then
+				pose(j.lShoulder, CFrame.Angles(math.rad(120 * wave), 0, math.rad(-62 * wave)))
+			end
+			if j.rShoulder then
+				pose(j.rShoulder, CFrame.Angles(math.rad(120 * wave), 0, math.rad(62 * wave)))
+			end
+			if j.lElbow then pose(j.lElbow, CFrame.Angles(math.rad(24 * wave), 0, 0)) end
+			if j.rElbow then pose(j.rElbow, CFrame.Angles(math.rad(24 * wave), 0, 0)) end
+			if j.lHip and not j.isR6Hip then pose(j.lHip, CFrame.Angles(math.rad(24 * wave), 0, math.rad(-10 * wave))) end
+			if j.rHip and not j.isR6Hip then pose(j.rHip, CFrame.Angles(math.rad(24 * wave), 0, math.rad(10 * wave))) end
+		end
+
+		if not releaseHands then
+			aimArmsAtGrips(j)
+		end
+		return p >= 1
+	end
+
 	_G.StartScooterTrickAnim = function(char, trickName)
 		local dur = 0.56
 		if trickName == "Backflip" or trickName == "Frontflip" then
@@ -4804,9 +4964,38 @@ do
 		}
 	end
 
+	task.spawn(function()
+		local trickPlayed = remotes:WaitForChild("TrickPlayed", 30)
+		if not trickPlayed then return end
+		trickPlayed.OnClientEvent:Connect(function(who, trickName)
+			-- `who` is a player, or a rider model (Practice Pete in the Game of S.C.O.O.T.)
+			if who == plr then return end
+			local rchar = typeof(who) == "Instance" and (who:IsA("Model") and who or who:IsA("Player") and who.Character)
+			if not rchar then return end
+			remoteTricks[rchar] = {
+				name = trickName, t0 = os.clock(),
+				dur = (trickName == "Backflip" or trickName == "Frontflip") and 0.60 or 0.56,
+				spinDir = (math.random() > 0.5) and 1 or -1,
+			}
+		end)
+	end)
+
 	-- PreSimulation runs after the Animator and IKControl have written this frame's Transforms,
 	-- so our poses are the ones that get drawn (in RenderStepped the Animator would overwrite them)
 	RunService.PreSimulation:Connect(function(dt)
+		-- other riders' tricks (the server only tells us WHICH trick; we animate it on their character)
+		for rchar, at in pairs(remoteTricks) do
+			local rj = rchar.Parent and rchar:FindFirstChild("Scooter") and getJoints(rchar)
+			if not (rj and rj.hrp and rj.hum) then
+				remoteTricks[rchar] = nil
+			elseif poseTrick(rj, at) then
+				for _, k in ipairs({ "deckMount", "barMount" }) do
+					if rj[k] then setC0(rj[k], getBaseC0(rj[k])) end
+				end
+				setIKEnabled(rj.hum, true) -- their hands go back to the server's handlebar grips
+				remoteTricks[rchar] = nil
+			end
+		end
 		if inTerryCutscene then return end
 		local char = plr.Character
 		if not char then return end
@@ -4830,161 +5019,7 @@ do
 		if not j.hrp or not j.hum then return end
 
 		if activeTrick and activeTrick.char == char then
-			local elapsed = os.clock() - activeTrick.t0
-			local p = math.clamp(elapsed / activeTrick.dur, 0, 1)
-			local wave = math.sin(p * math.pi)
-			local ang = p * math.pi * 2
-			local name = activeTrick.name
-
-			-- Only release hand IK during No-Hander and Kickflip; for Tailwhip, 360 Spin, Backflip,
-			-- and Frontflip, keep hands holding the handlebars as the scooter flips/spins with you!
-			local releaseHands = (name == "No-Hander" or name == "Kickflip")
-			setIKEnabled(j.hum, false)
-			setSpeedPulse(j.hum, 1) -- no kicking mid-trick
-
-			-- Clear default R15/R6 Animate Transform on legs/torso (and arms only when IK is released)
-			local clearKeys = releaseHands and {
-				"root", "waist", "neck", "lShoulder", "rShoulder",
-				"lElbow", "rElbow", "lHip", "rHip", "lKnee", "rKnee",
-			} or {
-				"root", "waist", "neck", "lHip", "rHip", "lKnee", "rKnee",
-			}
-			for _, k in ipairs(clearKeys) do
-				local m = j[k]
-				if m and m:IsA("Motor6D") then
-					m.Transform = CFrame.new()
-				end
-			end
-
-			if name == "Tailwhip" then
-				local pivot = CFrame.new(0, j.deckY, -2.2)
-				local deckRot = CFrame.Angles(0, ang, 0)
-				if j.deckMount then
-					setC0(j.deckMount, getBaseC0(j.deckMount) * pivot * deckRot * pivot:Inverse())
-				end
-				if j.barMount then
-					setC0(j.barMount, getBaseC0(j.barMount) * CFrame.Angles(math.rad(-10 * wave), math.rad(22 * math.sin(ang)), math.rad(12 * math.sin(ang))))
-				end
-				if j.root then
-					pose(j.root, CFrame.new(0, 0.85 * wave, 0) * CFrame.Angles(math.rad(-10 * wave), 0, 0))
-				end
-				if j.waist then
-					pose(j.waist, CFrame.Angles(math.rad(-20 * wave), 0, 0))
-				end
-				if j.lHip and not j.isR6Hip then
-					pose(j.lHip, CFrame.Angles(math.rad(65 * wave), 0, math.rad(10 * wave)))
-				end
-				if j.rHip and not j.isR6Hip then
-					pose(j.rHip, CFrame.Angles(math.rad(65 * wave), 0, math.rad(-10 * wave)))
-				end
-				if j.lKnee then pose(j.lKnee, CFrame.Angles(math.rad(-65 * wave), 0, 0)) end
-				if j.rKnee then pose(j.rKnee, CFrame.Angles(math.rad(-65 * wave), 0, 0)) end
-
-			elseif name == "Kickflip" then
-				local pivot = CFrame.new(0, j.deckY + 1.1, -0.4)
-				local rollRot = CFrame.Angles(0, 0, ang)
-				if j.deckMount then
-					setC0(j.deckMount, getBaseC0(j.deckMount) * pivot * rollRot * pivot:Inverse())
-				end
-				if j.barMount then
-					setC0(j.barMount, getBaseC0(j.barMount) * pivot * rollRot * pivot:Inverse())
-				end
-				if j.root then
-					pose(j.root, CFrame.new(0, 0.95 * wave, 0) * CFrame.Angles(math.rad(10 * wave), 0, math.rad(16 * wave)))
-				end
-				if j.waist then
-					pose(j.waist, CFrame.Angles(0, 0, math.rad(-20 * wave)))
-				end
-				if j.lHip and not j.isR6Hip then
-					pose(j.lHip, CFrame.Angles(math.rad(58 * wave), 0, math.rad(25 * wave)))
-				end
-				if j.rHip and not j.isR6Hip then
-					pose(j.rHip, CFrame.Angles(math.rad(-35 * wave), math.rad(-15 * wave), math.rad(-68 * wave)))
-				end
-				if j.lKnee then pose(j.lKnee, CFrame.Angles(math.rad(-55 * wave), 0, 0)) end
-				if j.rKnee then pose(j.rKnee, CFrame.Angles(math.rad(-20 * wave), 0, 0)) end
-				if j.lShoulder then
-					pose(j.lShoulder, CFrame.Angles(math.rad(55 * wave), 0, math.rad(-42 * wave)))
-				end
-				if j.rShoulder then
-					pose(j.rShoulder, CFrame.Angles(math.rad(55 * wave), 0, math.rad(42 * wave)))
-				end
-
-			elseif name == "360 Spin" then
-				local dir = activeTrick.spinDir
-				local spinCF = CFrame.new(0, 0.75 * wave, 0) * CFrame.Angles(0, ang * dir, math.rad(14 * wave * dir))
-				if j.root then
-					pose(j.root, spinCF)
-				end
-				if j.deckMount then
-					setC0(j.deckMount, getBaseC0(j.deckMount) * spinCF)
-				end
-				if j.barMount then
-					setC0(j.barMount, getBaseC0(j.barMount) * spinCF * CFrame.Angles(0, math.rad(45 * wave * dir), 0))
-				end
-				if j.waist then
-					pose(j.waist, CFrame.Angles(math.rad(-14 * wave), math.rad(25 * wave * dir), 0))
-				end
-				if j.neck then
-					pose(j.neck, CFrame.Angles(0, math.rad(30 * wave * dir), 0))
-				end
-				if j.lHip and not j.isR6Hip then pose(j.lHip, CFrame.Angles(math.rad(48 * wave), 0, 0)) end
-				if j.rHip and not j.isR6Hip then pose(j.rHip, CFrame.Angles(math.rad(48 * wave), 0, 0)) end
-				if j.lKnee then pose(j.lKnee, CFrame.Angles(math.rad(-52 * wave), 0, 0)) end
-				if j.rKnee then pose(j.rKnee, CFrame.Angles(math.rad(-52 * wave), 0, 0)) end
-
-			elseif name == "Backflip" or name == "Frontflip" then
-				local sign = (name == "Backflip") and 1 or -1
-				local flipCF = CFrame.new(0, 1.3 * wave, 0) * CFrame.Angles(ang * sign, 0, 0)
-				if j.root then
-					pose(j.root, flipCF)
-				end
-				if j.deckMount then
-					setC0(j.deckMount, getBaseC0(j.deckMount) * flipCF)
-				end
-				if j.barMount then
-					setC0(j.barMount, getBaseC0(j.barMount) * flipCF)
-				end
-				if j.waist then
-					pose(j.waist, CFrame.Angles(math.rad(26 * wave * sign), 0, 0))
-				end
-				if j.neck then
-					pose(j.neck, CFrame.Angles(math.rad(30 * wave * sign), 0, 0))
-				end
-				if j.lHip and not j.isR6Hip then pose(j.lHip, CFrame.Angles(math.rad(62 * wave), 0, 0)) end
-				if j.rHip and not j.isR6Hip then pose(j.rHip, CFrame.Angles(math.rad(62 * wave), 0, 0)) end
-				if j.lKnee then pose(j.lKnee, CFrame.Angles(math.rad(-72 * wave), 0, 0)) end
-				if j.rKnee then pose(j.rKnee, CFrame.Angles(math.rad(-72 * wave), 0, 0)) end
-
-			elseif name == "No-Hander" then
-				local scooterTilt = CFrame.new(0, 0.5 * wave, 0) * CFrame.Angles(math.rad(22 * wave), 0, 0)
-				if j.deckMount then setC0(j.deckMount, getBaseC0(j.deckMount) * scooterTilt) end
-				if j.barMount then setC0(j.barMount, getBaseC0(j.barMount) * scooterTilt) end
-				if j.root then
-					pose(j.root, CFrame.new(0, 0.65 * wave, 0) * CFrame.Angles(math.rad(14 * wave), 0, 0))
-				end
-				if j.waist then
-					pose(j.waist, CFrame.Angles(math.rad(28 * wave), 0, 0))
-				end
-				if j.neck then
-					pose(j.neck, CFrame.Angles(math.rad(18 * wave), 0, 0))
-				end
-				if j.lShoulder then
-					pose(j.lShoulder, CFrame.Angles(math.rad(120 * wave), 0, math.rad(-62 * wave)))
-				end
-				if j.rShoulder then
-					pose(j.rShoulder, CFrame.Angles(math.rad(120 * wave), 0, math.rad(62 * wave)))
-				end
-				if j.lElbow then pose(j.lElbow, CFrame.Angles(math.rad(24 * wave), 0, 0)) end
-				if j.rElbow then pose(j.rElbow, CFrame.Angles(math.rad(24 * wave), 0, 0)) end
-				if j.lHip and not j.isR6Hip then pose(j.lHip, CFrame.Angles(math.rad(24 * wave), 0, math.rad(-10 * wave))) end
-				if j.rHip and not j.isR6Hip then pose(j.rHip, CFrame.Angles(math.rad(24 * wave), 0, math.rad(10 * wave))) end
-			end
-
-			if not releaseHands then
-				aimArmsAtGrips(j)
-			end
-			if p >= 1 then
+			if poseTrick(j, activeTrick) then
 				resetAllToBase(j)
 				smoothCrouch = 0.7
 				activeTrick = nil
@@ -6140,5 +6175,128 @@ do
 			task.wait(0.05)
 		end
 		tracker:Destroy()
+	end)
+end
+
+-- GAME OF S.C.O.O.T. scoreboard: shows while you're in a game (or its lobby): everyone's letters,
+-- whose turn it is and a countdown. It never says which trick was done - you have to watch.
+do
+	local WORD = { "S", "C", "O", "O", "T" }
+	local board = Instance.new("ScreenGui")
+	board.Name = "ScootBoard"
+	board.ResetOnSpawn = false
+	board.DisplayOrder = 6
+	board.Enabled = false
+	board.Parent = plr:WaitForChild("PlayerGui")
+
+	local panel = Instance.new("Frame")
+	panel.Position = UDim2.fromOffset(16, 70)
+	panel.Size = UDim2.fromOffset(300, 60)
+	panel.AutomaticSize = Enum.AutomaticSize.Y
+	panel.BackgroundColor3 = Color3.fromRGB(20, 22, 34)
+	panel.BackgroundTransparency = 0.15
+	panel.Parent = board
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, 12)
+	corner.Parent = panel
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = Color3.fromRGB(255, 140, 40)
+	stroke.Thickness = 2
+	stroke.Parent = panel
+	local pad = Instance.new("UIPadding")
+	pad.PaddingTop, pad.PaddingBottom = UDim.new(0, 8), UDim.new(0, 10)
+	pad.PaddingLeft, pad.PaddingRight = UDim.new(0, 12), UDim.new(0, 12)
+	pad.Parent = panel
+	local list = Instance.new("UIListLayout")
+	list.SortOrder = Enum.SortOrder.LayoutOrder
+	list.Padding = UDim.new(0, 4)
+	list.Parent = panel
+
+	local function label(order, size, color)
+		local l = Instance.new("TextLabel")
+		l.LayoutOrder = order
+		l.BackgroundTransparency = 1
+		l.Size = UDim2.new(1, 0, 0, size + 6)
+		l.Font = Enum.Font.PermanentMarker
+		l.TextSize = size
+		l.TextColor3 = color
+		l.TextXAlignment = Enum.TextXAlignment.Left
+		l.TextWrapped = true
+		l.RichText = true
+		l.Parent = panel
+		return l
+	end
+	local title = label(0, 20, Color3.fromRGB(255, 170, 60))
+	title.Text = "GAME OF S.C.O.O.T."
+	local rows = {} -- player rows, rebuilt each update
+	local msg = label(100, 16, Color3.fromRGB(230, 230, 240))
+
+	-- the big "your turn" banner in the middle of the screen
+	local banner = Instance.new("TextLabel")
+	banner.AnchorPoint = Vector2.new(0.5, 0)
+	banner.Position = UDim2.new(0.5, 0, 0, 74)
+	banner.Size = UDim2.fromOffset(560, 54)
+	banner.BackgroundColor3 = Color3.fromRGB(255, 140, 40)
+	banner.BackgroundTransparency = 0.1
+	banner.Font = Enum.Font.PermanentMarker
+	banner.TextSize = 28
+	banner.TextColor3 = Color3.new(1, 1, 1)
+	banner.TextStrokeTransparency = 0.4
+	banner.Visible = false
+	banner.Parent = board
+	local bannerCorner = Instance.new("UICorner")
+	bannerCorner.CornerRadius = UDim.new(0, 14)
+	bannerCorner.Parent = banner
+
+	local deadline, turnText = nil, nil
+	RunService.Heartbeat:Connect(function()
+		if banner.Visible and deadline and turnText then
+			banner.Text = turnText .. "  " .. math.max(0, math.ceil(deadline - os.clock()))
+		end
+	end)
+
+	task.spawn(function()
+		local update = remotes:WaitForChild("ScootUpdate", 30)
+		if not update then return end
+		update.OnClientEvent:Connect(function(data)
+			if data.teleport then -- to S.C.O.O.T. Park / back to the plaza (we own our physics, so we move ourselves)
+				local char = plr.Character
+				local root = char and char:FindFirstChild("HumanoidRootPart")
+				if root then
+					char:PivotTo(data.teleport)
+					root.AssemblyLinearVelocity = Vector3.zero
+				end
+				return
+			end
+			if not data.active then
+				board.Enabled = false
+				banner.Visible = false
+				return
+			end
+			board.Enabled = true
+			for _, r in ipairs(rows) do r:Destroy() end
+			table.clear(rows)
+			for i, pl in ipairs(data.players or {}) do
+				local letters = {}
+				for k, ch in ipairs(WORD) do
+					table.insert(letters, k <= pl.letters and ('<font color="#ff5a5a">' .. ch .. "</font>")
+						or ('<font color="#5c5f72">' .. ch .. "</font>"))
+				end
+				local isTurn = pl.id == data.turnId
+				local out = pl.letters >= #WORD
+				local r = label(i, 18, out and Color3.fromRGB(120, 120, 130)
+					or isTurn and Color3.fromRGB(255, 220, 90) or Color3.new(1, 1, 1))
+				r.Text = (isTurn and "> " or "") .. pl.name .. "   " .. table.concat(letters, " ")
+				table.insert(rows, r)
+			end
+			msg.Text = data.msg or ""
+			if data.turnId == plr.UserId and data.timeLeft then
+				deadline = os.clock() + data.timeLeft
+				turnText = data.kind == "set" and "YOUR TURN: SET A TRICK!" or "YOUR TURN: COPY THE TRICK!"
+				banner.Visible = true
+			else
+				banner.Visible = false
+			end
+		end)
 	end)
 end

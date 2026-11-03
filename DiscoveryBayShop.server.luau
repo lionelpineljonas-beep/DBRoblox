@@ -36,7 +36,7 @@ local DAY_LENGTH = 600
 local START_CASH = 100
 local WALK_SPEED = 16
 local SCOOTER_SPEED = 30
-local VERSION = "v174"
+local VERSION = "v177"
 
 -- ==============================================================================================
 -- LIGHTING, DYNAMIC SUNSET & STARRY NIGHT SKY SYSTEM
@@ -295,7 +295,9 @@ end
 local DoTrick = remote("DoTrick")
 local TrickResult = remote("TrickResult")
 local ToggleScooter = remote("ToggleScooter")
-local ForceDismount = remote("ForceDismount") -- cutscenes: always get off, never toggles back on
+local ForceDismount = remote("ForceDismount")
+local TrickPlayed = remote("TrickPlayed") -- server -> everyone: "this rider did this trick" (so all screens animate it)
+local ScootUpdate = remote("ScootUpdate") -- server -> players in a Game of S.C.O.O.T.: the scoreboard -- cutscenes: always get off, never toggles back on
 local BuyCustomItem = remote("BuyCustomItem")
 local HatchEgg = remote("HatchEgg") -- server -> client: play the on-screen hatch cinematic
 local UpdatePity = remote("UpdatePity") -- server -> client: updates pity tracker
@@ -1795,6 +1797,274 @@ for _, t in ipairs(TRICKS) do
 end
 local lastTrick = {}
 
+--==============================================================================================
+-- GAME OF S.C.O.O.T. (like S.K.A.T.E. in Skate 3): stand on the painted circle in the plaza and press E
+-- to join. Players take turns setting a trick and everyone else has to copy it. The trick's NAME is
+-- never shown anywhere - you have to watch it and work out which one it was. Miss and you get a
+-- letter; spell S-C-O-O-T and you're out. Last rider standing wins the pot.
+--==============================================================================================
+local SCOOT_WORD = { "S", "C", "O", "O", "T" }
+local SCOOT_TIME = 12    -- seconds to set or copy a trick
+local SCOOT_RANGE = 45   -- tricks only count this close to the circle
+local SCOOT_PRIZE = 300
+local SCOOT_MAX = 4
+local scoot = { pad = nil, arena = nil, lobby = {}, playing = false, players = {}, letters = {}, waiting = nil, countdown = false }
+
+-- PRACTICE PETE: when you're alone in the lobby he hops in, so S.C.O.O.T. works on an empty server.
+-- He's a real R15 rider on a real scooter (the same mount code as players), so everyone can WATCH
+-- his tricks and copy them. He only exists during a match.
+local PETE_WAIT = game:GetService("RunService"):IsStudio() and 5 or 10 -- seconds alone before he joins
+local function newBot()
+	return { isBot = true, Name = "PracticePete", DisplayName = "Practice Pete", UserId = -1 }
+end
+local function spawnPete(at)
+	local desc = Instance.new("HumanoidDescription")
+	desc.Shirt = 607785314 -- all Roblox-made, so they load in a published game
+	desc.Pants = 129458426
+	desc.HairAccessory = "13477818"
+	desc.Face = 7699174
+	local skin = Color3.fromRGB(234, 184, 146)
+	desc.HeadColor, desc.TorsoColor = skin, skin
+	desc.LeftArmColor, desc.RightArmColor, desc.LeftLegColor, desc.RightLegColor = skin, skin, skin, skin
+	local ok, model = pcall(Players.CreateHumanoidModelFromDescription, Players, desc, Enum.HumanoidRigType.R15)
+	if not ok or not model then
+		warn("[S.C.O.O.T.] couldn't build Practice Pete: " .. tostring(model))
+		return nil
+	end
+	model.Name = "Practice Pete"
+	local hum = model:FindFirstChildOfClass("Humanoid")
+	if hum then hum.DisplayName = "Practice Pete" end
+	model.HumanoidRootPart.Anchored = true -- he stays put on the circle
+	model:PivotTo(at)
+	model.Parent = workspace
+	-- the scooter mount only needs a few player-ish things from whoever it's mounting
+	local standIn = { UserId = -1, Character = model, attrs = {} }
+	function standIn:GetAttribute(k) return self.attrs[k] end
+	function standIn:SetAttribute(k, v) self.attrs[k] = v end
+	function standIn:HasAppearanceLoaded() return true end
+	function standIn:FindFirstChild() return nil end -- (no leaderstats: speed boosts just don't apply)
+	local mounted, err = pcall(mountScooterBody, standIn, model)
+	if not mounted then warn("[S.C.O.O.T.] Pete's scooter: " .. tostring(err)) end
+	charRigs[-1] = nil -- (he isn't a player: keep him out of the player rig table)
+	return model
+end
+-- (real players are Instances, which error on unknown fields like .isBot: only bot TABLES have it)
+local function isBot(p) return type(p) == "table" and rawget(p, "isBot") == true end
+local function inGame(p) return isBot(p) or p.Parent ~= nil end
+
+local function scootSend(msg, turn, kind, timeLeft)
+	local list = {}
+	for _, p in ipairs(scoot.playing and scoot.players or scoot.lobby) do
+		table.insert(list, { name = p.DisplayName, id = p.UserId, letters = scoot.letters[p] or 0 })
+	end
+	local data = {
+		active = true, playing = scoot.playing, players = list, msg = msg,
+		turnId = turn and turn.UserId, kind = kind, timeLeft = timeLeft,
+	}
+	for _, p in ipairs(scoot.playing and scoot.players or scoot.lobby) do
+		if not isBot(p) and p.Parent then ScootUpdate:FireClient(p, data) end
+	end
+end
+
+-- called from DoTrick: counts if it's this player's turn and they're at the circle on their scooter
+local function scootOnTrick(plr, trickName)
+	local w = scoot.waiting
+	if not (w and w.player == plr and w.trick == nil and scoot.pad) then return end
+	local hrp = plr.Character and plr.Character:FindFirstChild("HumanoidRootPart")
+	local centre = (scoot.playing and scoot.arena or scoot.pad).Position
+	if hrp and (hrp.Position - centre).Magnitude <= SCOOT_RANGE then
+		w.trick = trickName
+	end
+end
+
+-- moves a rider (server side AND on their own client, which owns its character's physics)
+local function scootTeleport(p, cf)
+	if isBot(p) then
+		if p.model and p.model.Parent then p.model:PivotTo(cf) end
+		return
+	end
+	if not p.Parent or not p.Character then return end
+	p.Character:PivotTo(cf)
+	ScootUpdate:FireClient(p, { teleport = cf })
+end
+
+-- riders spread round a circle, all facing the middle
+local function scootRing(centrePart, players, radius)
+	local c = centrePart.Position + Vector3.new(0, 4, 0)
+	for i, p in ipairs(players) do
+		local a = (i - 1) / math.max(#players, 1) * math.pi * 2
+		local pos = c + Vector3.new(math.cos(a) * radius, 0, math.sin(a) * radius)
+		scootTeleport(p, CFrame.lookAt(pos, Vector3.new(c.X, pos.Y, c.Z)))
+	end
+end
+
+local function waitForTrick(p, kind, setTrick)
+	scoot.waiting = { player = p, kind = kind, trick = nil }
+	local w = scoot.waiting
+	if isBot(p) then
+		task.delay(2.5, function()
+			if scoot.waiting ~= w then return end
+			if kind == "copy" and rng:NextNumber() < 0.65 then
+				w.trick = setTrick
+			else
+				w.trick = TRICKS[rng:NextInteger(1, #TRICKS)].name
+			end
+			if p.model and p.model.Parent then
+				TrickPlayed:FireAllClients(p.model, w.trick) -- everyone sees Pete do it (name never shown)
+			end
+		end)
+	end
+	local t0 = os.clock()
+	while os.clock() - t0 < SCOOT_TIME and w.trick == nil and inGame(p) do task.wait(0.1) end
+	scoot.waiting = nil
+	return w.trick
+end
+
+local function scootAlive()
+	local list = {}
+	for _, p in ipairs(scoot.players) do
+		if inGame(p) and (scoot.letters[p] or 0) < #SCOOT_WORD then table.insert(list, p) end
+	end
+	return list
+end
+
+local function runScoot()
+	scoot.playing = true
+	scoot.players = scoot.lobby
+	scoot.lobby = {}
+	scoot.letters = {}
+	for _, p in ipairs(scoot.players) do
+		scoot.letters[p] = 0
+		if isBot(p) then p.model = spawnPete(CFrame.new((scoot.arena or scoot.pad).Position + Vector3.new(0, 4, 0))) end
+	end
+	if scoot.arena then scootRing(scoot.arena, scoot.players, 12) end -- off to S.C.O.O.T. Park
+	scootSend("GAME ON! Watch closely - nobody tells you the trick.")
+	task.wait(3)
+	local turn = 0
+	while #scootAlive() > 1 do
+		local alive = scootAlive()
+		turn += 1
+		local setter = alive[((turn - 1) % #alive) + 1]
+		scootSend(setter.DisplayName .. " is setting a trick...", setter, "set", SCOOT_TIME)
+		local set = waitForTrick(setter, "set")
+		if set then
+			scootSend(setter.DisplayName .. " landed it! Copy THAT.")
+			task.wait(1.5)
+			for _, p in ipairs(scootAlive()) do
+				if p ~= setter then
+					scootSend(p.DisplayName .. " is copying...", p, "copy", SCOOT_TIME)
+					local got = waitForTrick(p, "copy", set)
+					if got == set then
+						scootSend(p.DisplayName .. " matched it!")
+					else
+						scoot.letters[p] = (scoot.letters[p] or 0) + 1
+						local n = scoot.letters[p]
+						if n >= #SCOOT_WORD then
+							scootSend(p.DisplayName .. " spelled S.C.O.O.T. - they're OUT!")
+						else
+							scootSend((got and "Wrong trick! " or "Too slow! ") .. p.DisplayName .. " gets a " .. SCOOT_WORD[n] .. ".")
+						end
+					end
+					task.wait(1.5)
+				end
+			end
+		else
+			scootSend(setter.DisplayName .. " didn't set anything. Next rider!")
+			task.wait(1.5)
+		end
+	end
+	local winner = scootAlive()[1]
+	if winner then
+		scootSend(winner.DisplayName .. " WINS the Game of S.C.O.O.T.! +$" .. SCOOT_PRIZE)
+		if not isBot(winner) then
+			local cash = getCash(winner)
+			if cash then cash.Value += SCOOT_PRIZE end
+			TrickResult:FireClient(winner, "Game of S.C.O.O.T. champion", SCOOT_PRIZE)
+		end
+	end
+	task.wait(4)
+	local everyone = scoot.players
+	scoot.playing = false
+	scoot.players = {}
+	for _, p in ipairs(everyone) do
+		if isBot(p) and p.model then p.model:Destroy() end -- Pete goes home
+	end
+	if scoot.pad then scootRing(scoot.pad, everyone, 11) end -- back to the plaza
+	for _, p in ipairs(everyone) do
+		if not isBot(p) and p.Parent then ScootUpdate:FireClient(p, { active = false }) end
+	end
+end
+
+-- once 2+ riders are in the lobby, a short countdown (more can still jump in), then the game starts
+local function scootMaybeStart()
+	if scoot.playing or scoot.countdown then return end
+	if #scoot.lobby == 1 then
+		scootSend("Nobody else around? Practice Pete joins in " .. PETE_WAIT .. "s...")
+		scoot.countdown = true
+		task.delay(PETE_WAIT, function()
+			scoot.countdown = false
+			if not scoot.playing and #scoot.lobby == 1 then
+				table.insert(scoot.lobby, newBot())
+				scootMaybeStart()
+			end
+		end)
+		return
+	end
+	if #scoot.lobby < 2 then
+		scootSend("Waiting for one more rider... (stand on the circle, press E)")
+		return
+	end
+	scoot.countdown = true
+	task.spawn(function()
+		for t = 8, 1, -1 do
+			if #scoot.lobby < 2 then
+				scoot.countdown = false
+				scootSend("Waiting for one more rider...")
+				return
+			end
+			scootSend("Starting in " .. t .. "... (more riders can still join)")
+			task.wait(1)
+		end
+		scoot.countdown = false
+		runScoot()
+	end)
+end
+
+local function hookScootPad(pad)
+	scoot.pad = pad
+	local prompt = Instance.new("ProximityPrompt")
+	prompt.ActionText = "Join"
+	prompt.ObjectText = "Game of S.C.O.O.T."
+	prompt.MaxActivationDistance = 14
+	prompt.RequiresLineOfSight = false
+	prompt.Parent = pad
+	prompt.Triggered:Connect(function(plr)
+		if scoot.playing then
+			TrickResult:FireClient(plr, "A game is on - jump in the next one!", 0)
+			return
+		end
+		for i, p in ipairs(scoot.lobby) do
+			if p == plr then -- pressing again leaves the lobby
+				table.remove(scoot.lobby, i)
+				ScootUpdate:FireClient(plr, { active = false })
+				scootSend("Waiting for riders...")
+				return
+			end
+		end
+		if #scoot.lobby >= SCOOT_MAX then
+			TrickResult:FireClient(plr, "The game is full (4 riders)!", 0)
+			return
+		end
+		table.insert(scoot.lobby, plr)
+		scootMaybeStart()
+	end)
+	Players.PlayerRemoving:Connect(function(plr)
+		for i, p in ipairs(scoot.lobby) do
+			if p == plr then table.remove(scoot.lobby, i) break end
+		end
+	end)
+end
+
 DoTrick.OnServerEvent:Connect(function(plr, trickName)
 	local char = plr.Character
 	local rig = charRigs[plr.UserId]
@@ -1832,7 +2102,9 @@ DoTrick.OnServerEvent:Connect(function(plr, trickName)
 		pay = math.floor(pay)
 		cash.Value = cash.Value + pay
 		TrickResult:FireClient(plr, trick.name, pay)
+		TrickPlayed:FireAllClients(plr, trick.name) -- the name is only used to animate it, never shown
 		questProgress(plr, "trick")
+		if scootOnTrick then scootOnTrick(plr, trick.name) end
 
 		-- Spawn a burst of sparks from the back wheel when executing a trick
 		local scooter = char:FindFirstChild("Scooter")
@@ -4198,6 +4470,10 @@ task.spawn(function()
 				hookFishSell(d)
 			elseif d:GetAttribute("ScooterShop") then
 				hookScooterShop(d)
+			elseif d:GetAttribute("ScootPad") then
+				hookScootPad(d)
+			elseif d:GetAttribute("ScootArena") then
+				scoot.arena = d
 			end
 		end
 	end

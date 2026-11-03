@@ -25,7 +25,7 @@
       <Properties>
         <string name="Name">DiscoveryBayBuild</string>
         <token name="RunContext">0</token>
-        <string name="Source"><![CDATA[-- DISCOVERY BAY, CALIFORNIA — OSM-accurate procedural Roblox build (v174)
+        <string name="Source"><![CDATA[-- DISCOVERY BAY, CALIFORNIA — OSM-accurate procedural Roblox build (v177)
 --==============================================================================================
 -- Builds the real Discovery Bay from OpenStreetMap geometry (© OpenStreetMap contributors):
 --   * real terrain raster: every lagoon/bay polygon, Old River, golf fairways/greens/
@@ -1877,6 +1877,80 @@ end
 
 local plazaSpawnPos = nil -- set by buildPlaza: a guaranteed-open spot on the parking lot
 
+-- S.C.O.O.T. PARK: the walled arena the Game of S.C.O.O.T. teleports its riders to (open lawn, well
+-- away from the busy plaza). c = centre at ground level; its entrance faces `toward` (the plaza).
+local function buildScootPark(parent, c, toward)
+	local m = newModel(parent, "S.C.O.O.T. Park")
+	local cf = CFrame.lookAt(c, Vector3.new(toward.X, c.Y, toward.Z)) -- local -Z = the entrance side
+	local SIZE = 120
+	local half = SIZE / 2
+	local CONCRETE = Color3.fromRGB(205, 203, 198)
+	local PANELS = { Color3.fromRGB(255, 140, 40), Color3.fromRGB(60, 190, 200), Color3.fromRGB(150, 90, 210), Color3.fromRGB(240, 70, 110) }
+
+	-- the floor: smooth concrete with a painted ring + circle in the middle
+	newPart(m, "ParkFloor", Vector3.new(SIZE, 1, SIZE) * S, cf * CFrame.new(0, 0.5 * S, 0), CONCRETE, Enum.Material.Concrete)
+	newDisc(m, "ParkRing", 34 * S, 0.1 * S, cf * CFrame.new(0, 1.05 * S, 0), Color3.fromRGB(245, 245, 245))
+	local circle = newDisc(m, "ParkCircle", 31 * S, 0.1 * S, cf * CFrame.new(0, 1.1 * S, 0), Color3.fromRGB(255, 140, 40))
+	circle:SetAttribute("ScootArena", true) -- the game's centre while a match is on
+
+	-- low walls of colourful panels all round (gap for the entrance on the -Z side)
+	for side = 0, 3 do
+		local rot = CFrame.Angles(0, side * math.pi / 2, 0)
+		for k = -2, 2 do
+			if not (side == 0 and k == 0) then -- the entrance gap
+				local panel = cf * rot * CFrame.new(k * 24 * S, 2.6 * S, -half * S)
+				newPart(m, "ParkWall", Vector3.new(23.4, 3.2, 1.2) * S, panel, PANELS[(k + side) % #PANELS + 1], Enum.Material.Plaster)
+				newPart(m, "ParkWallCap", Vector3.new(24, 0.4, 1.6) * S, panel * CFrame.new(0, 1.8 * S, 0), Color3.fromRGB(60, 60, 66), Enum.Material.Metal)
+			end
+		end
+	end
+
+	-- a quarter-pipe on each side wall and the back wall
+	for _, side in ipairs({ 1, 2, 3 }) do
+		local rot = CFrame.Angles(0, side * math.pi / 2, 0)
+		newWedge(m, "QuarterPipe", Vector3.new(28, 4, 7) * S,
+			cf * rot * CFrame.new(0, 3 * S, (-half + 4.6) * S) * CFrame.Angles(0, math.pi, 0), Color3.fromRGB(150, 150, 155), Enum.Material.Concrete)
+	end
+
+	-- light posts in the corners: glowing lamps for night sessions
+	for _, corner in ipairs({ { -1, -1 }, { 1, -1 }, { -1, 1 }, { 1, 1 } }) do
+		local base = cf * CFrame.new(corner[1] * (half - 4) * S, 0, corner[2] * (half - 4) * S)
+		newColumn(m, "ParkLightPole", 18 * S, 0.8 * S, base * CFrame.new(0, 9 * S, 0), Color3.fromRGB(50, 50, 56), Enum.Material.Metal)
+		local lamp = newBall(m, "ParkLamp", 2.4 * S, base * CFrame.new(0, 18.6 * S, 0), Color3.fromRGB(255, 236, 190), Enum.Material.Neon)
+		local light = Instance.new("PointLight")
+		light.Range = 45
+		light.Brightness = 1.4
+		light.Color = Color3.fromRGB(255, 225, 180)
+		light.Parent = lamp
+		-- palms just outside the corners
+		local palm = base * CFrame.new(corner[1] * 9 * S, 0, corner[2] * 9 * S)
+		newColumn(m, "PalmTrunk", 16 * S, 1.1 * S, palm * CFrame.new(0, 8 * S, 0), Color3.fromRGB(140, 105, 70), Enum.Material.Wood)
+		for f = 0, 4 do
+			newPart(m, "PalmFrond", Vector3.new(1.4, 0.15, 8) * S,
+				palm * CFrame.new(0, 16 * S, 0) * CFrame.Angles(0, f * math.pi * 2 / 5, 0) * CFrame.new(0, 0, -3.6 * S) * CFrame.Angles(math.rad(-22), 0, 0),
+				Color3.fromRGB(60, 160, 70), Enum.Material.Grass)
+		end
+	end
+
+	-- spectator bleachers along the back wall, outside the arena
+	for row = 0, 3 do
+		newPart(m, "Bleacher", Vector3.new(60, 1, 3) * S, cf * CFrame.new(0, (0.5 + row * 1.6) * S, (half + 3 + row * 3) * S),
+			Color3.fromRGB(70, 110, 170), Enum.Material.Metal)
+	end
+
+	-- the entrance arch with the big sign, facing the plaza
+	for _, ax in ipairs({ -13, 13 }) do
+		newColumn(m, "ArchPost", 16 * S, 1.4 * S, cf * CFrame.new(ax * S, 8 * S, (-half - 1) * S), Color3.fromRGB(60, 60, 66), Enum.Material.Metal)
+	end
+	local arch = newPart(m, "ArchSign", Vector3.new(28, 5, 1) * S, cf * CFrame.new(0, 17 * S, (-half - 1) * S), Color3.fromRGB(255, 140, 40))
+	makeSign(arch, Enum.NormalId.Front, "S.C.O.O.T. PARK", Color3.fromRGB(255, 140, 40), Color3.new(1, 1, 1))
+	makeSign(arch, Enum.NormalId.Back, "S.C.O.O.T. PARK", Color3.fromRGB(255, 140, 40), Color3.new(1, 1, 1))
+	-- string of coloured bulbs across the arch
+	for i = -6, 6 do
+		newBall(m, "ArchBulb", 0.7 * S, cf * CFrame.new(i * 2 * S, 14.2 * S, (-half - 1.6) * S), PANELS[(i % #PANELS) + 1], Enum.Material.Neon)
+	end
+end
+
 local function buildPlaza()
 	if not plazaPt or not inRegion(plazaPt.x, plazaPt.z) then return end
 	local m = newModel(FOLDERS.Landmarks, "Discovery Bay Blvd Plaza")
@@ -2638,6 +2712,20 @@ local function buildPlaza()
 	buildNPC(m, "Bob", CFrame.lookAt(bobPos, Vector3.new(plazaSpawnPos.X, bobPos.Y, plazaSpawnPos.Z)),
 		{ face = "rbxassetid://144075659", hairAccessory = "1772336109", shirtColor = Color3.fromRGB(255, 140, 40),
 			pantsTemplate = "rbxassetid://129458426" })
+	-- the Game of S.C.O.O.T. circle: a painted ring on the open end of the lot (the shop script runs the game)
+	local scootCf = pk * CFrame.new(-20 * S, 0.36 * S, 9 * S)
+	newDisc(m, "ScootRing", 17 * S, 0.1 * S, scootCf * CFrame.new(0, 0.05 * S, 0), Color3.fromRGB(245, 245, 245))
+	local scootPad = newDisc(m, "ScootPad", 15.4 * S, 0.1 * S, scootCf * CFrame.new(0, 0.1 * S, 0), Color3.fromRGB(255, 140, 40))
+	scootPad:SetAttribute("ScootPad", true)
+	local scootPole = scootCf * CFrame.new(9 * S, 0, 0)
+	newColumn(m, "ScootSignPole", 7 * S, 0.4 * S, scootPole * CFrame.new(0, 3.5 * S, 0), Color3.fromRGB(60, 60, 66), Enum.Material.Metal)
+	local scootSign = newPart(m, "ScootSign", Vector3.new(0.3, 2.4, 7) * S, scootPole * CFrame.new(0, 8 * S, 0),
+		Color3.fromRGB(255, 140, 40))
+	makeSign(scootSign, Enum.NormalId.Left, "GAME OF S.C.O.O.T.", Color3.fromRGB(255, 140, 40), Color3.new(1, 1, 1))
+	makeSign(scootSign, Enum.NormalId.Right, "GAME OF S.C.O.O.T.", Color3.fromRGB(255, 140, 40), Color3.new(1, 1, 1))
+	-- the arena itself, on the open lawn 700 studs out (the spot was checked clear)
+	local parkC = Vector3.new(scootCf.X, Y_LAND or 2, scootCf.Z + 700 * S)
+	buildScootPark(m, parkC, scootCf.Position)
 end
 
 -- the big walk-in Discovery Bay Elementary: corridor, four classrooms, and the
@@ -4127,7 +4215,7 @@ local DAY_LENGTH = 600
 local START_CASH = 100
 local WALK_SPEED = 16
 local SCOOTER_SPEED = 30
-local VERSION = "v174"
+local VERSION = "v177"
 
 -- ==============================================================================================
 -- LIGHTING, DYNAMIC SUNSET & STARRY NIGHT SKY SYSTEM
@@ -4386,7 +4474,9 @@ end
 local DoTrick = remote("DoTrick")
 local TrickResult = remote("TrickResult")
 local ToggleScooter = remote("ToggleScooter")
-local ForceDismount = remote("ForceDismount") -- cutscenes: always get off, never toggles back on
+local ForceDismount = remote("ForceDismount")
+local TrickPlayed = remote("TrickPlayed") -- server -> everyone: "this rider did this trick" (so all screens animate it)
+local ScootUpdate = remote("ScootUpdate") -- server -> players in a Game of S.C.O.O.T.: the scoreboard -- cutscenes: always get off, never toggles back on
 local BuyCustomItem = remote("BuyCustomItem")
 local HatchEgg = remote("HatchEgg") -- server -> client: play the on-screen hatch cinematic
 local UpdatePity = remote("UpdatePity") -- server -> client: updates pity tracker
@@ -5886,6 +5976,274 @@ for _, t in ipairs(TRICKS) do
 end
 local lastTrick = {}
 
+--==============================================================================================
+-- GAME OF S.C.O.O.T. (like S.K.A.T.E. in Skate 3): stand on the painted circle in the plaza and press E
+-- to join. Players take turns setting a trick and everyone else has to copy it. The trick's NAME is
+-- never shown anywhere - you have to watch it and work out which one it was. Miss and you get a
+-- letter; spell S-C-O-O-T and you're out. Last rider standing wins the pot.
+--==============================================================================================
+local SCOOT_WORD = { "S", "C", "O", "O", "T" }
+local SCOOT_TIME = 12    -- seconds to set or copy a trick
+local SCOOT_RANGE = 45   -- tricks only count this close to the circle
+local SCOOT_PRIZE = 300
+local SCOOT_MAX = 4
+local scoot = { pad = nil, arena = nil, lobby = {}, playing = false, players = {}, letters = {}, waiting = nil, countdown = false }
+
+-- PRACTICE PETE: when you're alone in the lobby he hops in, so S.C.O.O.T. works on an empty server.
+-- He's a real R15 rider on a real scooter (the same mount code as players), so everyone can WATCH
+-- his tricks and copy them. He only exists during a match.
+local PETE_WAIT = game:GetService("RunService"):IsStudio() and 5 or 10 -- seconds alone before he joins
+local function newBot()
+	return { isBot = true, Name = "PracticePete", DisplayName = "Practice Pete", UserId = -1 }
+end
+local function spawnPete(at)
+	local desc = Instance.new("HumanoidDescription")
+	desc.Shirt = 607785314 -- all Roblox-made, so they load in a published game
+	desc.Pants = 129458426
+	desc.HairAccessory = "13477818"
+	desc.Face = 7699174
+	local skin = Color3.fromRGB(234, 184, 146)
+	desc.HeadColor, desc.TorsoColor = skin, skin
+	desc.LeftArmColor, desc.RightArmColor, desc.LeftLegColor, desc.RightLegColor = skin, skin, skin, skin
+	local ok, model = pcall(Players.CreateHumanoidModelFromDescription, Players, desc, Enum.HumanoidRigType.R15)
+	if not ok or not model then
+		warn("[S.C.O.O.T.] couldn't build Practice Pete: " .. tostring(model))
+		return nil
+	end
+	model.Name = "Practice Pete"
+	local hum = model:FindFirstChildOfClass("Humanoid")
+	if hum then hum.DisplayName = "Practice Pete" end
+	model.HumanoidRootPart.Anchored = true -- he stays put on the circle
+	model:PivotTo(at)
+	model.Parent = workspace
+	-- the scooter mount only needs a few player-ish things from whoever it's mounting
+	local standIn = { UserId = -1, Character = model, attrs = {} }
+	function standIn:GetAttribute(k) return self.attrs[k] end
+	function standIn:SetAttribute(k, v) self.attrs[k] = v end
+	function standIn:HasAppearanceLoaded() return true end
+	function standIn:FindFirstChild() return nil end -- (no leaderstats: speed boosts just don't apply)
+	local mounted, err = pcall(mountScooterBody, standIn, model)
+	if not mounted then warn("[S.C.O.O.T.] Pete's scooter: " .. tostring(err)) end
+	charRigs[-1] = nil -- (he isn't a player: keep him out of the player rig table)
+	return model
+end
+-- (real players are Instances, which error on unknown fields like .isBot: only bot TABLES have it)
+local function isBot(p) return type(p) == "table" and rawget(p, "isBot") == true end
+local function inGame(p) return isBot(p) or p.Parent ~= nil end
+
+local function scootSend(msg, turn, kind, timeLeft)
+	local list = {}
+	for _, p in ipairs(scoot.playing and scoot.players or scoot.lobby) do
+		table.insert(list, { name = p.DisplayName, id = p.UserId, letters = scoot.letters[p] or 0 })
+	end
+	local data = {
+		active = true, playing = scoot.playing, players = list, msg = msg,
+		turnId = turn and turn.UserId, kind = kind, timeLeft = timeLeft,
+	}
+	for _, p in ipairs(scoot.playing and scoot.players or scoot.lobby) do
+		if not isBot(p) and p.Parent then ScootUpdate:FireClient(p, data) end
+	end
+end
+
+-- called from DoTrick: counts if it's this player's turn and they're at the circle on their scooter
+local function scootOnTrick(plr, trickName)
+	local w = scoot.waiting
+	if not (w and w.player == plr and w.trick == nil and scoot.pad) then return end
+	local hrp = plr.Character and plr.Character:FindFirstChild("HumanoidRootPart")
+	local centre = (scoot.playing and scoot.arena or scoot.pad).Position
+	if hrp and (hrp.Position - centre).Magnitude <= SCOOT_RANGE then
+		w.trick = trickName
+	end
+end
+
+-- moves a rider (server side AND on their own client, which owns its character's physics)
+local function scootTeleport(p, cf)
+	if isBot(p) then
+		if p.model and p.model.Parent then p.model:PivotTo(cf) end
+		return
+	end
+	if not p.Parent or not p.Character then return end
+	p.Character:PivotTo(cf)
+	ScootUpdate:FireClient(p, { teleport = cf })
+end
+
+-- riders spread round a circle, all facing the middle
+local function scootRing(centrePart, players, radius)
+	local c = centrePart.Position + Vector3.new(0, 4, 0)
+	for i, p in ipairs(players) do
+		local a = (i - 1) / math.max(#players, 1) * math.pi * 2
+		local pos = c + Vector3.new(math.cos(a) * radius, 0, math.sin(a) * radius)
+		scootTeleport(p, CFrame.lookAt(pos, Vector3.new(c.X, pos.Y, c.Z)))
+	end
+end
+
+local function waitForTrick(p, kind, setTrick)
+	scoot.waiting = { player = p, kind = kind, trick = nil }
+	local w = scoot.waiting
+	if isBot(p) then
+		task.delay(2.5, function()
+			if scoot.waiting ~= w then return end
+			if kind == "copy" and rng:NextNumber() < 0.65 then
+				w.trick = setTrick
+			else
+				w.trick = TRICKS[rng:NextInteger(1, #TRICKS)].name
+			end
+			if p.model and p.model.Parent then
+				TrickPlayed:FireAllClients(p.model, w.trick) -- everyone sees Pete do it (name never shown)
+			end
+		end)
+	end
+	local t0 = os.clock()
+	while os.clock() - t0 < SCOOT_TIME and w.trick == nil and inGame(p) do task.wait(0.1) end
+	scoot.waiting = nil
+	return w.trick
+end
+
+local function scootAlive()
+	local list = {}
+	for _, p in ipairs(scoot.players) do
+		if inGame(p) and (scoot.letters[p] or 0) < #SCOOT_WORD then table.insert(list, p) end
+	end
+	return list
+end
+
+local function runScoot()
+	scoot.playing = true
+	scoot.players = scoot.lobby
+	scoot.lobby = {}
+	scoot.letters = {}
+	for _, p in ipairs(scoot.players) do
+		scoot.letters[p] = 0
+		if isBot(p) then p.model = spawnPete(CFrame.new((scoot.arena or scoot.pad).Position + Vector3.new(0, 4, 0))) end
+	end
+	if scoot.arena then scootRing(scoot.arena, scoot.players, 12) end -- off to S.C.O.O.T. Park
+	scootSend("GAME ON! Watch closely - nobody tells you the trick.")
+	task.wait(3)
+	local turn = 0
+	while #scootAlive() > 1 do
+		local alive = scootAlive()
+		turn += 1
+		local setter = alive[((turn - 1) % #alive) + 1]
+		scootSend(setter.DisplayName .. " is setting a trick...", setter, "set", SCOOT_TIME)
+		local set = waitForTrick(setter, "set")
+		if set then
+			scootSend(setter.DisplayName .. " landed it! Copy THAT.")
+			task.wait(1.5)
+			for _, p in ipairs(scootAlive()) do
+				if p ~= setter then
+					scootSend(p.DisplayName .. " is copying...", p, "copy", SCOOT_TIME)
+					local got = waitForTrick(p, "copy", set)
+					if got == set then
+						scootSend(p.DisplayName .. " matched it!")
+					else
+						scoot.letters[p] = (scoot.letters[p] or 0) + 1
+						local n = scoot.letters[p]
+						if n >= #SCOOT_WORD then
+							scootSend(p.DisplayName .. " spelled S.C.O.O.T. - they're OUT!")
+						else
+							scootSend((got and "Wrong trick! " or "Too slow! ") .. p.DisplayName .. " gets a " .. SCOOT_WORD[n] .. ".")
+						end
+					end
+					task.wait(1.5)
+				end
+			end
+		else
+			scootSend(setter.DisplayName .. " didn't set anything. Next rider!")
+			task.wait(1.5)
+		end
+	end
+	local winner = scootAlive()[1]
+	if winner then
+		scootSend(winner.DisplayName .. " WINS the Game of S.C.O.O.T.! +$" .. SCOOT_PRIZE)
+		if not isBot(winner) then
+			local cash = getCash(winner)
+			if cash then cash.Value += SCOOT_PRIZE end
+			TrickResult:FireClient(winner, "Game of S.C.O.O.T. champion", SCOOT_PRIZE)
+		end
+	end
+	task.wait(4)
+	local everyone = scoot.players
+	scoot.playing = false
+	scoot.players = {}
+	for _, p in ipairs(everyone) do
+		if isBot(p) and p.model then p.model:Destroy() end -- Pete goes home
+	end
+	if scoot.pad then scootRing(scoot.pad, everyone, 11) end -- back to the plaza
+	for _, p in ipairs(everyone) do
+		if not isBot(p) and p.Parent then ScootUpdate:FireClient(p, { active = false }) end
+	end
+end
+
+-- once 2+ riders are in the lobby, a short countdown (more can still jump in), then the game starts
+local function scootMaybeStart()
+	if scoot.playing or scoot.countdown then return end
+	if #scoot.lobby == 1 then
+		scootSend("Nobody else around? Practice Pete joins in " .. PETE_WAIT .. "s...")
+		scoot.countdown = true
+		task.delay(PETE_WAIT, function()
+			scoot.countdown = false
+			if not scoot.playing and #scoot.lobby == 1 then
+				table.insert(scoot.lobby, newBot())
+				scootMaybeStart()
+			end
+		end)
+		return
+	end
+	if #scoot.lobby < 2 then
+		scootSend("Waiting for one more rider... (stand on the circle, press E)")
+		return
+	end
+	scoot.countdown = true
+	task.spawn(function()
+		for t = 8, 1, -1 do
+			if #scoot.lobby < 2 then
+				scoot.countdown = false
+				scootSend("Waiting for one more rider...")
+				return
+			end
+			scootSend("Starting in " .. t .. "... (more riders can still join)")
+			task.wait(1)
+		end
+		scoot.countdown = false
+		runScoot()
+	end)
+end
+
+local function hookScootPad(pad)
+	scoot.pad = pad
+	local prompt = Instance.new("ProximityPrompt")
+	prompt.ActionText = "Join"
+	prompt.ObjectText = "Game of S.C.O.O.T."
+	prompt.MaxActivationDistance = 14
+	prompt.RequiresLineOfSight = false
+	prompt.Parent = pad
+	prompt.Triggered:Connect(function(plr)
+		if scoot.playing then
+			TrickResult:FireClient(plr, "A game is on - jump in the next one!", 0)
+			return
+		end
+		for i, p in ipairs(scoot.lobby) do
+			if p == plr then -- pressing again leaves the lobby
+				table.remove(scoot.lobby, i)
+				ScootUpdate:FireClient(plr, { active = false })
+				scootSend("Waiting for riders...")
+				return
+			end
+		end
+		if #scoot.lobby >= SCOOT_MAX then
+			TrickResult:FireClient(plr, "The game is full (4 riders)!", 0)
+			return
+		end
+		table.insert(scoot.lobby, plr)
+		scootMaybeStart()
+	end)
+	Players.PlayerRemoving:Connect(function(plr)
+		for i, p in ipairs(scoot.lobby) do
+			if p == plr then table.remove(scoot.lobby, i) break end
+		end
+	end)
+end
+
 DoTrick.OnServerEvent:Connect(function(plr, trickName)
 	local char = plr.Character
 	local rig = charRigs[plr.UserId]
@@ -5923,7 +6281,9 @@ DoTrick.OnServerEvent:Connect(function(plr, trickName)
 		pay = math.floor(pay)
 		cash.Value = cash.Value + pay
 		TrickResult:FireClient(plr, trick.name, pay)
+		TrickPlayed:FireAllClients(plr, trick.name) -- the name is only used to animate it, never shown
 		questProgress(plr, "trick")
+		if scootOnTrick then scootOnTrick(plr, trick.name) end
 
 		-- Spawn a burst of sparks from the back wheel when executing a trick
 		local scooter = char:FindFirstChild("Scooter")
@@ -8289,6 +8649,10 @@ task.spawn(function()
 				hookFishSell(d)
 			elseif d:GetAttribute("ScooterShop") then
 				hookScooterShop(d)
+			elseif d:GetAttribute("ScootPad") then
+				hookScootPad(d)
+			elseif d:GetAttribute("ScootArena") then
+				scoot.arena = d
 			end
 		end
 	end
@@ -8335,7 +8699,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 
-local VERSION = "v174"
+local VERSION = "v177"
 local SPEED_PASS_ID = 0 -- paste the real Game Pass ID here (same one as in DiscoveryBayShop)
 local RunService = game:GetService("RunService")
 local Lighting = game:GetService("Lighting")
@@ -12849,6 +13213,7 @@ end)
 -- 60fps Scooter Trick & Riding Movement Animator -------------------------------------------------
 do
 	local activeTrick = nil
+	local remoteTricks = setmetatable({}, { __mode = "k" }) -- other players' tricks we're showing: char -> trick
 	local smoothSteer = 0
 	local smoothSpeed = 0
 	local smoothCrouch = 0
@@ -13114,6 +13479,165 @@ do
 		setIKEnabled(j.hum, false)
 	end
 
+	-- one frame of a trick on any rider (yours, or another player's you're watching): true when it's over
+	local function poseTrick(j, at)
+		local elapsed = os.clock() - at.t0
+		local p = math.clamp(elapsed / at.dur, 0, 1)
+		local wave = math.sin(p * math.pi)
+		local ang = p * math.pi * 2
+		local name = at.name
+
+		-- Only release hand IK during No-Hander and Kickflip; for Tailwhip, 360 Spin, Backflip,
+		-- and Frontflip, keep hands holding the handlebars as the scooter flips/spins with you!
+		local releaseHands = (name == "No-Hander" or name == "Kickflip")
+		setIKEnabled(j.hum, false)
+		setSpeedPulse(j.hum, 1) -- no kicking mid-trick
+
+		-- Clear default R15/R6 Animate Transform on legs/torso (and arms only when IK is released)
+		local clearKeys = releaseHands and {
+			"root", "waist", "neck", "lShoulder", "rShoulder",
+			"lElbow", "rElbow", "lHip", "rHip", "lKnee", "rKnee",
+		} or {
+			"root", "waist", "neck", "lHip", "rHip", "lKnee", "rKnee",
+		}
+		for _, k in ipairs(clearKeys) do
+			local m = j[k]
+			if m and m:IsA("Motor6D") then
+				m.Transform = CFrame.new()
+			end
+		end
+
+		if name == "Tailwhip" then
+			local pivot = CFrame.new(0, j.deckY, -2.2)
+			local deckRot = CFrame.Angles(0, ang, 0)
+			if j.deckMount then
+				setC0(j.deckMount, getBaseC0(j.deckMount) * pivot * deckRot * pivot:Inverse())
+			end
+			if j.barMount then
+				setC0(j.barMount, getBaseC0(j.barMount) * CFrame.Angles(math.rad(-10 * wave), math.rad(22 * math.sin(ang)), math.rad(12 * math.sin(ang))))
+			end
+			if j.root then
+				pose(j.root, CFrame.new(0, 0.85 * wave, 0) * CFrame.Angles(math.rad(-10 * wave), 0, 0))
+			end
+			if j.waist then
+				pose(j.waist, CFrame.Angles(math.rad(-20 * wave), 0, 0))
+			end
+			if j.lHip and not j.isR6Hip then
+				pose(j.lHip, CFrame.Angles(math.rad(65 * wave), 0, math.rad(10 * wave)))
+			end
+			if j.rHip and not j.isR6Hip then
+				pose(j.rHip, CFrame.Angles(math.rad(65 * wave), 0, math.rad(-10 * wave)))
+			end
+			if j.lKnee then pose(j.lKnee, CFrame.Angles(math.rad(-65 * wave), 0, 0)) end
+			if j.rKnee then pose(j.rKnee, CFrame.Angles(math.rad(-65 * wave), 0, 0)) end
+
+		elseif name == "Kickflip" then
+			local pivot = CFrame.new(0, j.deckY + 1.1, -0.4)
+			local rollRot = CFrame.Angles(0, 0, ang)
+			if j.deckMount then
+				setC0(j.deckMount, getBaseC0(j.deckMount) * pivot * rollRot * pivot:Inverse())
+			end
+			if j.barMount then
+				setC0(j.barMount, getBaseC0(j.barMount) * pivot * rollRot * pivot:Inverse())
+			end
+			if j.root then
+				pose(j.root, CFrame.new(0, 0.95 * wave, 0) * CFrame.Angles(math.rad(10 * wave), 0, math.rad(16 * wave)))
+			end
+			if j.waist then
+				pose(j.waist, CFrame.Angles(0, 0, math.rad(-20 * wave)))
+			end
+			if j.lHip and not j.isR6Hip then
+				pose(j.lHip, CFrame.Angles(math.rad(58 * wave), 0, math.rad(25 * wave)))
+			end
+			if j.rHip and not j.isR6Hip then
+				pose(j.rHip, CFrame.Angles(math.rad(-35 * wave), math.rad(-15 * wave), math.rad(-68 * wave)))
+			end
+			if j.lKnee then pose(j.lKnee, CFrame.Angles(math.rad(-55 * wave), 0, 0)) end
+			if j.rKnee then pose(j.rKnee, CFrame.Angles(math.rad(-20 * wave), 0, 0)) end
+			if j.lShoulder then
+				pose(j.lShoulder, CFrame.Angles(math.rad(55 * wave), 0, math.rad(-42 * wave)))
+			end
+			if j.rShoulder then
+				pose(j.rShoulder, CFrame.Angles(math.rad(55 * wave), 0, math.rad(42 * wave)))
+			end
+
+		elseif name == "360 Spin" then
+			local dir = at.spinDir
+			local spinCF = CFrame.new(0, 0.75 * wave, 0) * CFrame.Angles(0, ang * dir, math.rad(14 * wave * dir))
+			if j.root then
+				pose(j.root, spinCF)
+			end
+			if j.deckMount then
+				setC0(j.deckMount, getBaseC0(j.deckMount) * spinCF)
+			end
+			if j.barMount then
+				setC0(j.barMount, getBaseC0(j.barMount) * spinCF * CFrame.Angles(0, math.rad(45 * wave * dir), 0))
+			end
+			if j.waist then
+				pose(j.waist, CFrame.Angles(math.rad(-14 * wave), math.rad(25 * wave * dir), 0))
+			end
+			if j.neck then
+				pose(j.neck, CFrame.Angles(0, math.rad(30 * wave * dir), 0))
+			end
+			if j.lHip and not j.isR6Hip then pose(j.lHip, CFrame.Angles(math.rad(48 * wave), 0, 0)) end
+			if j.rHip and not j.isR6Hip then pose(j.rHip, CFrame.Angles(math.rad(48 * wave), 0, 0)) end
+			if j.lKnee then pose(j.lKnee, CFrame.Angles(math.rad(-52 * wave), 0, 0)) end
+			if j.rKnee then pose(j.rKnee, CFrame.Angles(math.rad(-52 * wave), 0, 0)) end
+
+		elseif name == "Backflip" or name == "Frontflip" then
+			local sign = (name == "Backflip") and 1 or -1
+			local flipCF = CFrame.new(0, 1.3 * wave, 0) * CFrame.Angles(ang * sign, 0, 0)
+			if j.root then
+				pose(j.root, flipCF)
+			end
+			if j.deckMount then
+				setC0(j.deckMount, getBaseC0(j.deckMount) * flipCF)
+			end
+			if j.barMount then
+				setC0(j.barMount, getBaseC0(j.barMount) * flipCF)
+			end
+			if j.waist then
+				pose(j.waist, CFrame.Angles(math.rad(26 * wave * sign), 0, 0))
+			end
+			if j.neck then
+				pose(j.neck, CFrame.Angles(math.rad(30 * wave * sign), 0, 0))
+			end
+			if j.lHip and not j.isR6Hip then pose(j.lHip, CFrame.Angles(math.rad(62 * wave), 0, 0)) end
+			if j.rHip and not j.isR6Hip then pose(j.rHip, CFrame.Angles(math.rad(62 * wave), 0, 0)) end
+			if j.lKnee then pose(j.lKnee, CFrame.Angles(math.rad(-72 * wave), 0, 0)) end
+			if j.rKnee then pose(j.rKnee, CFrame.Angles(math.rad(-72 * wave), 0, 0)) end
+
+		elseif name == "No-Hander" then
+			local scooterTilt = CFrame.new(0, 0.5 * wave, 0) * CFrame.Angles(math.rad(22 * wave), 0, 0)
+			if j.deckMount then setC0(j.deckMount, getBaseC0(j.deckMount) * scooterTilt) end
+			if j.barMount then setC0(j.barMount, getBaseC0(j.barMount) * scooterTilt) end
+			if j.root then
+				pose(j.root, CFrame.new(0, 0.65 * wave, 0) * CFrame.Angles(math.rad(14 * wave), 0, 0))
+			end
+			if j.waist then
+				pose(j.waist, CFrame.Angles(math.rad(28 * wave), 0, 0))
+			end
+			if j.neck then
+				pose(j.neck, CFrame.Angles(math.rad(18 * wave), 0, 0))
+			end
+			if j.lShoulder then
+				pose(j.lShoulder, CFrame.Angles(math.rad(120 * wave), 0, math.rad(-62 * wave)))
+			end
+			if j.rShoulder then
+				pose(j.rShoulder, CFrame.Angles(math.rad(120 * wave), 0, math.rad(62 * wave)))
+			end
+			if j.lElbow then pose(j.lElbow, CFrame.Angles(math.rad(24 * wave), 0, 0)) end
+			if j.rElbow then pose(j.rElbow, CFrame.Angles(math.rad(24 * wave), 0, 0)) end
+			if j.lHip and not j.isR6Hip then pose(j.lHip, CFrame.Angles(math.rad(24 * wave), 0, math.rad(-10 * wave))) end
+			if j.rHip and not j.isR6Hip then pose(j.rHip, CFrame.Angles(math.rad(24 * wave), 0, math.rad(10 * wave))) end
+		end
+
+		if not releaseHands then
+			aimArmsAtGrips(j)
+		end
+		return p >= 1
+	end
+
 	_G.StartScooterTrickAnim = function(char, trickName)
 		local dur = 0.56
 		if trickName == "Backflip" or trickName == "Frontflip" then
@@ -13128,9 +13652,38 @@ do
 		}
 	end
 
+	task.spawn(function()
+		local trickPlayed = remotes:WaitForChild("TrickPlayed", 30)
+		if not trickPlayed then return end
+		trickPlayed.OnClientEvent:Connect(function(who, trickName)
+			-- `who` is a player, or a rider model (Practice Pete in the Game of S.C.O.O.T.)
+			if who == plr then return end
+			local rchar = typeof(who) == "Instance" and (who:IsA("Model") and who or who:IsA("Player") and who.Character)
+			if not rchar then return end
+			remoteTricks[rchar] = {
+				name = trickName, t0 = os.clock(),
+				dur = (trickName == "Backflip" or trickName == "Frontflip") and 0.60 or 0.56,
+				spinDir = (math.random() > 0.5) and 1 or -1,
+			}
+		end)
+	end)
+
 	-- PreSimulation runs after the Animator and IKControl have written this frame's Transforms,
 	-- so our poses are the ones that get drawn (in RenderStepped the Animator would overwrite them)
 	RunService.PreSimulation:Connect(function(dt)
+		-- other riders' tricks (the server only tells us WHICH trick; we animate it on their character)
+		for rchar, at in pairs(remoteTricks) do
+			local rj = rchar.Parent and rchar:FindFirstChild("Scooter") and getJoints(rchar)
+			if not (rj and rj.hrp and rj.hum) then
+				remoteTricks[rchar] = nil
+			elseif poseTrick(rj, at) then
+				for _, k in ipairs({ "deckMount", "barMount" }) do
+					if rj[k] then setC0(rj[k], getBaseC0(rj[k])) end
+				end
+				setIKEnabled(rj.hum, true) -- their hands go back to the server's handlebar grips
+				remoteTricks[rchar] = nil
+			end
+		end
 		if inTerryCutscene then return end
 		local char = plr.Character
 		if not char then return end
@@ -13154,161 +13707,7 @@ do
 		if not j.hrp or not j.hum then return end
 
 		if activeTrick and activeTrick.char == char then
-			local elapsed = os.clock() - activeTrick.t0
-			local p = math.clamp(elapsed / activeTrick.dur, 0, 1)
-			local wave = math.sin(p * math.pi)
-			local ang = p * math.pi * 2
-			local name = activeTrick.name
-
-			-- Only release hand IK during No-Hander and Kickflip; for Tailwhip, 360 Spin, Backflip,
-			-- and Frontflip, keep hands holding the handlebars as the scooter flips/spins with you!
-			local releaseHands = (name == "No-Hander" or name == "Kickflip")
-			setIKEnabled(j.hum, false)
-			setSpeedPulse(j.hum, 1) -- no kicking mid-trick
-
-			-- Clear default R15/R6 Animate Transform on legs/torso (and arms only when IK is released)
-			local clearKeys = releaseHands and {
-				"root", "waist", "neck", "lShoulder", "rShoulder",
-				"lElbow", "rElbow", "lHip", "rHip", "lKnee", "rKnee",
-			} or {
-				"root", "waist", "neck", "lHip", "rHip", "lKnee", "rKnee",
-			}
-			for _, k in ipairs(clearKeys) do
-				local m = j[k]
-				if m and m:IsA("Motor6D") then
-					m.Transform = CFrame.new()
-				end
-			end
-
-			if name == "Tailwhip" then
-				local pivot = CFrame.new(0, j.deckY, -2.2)
-				local deckRot = CFrame.Angles(0, ang, 0)
-				if j.deckMount then
-					setC0(j.deckMount, getBaseC0(j.deckMount) * pivot * deckRot * pivot:Inverse())
-				end
-				if j.barMount then
-					setC0(j.barMount, getBaseC0(j.barMount) * CFrame.Angles(math.rad(-10 * wave), math.rad(22 * math.sin(ang)), math.rad(12 * math.sin(ang))))
-				end
-				if j.root then
-					pose(j.root, CFrame.new(0, 0.85 * wave, 0) * CFrame.Angles(math.rad(-10 * wave), 0, 0))
-				end
-				if j.waist then
-					pose(j.waist, CFrame.Angles(math.rad(-20 * wave), 0, 0))
-				end
-				if j.lHip and not j.isR6Hip then
-					pose(j.lHip, CFrame.Angles(math.rad(65 * wave), 0, math.rad(10 * wave)))
-				end
-				if j.rHip and not j.isR6Hip then
-					pose(j.rHip, CFrame.Angles(math.rad(65 * wave), 0, math.rad(-10 * wave)))
-				end
-				if j.lKnee then pose(j.lKnee, CFrame.Angles(math.rad(-65 * wave), 0, 0)) end
-				if j.rKnee then pose(j.rKnee, CFrame.Angles(math.rad(-65 * wave), 0, 0)) end
-
-			elseif name == "Kickflip" then
-				local pivot = CFrame.new(0, j.deckY + 1.1, -0.4)
-				local rollRot = CFrame.Angles(0, 0, ang)
-				if j.deckMount then
-					setC0(j.deckMount, getBaseC0(j.deckMount) * pivot * rollRot * pivot:Inverse())
-				end
-				if j.barMount then
-					setC0(j.barMount, getBaseC0(j.barMount) * pivot * rollRot * pivot:Inverse())
-				end
-				if j.root then
-					pose(j.root, CFrame.new(0, 0.95 * wave, 0) * CFrame.Angles(math.rad(10 * wave), 0, math.rad(16 * wave)))
-				end
-				if j.waist then
-					pose(j.waist, CFrame.Angles(0, 0, math.rad(-20 * wave)))
-				end
-				if j.lHip and not j.isR6Hip then
-					pose(j.lHip, CFrame.Angles(math.rad(58 * wave), 0, math.rad(25 * wave)))
-				end
-				if j.rHip and not j.isR6Hip then
-					pose(j.rHip, CFrame.Angles(math.rad(-35 * wave), math.rad(-15 * wave), math.rad(-68 * wave)))
-				end
-				if j.lKnee then pose(j.lKnee, CFrame.Angles(math.rad(-55 * wave), 0, 0)) end
-				if j.rKnee then pose(j.rKnee, CFrame.Angles(math.rad(-20 * wave), 0, 0)) end
-				if j.lShoulder then
-					pose(j.lShoulder, CFrame.Angles(math.rad(55 * wave), 0, math.rad(-42 * wave)))
-				end
-				if j.rShoulder then
-					pose(j.rShoulder, CFrame.Angles(math.rad(55 * wave), 0, math.rad(42 * wave)))
-				end
-
-			elseif name == "360 Spin" then
-				local dir = activeTrick.spinDir
-				local spinCF = CFrame.new(0, 0.75 * wave, 0) * CFrame.Angles(0, ang * dir, math.rad(14 * wave * dir))
-				if j.root then
-					pose(j.root, spinCF)
-				end
-				if j.deckMount then
-					setC0(j.deckMount, getBaseC0(j.deckMount) * spinCF)
-				end
-				if j.barMount then
-					setC0(j.barMount, getBaseC0(j.barMount) * spinCF * CFrame.Angles(0, math.rad(45 * wave * dir), 0))
-				end
-				if j.waist then
-					pose(j.waist, CFrame.Angles(math.rad(-14 * wave), math.rad(25 * wave * dir), 0))
-				end
-				if j.neck then
-					pose(j.neck, CFrame.Angles(0, math.rad(30 * wave * dir), 0))
-				end
-				if j.lHip and not j.isR6Hip then pose(j.lHip, CFrame.Angles(math.rad(48 * wave), 0, 0)) end
-				if j.rHip and not j.isR6Hip then pose(j.rHip, CFrame.Angles(math.rad(48 * wave), 0, 0)) end
-				if j.lKnee then pose(j.lKnee, CFrame.Angles(math.rad(-52 * wave), 0, 0)) end
-				if j.rKnee then pose(j.rKnee, CFrame.Angles(math.rad(-52 * wave), 0, 0)) end
-
-			elseif name == "Backflip" or name == "Frontflip" then
-				local sign = (name == "Backflip") and 1 or -1
-				local flipCF = CFrame.new(0, 1.3 * wave, 0) * CFrame.Angles(ang * sign, 0, 0)
-				if j.root then
-					pose(j.root, flipCF)
-				end
-				if j.deckMount then
-					setC0(j.deckMount, getBaseC0(j.deckMount) * flipCF)
-				end
-				if j.barMount then
-					setC0(j.barMount, getBaseC0(j.barMount) * flipCF)
-				end
-				if j.waist then
-					pose(j.waist, CFrame.Angles(math.rad(26 * wave * sign), 0, 0))
-				end
-				if j.neck then
-					pose(j.neck, CFrame.Angles(math.rad(30 * wave * sign), 0, 0))
-				end
-				if j.lHip and not j.isR6Hip then pose(j.lHip, CFrame.Angles(math.rad(62 * wave), 0, 0)) end
-				if j.rHip and not j.isR6Hip then pose(j.rHip, CFrame.Angles(math.rad(62 * wave), 0, 0)) end
-				if j.lKnee then pose(j.lKnee, CFrame.Angles(math.rad(-72 * wave), 0, 0)) end
-				if j.rKnee then pose(j.rKnee, CFrame.Angles(math.rad(-72 * wave), 0, 0)) end
-
-			elseif name == "No-Hander" then
-				local scooterTilt = CFrame.new(0, 0.5 * wave, 0) * CFrame.Angles(math.rad(22 * wave), 0, 0)
-				if j.deckMount then setC0(j.deckMount, getBaseC0(j.deckMount) * scooterTilt) end
-				if j.barMount then setC0(j.barMount, getBaseC0(j.barMount) * scooterTilt) end
-				if j.root then
-					pose(j.root, CFrame.new(0, 0.65 * wave, 0) * CFrame.Angles(math.rad(14 * wave), 0, 0))
-				end
-				if j.waist then
-					pose(j.waist, CFrame.Angles(math.rad(28 * wave), 0, 0))
-				end
-				if j.neck then
-					pose(j.neck, CFrame.Angles(math.rad(18 * wave), 0, 0))
-				end
-				if j.lShoulder then
-					pose(j.lShoulder, CFrame.Angles(math.rad(120 * wave), 0, math.rad(-62 * wave)))
-				end
-				if j.rShoulder then
-					pose(j.rShoulder, CFrame.Angles(math.rad(120 * wave), 0, math.rad(62 * wave)))
-				end
-				if j.lElbow then pose(j.lElbow, CFrame.Angles(math.rad(24 * wave), 0, 0)) end
-				if j.rElbow then pose(j.rElbow, CFrame.Angles(math.rad(24 * wave), 0, 0)) end
-				if j.lHip and not j.isR6Hip then pose(j.lHip, CFrame.Angles(math.rad(24 * wave), 0, math.rad(-10 * wave))) end
-				if j.rHip and not j.isR6Hip then pose(j.rHip, CFrame.Angles(math.rad(24 * wave), 0, math.rad(10 * wave))) end
-			end
-
-			if not releaseHands then
-				aimArmsAtGrips(j)
-			end
-			if p >= 1 then
+			if poseTrick(j, activeTrick) then
 				resetAllToBase(j)
 				smoothCrouch = 0.7
 				activeTrick = nil
@@ -14464,6 +14863,129 @@ do
 			task.wait(0.05)
 		end
 		tracker:Destroy()
+	end)
+end
+
+-- GAME OF S.C.O.O.T. scoreboard: shows while you're in a game (or its lobby): everyone's letters,
+-- whose turn it is and a countdown. It never says which trick was done - you have to watch.
+do
+	local WORD = { "S", "C", "O", "O", "T" }
+	local board = Instance.new("ScreenGui")
+	board.Name = "ScootBoard"
+	board.ResetOnSpawn = false
+	board.DisplayOrder = 6
+	board.Enabled = false
+	board.Parent = plr:WaitForChild("PlayerGui")
+
+	local panel = Instance.new("Frame")
+	panel.Position = UDim2.fromOffset(16, 70)
+	panel.Size = UDim2.fromOffset(300, 60)
+	panel.AutomaticSize = Enum.AutomaticSize.Y
+	panel.BackgroundColor3 = Color3.fromRGB(20, 22, 34)
+	panel.BackgroundTransparency = 0.15
+	panel.Parent = board
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, 12)
+	corner.Parent = panel
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = Color3.fromRGB(255, 140, 40)
+	stroke.Thickness = 2
+	stroke.Parent = panel
+	local pad = Instance.new("UIPadding")
+	pad.PaddingTop, pad.PaddingBottom = UDim.new(0, 8), UDim.new(0, 10)
+	pad.PaddingLeft, pad.PaddingRight = UDim.new(0, 12), UDim.new(0, 12)
+	pad.Parent = panel
+	local list = Instance.new("UIListLayout")
+	list.SortOrder = Enum.SortOrder.LayoutOrder
+	list.Padding = UDim.new(0, 4)
+	list.Parent = panel
+
+	local function label(order, size, color)
+		local l = Instance.new("TextLabel")
+		l.LayoutOrder = order
+		l.BackgroundTransparency = 1
+		l.Size = UDim2.new(1, 0, 0, size + 6)
+		l.Font = Enum.Font.PermanentMarker
+		l.TextSize = size
+		l.TextColor3 = color
+		l.TextXAlignment = Enum.TextXAlignment.Left
+		l.TextWrapped = true
+		l.RichText = true
+		l.Parent = panel
+		return l
+	end
+	local title = label(0, 20, Color3.fromRGB(255, 170, 60))
+	title.Text = "GAME OF S.C.O.O.T."
+	local rows = {} -- player rows, rebuilt each update
+	local msg = label(100, 16, Color3.fromRGB(230, 230, 240))
+
+	-- the big "your turn" banner in the middle of the screen
+	local banner = Instance.new("TextLabel")
+	banner.AnchorPoint = Vector2.new(0.5, 0)
+	banner.Position = UDim2.new(0.5, 0, 0, 74)
+	banner.Size = UDim2.fromOffset(560, 54)
+	banner.BackgroundColor3 = Color3.fromRGB(255, 140, 40)
+	banner.BackgroundTransparency = 0.1
+	banner.Font = Enum.Font.PermanentMarker
+	banner.TextSize = 28
+	banner.TextColor3 = Color3.new(1, 1, 1)
+	banner.TextStrokeTransparency = 0.4
+	banner.Visible = false
+	banner.Parent = board
+	local bannerCorner = Instance.new("UICorner")
+	bannerCorner.CornerRadius = UDim.new(0, 14)
+	bannerCorner.Parent = banner
+
+	local deadline, turnText = nil, nil
+	RunService.Heartbeat:Connect(function()
+		if banner.Visible and deadline and turnText then
+			banner.Text = turnText .. "  " .. math.max(0, math.ceil(deadline - os.clock()))
+		end
+	end)
+
+	task.spawn(function()
+		local update = remotes:WaitForChild("ScootUpdate", 30)
+		if not update then return end
+		update.OnClientEvent:Connect(function(data)
+			if data.teleport then -- to S.C.O.O.T. Park / back to the plaza (we own our physics, so we move ourselves)
+				local char = plr.Character
+				local root = char and char:FindFirstChild("HumanoidRootPart")
+				if root then
+					char:PivotTo(data.teleport)
+					root.AssemblyLinearVelocity = Vector3.zero
+				end
+				return
+			end
+			if not data.active then
+				board.Enabled = false
+				banner.Visible = false
+				return
+			end
+			board.Enabled = true
+			for _, r in ipairs(rows) do r:Destroy() end
+			table.clear(rows)
+			for i, pl in ipairs(data.players or {}) do
+				local letters = {}
+				for k, ch in ipairs(WORD) do
+					table.insert(letters, k <= pl.letters and ('<font color="#ff5a5a">' .. ch .. "</font>")
+						or ('<font color="#5c5f72">' .. ch .. "</font>"))
+				end
+				local isTurn = pl.id == data.turnId
+				local out = pl.letters >= #WORD
+				local r = label(i, 18, out and Color3.fromRGB(120, 120, 130)
+					or isTurn and Color3.fromRGB(255, 220, 90) or Color3.new(1, 1, 1))
+				r.Text = (isTurn and "> " or "") .. pl.name .. "   " .. table.concat(letters, " ")
+				table.insert(rows, r)
+			end
+			msg.Text = data.msg or ""
+			if data.turnId == plr.UserId and data.timeLeft then
+				deadline = os.clock() + data.timeLeft
+				turnText = data.kind == "set" and "YOUR TURN: SET A TRICK!" or "YOUR TURN: COPY THE TRICK!"
+				banner.Visible = true
+			else
+				banner.Visible = false
+			end
+		end)
 	end)
 end
 ]]></string>

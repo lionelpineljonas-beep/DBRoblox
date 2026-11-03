@@ -1,4 +1,4 @@
--- DISCOVERY BAY, CALIFORNIA — OSM-accurate procedural Roblox build (v174)
+-- DISCOVERY BAY, CALIFORNIA — OSM-accurate procedural Roblox build (v177)
 --==============================================================================================
 -- Builds the real Discovery Bay from OpenStreetMap geometry (© OpenStreetMap contributors):
 --   * real terrain raster: every lagoon/bay polygon, Old River, golf fairways/greens/
@@ -1850,6 +1850,80 @@ end
 
 local plazaSpawnPos = nil -- set by buildPlaza: a guaranteed-open spot on the parking lot
 
+-- S.C.O.O.T. PARK: the walled arena the Game of S.C.O.O.T. teleports its riders to (open lawn, well
+-- away from the busy plaza). c = centre at ground level; its entrance faces `toward` (the plaza).
+local function buildScootPark(parent, c, toward)
+	local m = newModel(parent, "S.C.O.O.T. Park")
+	local cf = CFrame.lookAt(c, Vector3.new(toward.X, c.Y, toward.Z)) -- local -Z = the entrance side
+	local SIZE = 120
+	local half = SIZE / 2
+	local CONCRETE = Color3.fromRGB(205, 203, 198)
+	local PANELS = { Color3.fromRGB(255, 140, 40), Color3.fromRGB(60, 190, 200), Color3.fromRGB(150, 90, 210), Color3.fromRGB(240, 70, 110) }
+
+	-- the floor: smooth concrete with a painted ring + circle in the middle
+	newPart(m, "ParkFloor", Vector3.new(SIZE, 1, SIZE) * S, cf * CFrame.new(0, 0.5 * S, 0), CONCRETE, Enum.Material.Concrete)
+	newDisc(m, "ParkRing", 34 * S, 0.1 * S, cf * CFrame.new(0, 1.05 * S, 0), Color3.fromRGB(245, 245, 245))
+	local circle = newDisc(m, "ParkCircle", 31 * S, 0.1 * S, cf * CFrame.new(0, 1.1 * S, 0), Color3.fromRGB(255, 140, 40))
+	circle:SetAttribute("ScootArena", true) -- the game's centre while a match is on
+
+	-- low walls of colourful panels all round (gap for the entrance on the -Z side)
+	for side = 0, 3 do
+		local rot = CFrame.Angles(0, side * math.pi / 2, 0)
+		for k = -2, 2 do
+			if not (side == 0 and k == 0) then -- the entrance gap
+				local panel = cf * rot * CFrame.new(k * 24 * S, 2.6 * S, -half * S)
+				newPart(m, "ParkWall", Vector3.new(23.4, 3.2, 1.2) * S, panel, PANELS[(k + side) % #PANELS + 1], Enum.Material.Plaster)
+				newPart(m, "ParkWallCap", Vector3.new(24, 0.4, 1.6) * S, panel * CFrame.new(0, 1.8 * S, 0), Color3.fromRGB(60, 60, 66), Enum.Material.Metal)
+			end
+		end
+	end
+
+	-- a quarter-pipe on each side wall and the back wall
+	for _, side in ipairs({ 1, 2, 3 }) do
+		local rot = CFrame.Angles(0, side * math.pi / 2, 0)
+		newWedge(m, "QuarterPipe", Vector3.new(28, 4, 7) * S,
+			cf * rot * CFrame.new(0, 3 * S, (-half + 4.6) * S) * CFrame.Angles(0, math.pi, 0), Color3.fromRGB(150, 150, 155), Enum.Material.Concrete)
+	end
+
+	-- light posts in the corners: glowing lamps for night sessions
+	for _, corner in ipairs({ { -1, -1 }, { 1, -1 }, { -1, 1 }, { 1, 1 } }) do
+		local base = cf * CFrame.new(corner[1] * (half - 4) * S, 0, corner[2] * (half - 4) * S)
+		newColumn(m, "ParkLightPole", 18 * S, 0.8 * S, base * CFrame.new(0, 9 * S, 0), Color3.fromRGB(50, 50, 56), Enum.Material.Metal)
+		local lamp = newBall(m, "ParkLamp", 2.4 * S, base * CFrame.new(0, 18.6 * S, 0), Color3.fromRGB(255, 236, 190), Enum.Material.Neon)
+		local light = Instance.new("PointLight")
+		light.Range = 45
+		light.Brightness = 1.4
+		light.Color = Color3.fromRGB(255, 225, 180)
+		light.Parent = lamp
+		-- palms just outside the corners
+		local palm = base * CFrame.new(corner[1] * 9 * S, 0, corner[2] * 9 * S)
+		newColumn(m, "PalmTrunk", 16 * S, 1.1 * S, palm * CFrame.new(0, 8 * S, 0), Color3.fromRGB(140, 105, 70), Enum.Material.Wood)
+		for f = 0, 4 do
+			newPart(m, "PalmFrond", Vector3.new(1.4, 0.15, 8) * S,
+				palm * CFrame.new(0, 16 * S, 0) * CFrame.Angles(0, f * math.pi * 2 / 5, 0) * CFrame.new(0, 0, -3.6 * S) * CFrame.Angles(math.rad(-22), 0, 0),
+				Color3.fromRGB(60, 160, 70), Enum.Material.Grass)
+		end
+	end
+
+	-- spectator bleachers along the back wall, outside the arena
+	for row = 0, 3 do
+		newPart(m, "Bleacher", Vector3.new(60, 1, 3) * S, cf * CFrame.new(0, (0.5 + row * 1.6) * S, (half + 3 + row * 3) * S),
+			Color3.fromRGB(70, 110, 170), Enum.Material.Metal)
+	end
+
+	-- the entrance arch with the big sign, facing the plaza
+	for _, ax in ipairs({ -13, 13 }) do
+		newColumn(m, "ArchPost", 16 * S, 1.4 * S, cf * CFrame.new(ax * S, 8 * S, (-half - 1) * S), Color3.fromRGB(60, 60, 66), Enum.Material.Metal)
+	end
+	local arch = newPart(m, "ArchSign", Vector3.new(28, 5, 1) * S, cf * CFrame.new(0, 17 * S, (-half - 1) * S), Color3.fromRGB(255, 140, 40))
+	makeSign(arch, Enum.NormalId.Front, "S.C.O.O.T. PARK", Color3.fromRGB(255, 140, 40), Color3.new(1, 1, 1))
+	makeSign(arch, Enum.NormalId.Back, "S.C.O.O.T. PARK", Color3.fromRGB(255, 140, 40), Color3.new(1, 1, 1))
+	-- string of coloured bulbs across the arch
+	for i = -6, 6 do
+		newBall(m, "ArchBulb", 0.7 * S, cf * CFrame.new(i * 2 * S, 14.2 * S, (-half - 1.6) * S), PANELS[(i % #PANELS) + 1], Enum.Material.Neon)
+	end
+end
+
 local function buildPlaza()
 	if not plazaPt or not inRegion(plazaPt.x, plazaPt.z) then return end
 	local m = newModel(FOLDERS.Landmarks, "Discovery Bay Blvd Plaza")
@@ -2611,6 +2685,20 @@ local function buildPlaza()
 	buildNPC(m, "Bob", CFrame.lookAt(bobPos, Vector3.new(plazaSpawnPos.X, bobPos.Y, plazaSpawnPos.Z)),
 		{ face = "rbxassetid://144075659", hairAccessory = "1772336109", shirtColor = Color3.fromRGB(255, 140, 40),
 			pantsTemplate = "rbxassetid://129458426" })
+	-- the Game of S.C.O.O.T. circle: a painted ring on the open end of the lot (the shop script runs the game)
+	local scootCf = pk * CFrame.new(-20 * S, 0.36 * S, 9 * S)
+	newDisc(m, "ScootRing", 17 * S, 0.1 * S, scootCf * CFrame.new(0, 0.05 * S, 0), Color3.fromRGB(245, 245, 245))
+	local scootPad = newDisc(m, "ScootPad", 15.4 * S, 0.1 * S, scootCf * CFrame.new(0, 0.1 * S, 0), Color3.fromRGB(255, 140, 40))
+	scootPad:SetAttribute("ScootPad", true)
+	local scootPole = scootCf * CFrame.new(9 * S, 0, 0)
+	newColumn(m, "ScootSignPole", 7 * S, 0.4 * S, scootPole * CFrame.new(0, 3.5 * S, 0), Color3.fromRGB(60, 60, 66), Enum.Material.Metal)
+	local scootSign = newPart(m, "ScootSign", Vector3.new(0.3, 2.4, 7) * S, scootPole * CFrame.new(0, 8 * S, 0),
+		Color3.fromRGB(255, 140, 40))
+	makeSign(scootSign, Enum.NormalId.Left, "GAME OF S.C.O.O.T.", Color3.fromRGB(255, 140, 40), Color3.new(1, 1, 1))
+	makeSign(scootSign, Enum.NormalId.Right, "GAME OF S.C.O.O.T.", Color3.fromRGB(255, 140, 40), Color3.new(1, 1, 1))
+	-- the arena itself, on the open lawn 700 studs out (the spot was checked clear)
+	local parkC = Vector3.new(scootCf.X, Y_LAND or 2, scootCf.Z + 700 * S)
+	buildScootPark(m, parkC, scootCf.Position)
 end
 
 -- the big walk-in Discovery Bay Elementary: corridor, four classrooms, and the
