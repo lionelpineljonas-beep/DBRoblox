@@ -1,4 +1,4 @@
--- DISCOVERY BAY, CALIFORNIA — OSM-accurate procedural Roblox build (v177)
+-- DISCOVERY BAY, CALIFORNIA — OSM-accurate procedural Roblox build (v188)
 --==============================================================================================
 -- Builds the real Discovery Bay from OpenStreetMap geometry (© OpenStreetMap contributors):
 --   * real terrain raster: every lagoon/bay polygon, Old River, golf fairways/greens/
@@ -37,8 +37,12 @@ local CONFIG = {
 		golf = true, landmarks = true, props = true,
 	},
 	-- Optional sub-region in feet {x0, z0, x1, z1} (x east, z north from the SW corner).
-	-- Example, just the original bay neighborhoods + golf: {7000, 2000, 22011, 15500}
-	region = nil,
+	-- Only roads, homes, docks, trees and landmarks INSIDE it get built (the ground and water still
+	-- reach the horizon), and an invisible wall runs round its edge. This one holds everything you
+	-- can do (the plaza shops, school, Bloxway, S.C.O.O.T. Park, the harbor, golf + clubhouse) with
+	-- ~900 of the 5,118 homes, so phones have a fraction of the parts to draw.
+	-- (world X 10,600-17,400, Z 8,000-12,200). nil = the whole town.
+	region = { 10600, 6490, 17400, 10690 },
 }
 
 local S = CONFIG.worldScale
@@ -3241,6 +3245,41 @@ end
 root:SetAttribute("WorldW", W_FT * S) -- world extents in studs, used by the client map
 root:SetAttribute("WorldH", H_FT * S)
 root:SetAttribute("GroundTiled", true)
+-- the invisible map border: walls round CONFIG.region so nobody rides off into the unbuilt rest of
+-- the map. Can't be seen, doesn't block the camera or raycasts, just stops you.
+if CONFIG.region then
+	local r = CONFIG.region
+	local x0, x1 = r[1] * S, r[3] * S
+	local zA, zB = (H_FT - r[4]) * S, (H_FT - r[2]) * S -- world Z of the north / south edges
+	local HEIGHT = 500
+	local border = Instance.new("Folder")
+	border.Name = "MapBorder"
+	border.Parent = root
+	local function wall(fromPt, toPt)
+		local len = (toPt - fromPt).Magnitude
+		local n = math.ceil(len / 2000) -- (parts max out at 2048 studs)
+		for i = 0, n - 1 do
+			local a = fromPt:Lerp(toPt, i / n)
+			local b = fromPt:Lerp(toPt, (i + 1) / n)
+			local w = Instance.new("Part")
+			w.Name = "BorderWall"
+			w.Anchored = true
+			w.Transparency = 1
+			w.CanQuery = false
+			w.CanTouch = false
+			w.CastShadow = false
+			w.Size = Vector3.new(4, HEIGHT, (b - a).Magnitude + 4)
+			local mid = (a + b) / 2
+			w.CFrame = CFrame.lookAt(mid, mid + (b - a).Unit) * CFrame.new(0, HEIGHT / 2 - 20, 0)
+			w.Parent = border
+		end
+	end
+	wall(Vector3.new(x0, 0, zA), Vector3.new(x1, 0, zA))
+	wall(Vector3.new(x0, 0, zB), Vector3.new(x1, 0, zB))
+	wall(Vector3.new(x0, 0, zA), Vector3.new(x0, 0, zB))
+	wall(Vector3.new(x1, 0, zA), Vector3.new(x1, 0, zB))
+end
+
 root:SetAttribute("BuildComplete", true) -- signals the DiscoveryBayShop runtime script
 
 print(("[DiscoveryBay] DONE in %.1fs — %d parts. Homes %d, docks %d (every waterfront lot)."):format(

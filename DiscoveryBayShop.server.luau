@@ -36,7 +36,7 @@ local DAY_LENGTH = 600
 local START_CASH = 100
 local WALK_SPEED = 16
 local SCOOTER_SPEED = 30
-local VERSION = "v177"
+local VERSION = "v188"
 
 -- ==============================================================================================
 -- LIGHTING, DYNAMIC SUNSET & STARRY NIGHT SKY SYSTEM
@@ -265,7 +265,7 @@ task.spawn(function()
 end)
 
 local TRICK_COOLDOWN = 0.65
-local TRAFFIC_CARS = 230
+local TRAFFIC_CARS = 120 -- (the map border keeps only ~1/4 of the roads: this is still ~2x the old traffic density)
 local CAR_SPEED = 38
 local FLING_RADIUS = 9
 local CAR_DAMAGE = 10000
@@ -2517,6 +2517,27 @@ end
 
 -- Renting a house makes it REAL: the solid body is swapped for two-layer walls (outside finish +
 -- painted inside) with see-through windows and a walk-through front door, plus a furnished
+-- The Auto-Petter pays every few seconds but only TELLS you once a minute, quietly (a popup with no
+-- amount attached = no chime, no camera shake). It used to ding twice every 4 seconds.
+local petterEarned = {}
+local function petterPay(plr, dogName, pay)
+	local e = petterEarned[plr] or { total = 0 }
+	e.total += pay
+	e.dog = dogName
+	petterEarned[plr] = e
+end
+task.spawn(function()
+	while true do
+		task.wait(60)
+		for plr, e in pairs(petterEarned) do
+			if plr.Parent and e.total > 0 then
+				TrickResult:FireClient(plr, "Auto-Petter: " .. e.dog .. " earned you $" .. e.total .. " this minute", 0)
+			end
+		end
+		table.clear(petterEarned)
+	end
+end)
+
 -- open-plan home: living room, kitchen, dining, bed corner and a dog corner with the Auto-Petter.
 -- Runs once per house (when a player first walks near it, or rents it).
 local function hollowHouse(house)
@@ -2583,7 +2604,7 @@ local function hollowHouse(house)
 	if oldFrame then
 		oldFrame.CanCollide = false
 	end
-	local DOOR_W, DOOR_H = 5.5, 7.6
+	local DOOR_W, DOOR_H = 5.5, 7.1 -- hole top = the outside lintel's top (7.6 left a see-through slot above every front door)
 
 	local frontHoles, backHoles, leftHoles, rightHoles = {}, {}, {}, {}
 	local doorX = 0
@@ -2961,6 +2982,46 @@ local function hollowHouse(house)
 	local apScreen = mk(interior, "AutoPetterScreen", Vector3.new(2.6, 1.4, 0.15), apSpot * CFrame.new(0, 0.6, -1.36), BLACK)
 	makeSign(apScreen, Enum.NormalId.Front, "AUTO-PETTER", BLACK, Color3.fromRGB(80, 220, 120))
 	ap:SetAttribute("AutoPetter", true)
+	-- it's not free: a $500 buy button beside it (bought once, saved, works in any house you rent)
+	local AUTO_PETTER_PRICE = 500
+	local btnBase = apSpot * CFrame.new(2.6, -1.1, 0)
+	mk(interior, "AutoPetterPost", Vector3.new(0.5, 1.8, 0.5), btnBase, STEEL, Enum.Material.Metal)
+	local btn = mk(interior, "AutoPetterButton", Vector3.new(0.3, 0.9, 0.9), btnBase * CFrame.new(0, 1.05, 0) * CFrame.Angles(0, 0, math.rad(90)),
+		Color3.fromRGB(220, 40, 40), Enum.Material.Neon, Enum.PartType.Cylinder)
+	local buyPrompt = Instance.new("ProximityPrompt")
+	buyPrompt.ObjectText = "Auto-Petter 3000"
+	buyPrompt.MaxActivationDistance = 8
+	buyPrompt.RequiresLineOfSight = false
+	buyPrompt.Parent = btn
+	local screenLabel = apScreen:FindFirstChildWhichIsA("TextLabel", true)
+	local function refreshPetter()
+		local owner = Players:GetPlayerByUserId(house:GetAttribute("OwnerUserId") or 0)
+		local owned = owner and owner:GetAttribute("AutoPetterOwned") == true
+		buyPrompt.ActionText = owned and "Owned" or ("Buy ($" .. AUTO_PETTER_PRICE .. ")")
+		buyPrompt.Enabled = not owned
+		btn.Color = owned and Color3.fromRGB(80, 220, 120) or Color3.fromRGB(220, 40, 40)
+		if screenLabel then
+			screenLabel.Text = owned and "AUTO-PETTER: ON" or "OFF - $" .. AUTO_PETTER_PRICE
+		end
+	end
+	refreshPetter()
+	buyPrompt.Triggered:Connect(function(plr)
+		if house:GetAttribute("OwnerUserId") ~= plr.UserId then
+			TrickResult:FireClient(plr, "Rent this house to buy its Auto-Petter!", 0)
+			return
+		end
+		if plr:GetAttribute("AutoPetterOwned") then return end
+		local cash = getCash(plr)
+		if not cash or cash.Value < AUTO_PETTER_PRICE then
+			TrickResult:FireClient(plr, "The Auto-Petter 3000 costs $" .. AUTO_PETTER_PRICE .. "!", 0)
+			return
+		end
+		cash.Value -= AUTO_PETTER_PRICE
+		plr:SetAttribute("AutoPetterOwned", true)
+		TrickResult:FireClient(plr, "Auto-Petter 3000 bought! It pets your dog for cash, forever.", 0)
+		refreshPetter()
+	end)
+	house:GetAttributeChangedSignal("OwnerUserId"):Connect(refreshPetter)
 
 	-- welcome mat inside the front door
 	if wingInfo then
@@ -2985,9 +3046,9 @@ local function hollowHouse(house)
 						local pay = mdl:GetAttribute("Pay")
 						local dogName = mdl:GetAttribute("DogName")
 						local oCash = getCash(ownerPlr)
-						if pay and dogName and oCash and pay > 0 then
+						if pay and dogName and oCash and pay > 0 and ownerPlr:GetAttribute("AutoPetterOwned") then
 							oCash.Value = oCash.Value + pay
-							TrickResult:FireClient(ownerPlr, dogName .. " loves the Auto-Petter 3000!", pay)
+							petterPay(ownerPlr, dogName, pay)
 						end
 					end
 				end
@@ -3369,9 +3430,9 @@ task.spawn(function()
 				local cash = getCash(plr)
 				local pay = dog:GetAttribute("Pay") or 0
 				local dogName = dog:GetAttribute("DogName") or "Your pet"
-				if cash and pay > 0 then
+				if cash and pay > 0 and plr:GetAttribute("AutoPetterOwned") then -- (only once you've bought it)
 					cash.Value = cash.Value + pay
-					TrickResult:FireClient(plr, "Auto-Petter 3000 loved on " .. dogName .. "!", pay)
+					petterPay(plr, dogName, pay)
 				end
 			end
 		end
@@ -3705,6 +3766,7 @@ local function snapshot(plr)
 		cash = cash and cash.Value or START_CASH,
 		rebirths = rebirths and rebirths.Value or 0,
 		fastScooter = plr:GetAttribute("FastScooter") == true,
+		autoPetter = plr:GetAttribute("AutoPetterOwned") == true,
 		terryQuest = plr:GetAttribute("TerryQuestCompleted") == true,
 		bait = plr:GetAttribute("Bait") or 0,
 		pity = playerRolls[plr.UserId] or 0,
@@ -3752,6 +3814,7 @@ local function applySave(plr, data)
 	if cash and type(data.cash) == "number" then cash.Value = data.cash end
 	if rebirths and type(data.rebirths) == "number" then rebirths.Value = data.rebirths end
 	if data.fastScooter then plr:SetAttribute("FastScooter", true) end
+	if data.autoPetter then plr:SetAttribute("AutoPetterOwned", true) end
 	if data.terryQuest then plr:SetAttribute("TerryQuestCompleted", true) end
 	if type(data.bait) == "number" and data.bait > 0 then plr:SetAttribute("Bait", data.bait) end
 	if type(data.pity) == "number" then
@@ -4491,4 +4554,83 @@ task.spawn(function()
 	startTraffic(town)
 	print("[DiscoveryBayShop] " .. VERSION .. " ready — " .. hooked ..
 		" products for sale (ShellBlox mini-mart + Callahan's + Bloxway).")
+end)
+
+--==============================================================================================
+-- TV CAST: real Roblox avatars for the shows on the house TVs. Built once here, kept in
+-- ReplicatedStorage; each client clones them into its TV screen. (Roblox-made items only, so they
+-- load in a published game.)
+--==============================================================================================
+task.spawn(function()
+	local folder = Instance.new("Folder")
+	folder.Name = "TVCast"
+	local SKIN = { Color3.fromRGB(255, 205, 150), Color3.fromRGB(234, 184, 146), Color3.fromRGB(160, 110, 75), Color3.fromRGB(255, 220, 60) }
+	local BLACK, DARK = Color3.fromRGB(25, 25, 28), Color3.fromRGB(35, 35, 40)
+	local CAST = {
+		-- robbers: black heads = ski masks
+		{ role = "Robber", head = DARK, torso = BLACK, legs = Color3.fromRGB(30, 30, 34), face = "Grr" },
+		{ role = "Robber", head = DARK, torso = Color3.fromRGB(60, 60, 66), legs = Color3.fromRGB(30, 30, 34), face = "Slickfang" },
+		{ role = "Robber", head = DARK, torso = Color3.fromRGB(70, 40, 30), legs = Color3.fromRGB(30, 30, 34), face = "HappyWink" },
+		{ role = "Cop", torso = Color3.fromRGB(30, 50, 120), legs = Color3.fromRGB(25, 30, 60), hair = "62234425", face = "Stare" },
+		{ role = "Rider", shirt = 607785314, pants = 129458426, hair = "12270336", face = "JoyousSurprise" },
+		{ role = "Rider", shirt = 144076358, pants = 398633812, hair = "13477818", face = "CheckIt" },
+		{ role = "Rider", torso = Color3.fromRGB(240, 120, 40), legs = Color3.fromRGB(40, 50, 70), hair = "451220849", face = "Smile" },
+		{ role = "Anchor", torso = Color3.fromRGB(60, 62, 70), legs = Color3.fromRGB(40, 42, 48), hair = "62724852", face = "Smile" },
+		{ role = "Judge", torso = Color3.fromRGB(20, 20, 24), legs = Color3.fromRGB(20, 20, 24), hair = "63690008", face = "Skeptic" },
+	}
+	-- the face goes straight on the head as a decal: these rigs' mesh heads ignore HumanoidDescription.Face.
+	-- The textures are the classic faces the shop already resolved for the town NPCs.
+	local faces = ReplicatedStorage:WaitForChild("DiscoveryBayRemotes"):WaitForChild("ClassicFaces", 30)
+	local function faceTexture(key)
+		local v = faces and faces:FindFirstChild(key)
+		local t0 = os.clock()
+		while v and v.Value == "" and os.clock() - t0 < 45 do task.wait(0.5) end -- (they load in the background at startup)
+		return (v and v.Value ~= "") and v.Value or "rbxasset://textures/face.png"
+	end
+	for i, c in ipairs(CAST) do
+		local d = Instance.new("HumanoidDescription")
+		local skin = SKIN[(i % #SKIN) + 1]
+		d.HeadColor = c.head or skin
+		d.TorsoColor = c.torso or skin
+		d.LeftArmColor, d.RightArmColor = c.torso or skin, c.torso or skin
+		d.LeftLegColor, d.RightLegColor = c.legs or skin, c.legs or skin
+		if c.shirt then d.Shirt = c.shirt end
+		if c.pants then d.Pants = c.pants end
+		if c.hair then d.HairAccessory = c.hair end
+		local ok, model = pcall(Players.CreateHumanoidModelFromDescription, Players, d, Enum.HumanoidRigType.R6)
+		if ok and model then
+			model.Name = c.role .. i
+			model:SetAttribute("Role", c.role)
+			local hum = model:FindFirstChildOfClass("Humanoid")
+			if hum then hum.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None end
+			model.HumanoidRootPart.Anchored = true
+			-- classic R6: colours straight onto the parts (the TV clients recolour them, e.g. prison orange)
+			local bc = model:FindFirstChildOfClass("BodyColors")
+			local COLOR = {
+				Head = d.HeadColor, Torso = d.TorsoColor, ["Left Arm"] = d.LeftArmColor, ["Right Arm"] = d.RightArmColor,
+				["Left Leg"] = d.LeftLegColor, ["Right Leg"] = d.RightLegColor,
+			}
+			for name, col in pairs(COLOR) do
+				local p = model:FindFirstChild(name)
+				if p then p.Color = col end
+			end
+			if bc then bc:Destroy() end
+			-- the face, as a decal on the classic head
+			local head = model:FindFirstChild("Head")
+			if head then
+				for _, dd in ipairs(head:GetChildren()) do
+					if dd:IsA("Decal") then dd:Destroy() end
+				end
+				local face = Instance.new("Decal")
+				face.Name = "face"
+				face.Face = Enum.NormalId.Front
+				face.Texture = faceTexture(c.face or "Smile")
+				face.Parent = head
+			end
+			model.Parent = folder
+		else
+			warn("[TV] cast member " .. i .. " failed: " .. tostring(model))
+		end
+	end
+	folder.Parent = ReplicatedStorage
 end)
