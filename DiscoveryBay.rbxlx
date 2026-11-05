@@ -25,7 +25,7 @@
       <Properties>
         <string name="Name">DiscoveryBayBuild</string>
         <token name="RunContext">0</token>
-        <string name="Source"><![CDATA[-- DISCOVERY BAY, CALIFORNIA — OSM-accurate procedural Roblox build (v188)
+        <string name="Source"><![CDATA[-- DISCOVERY BAY, CALIFORNIA — OSM-accurate procedural Roblox build (v191)
 --==============================================================================================
 -- Builds the real Discovery Bay from OpenStreetMap geometry (© OpenStreetMap contributors):
 --   * real terrain raster: every lagoon/bay polygon, Old River, golf fairways/greens/
@@ -4254,7 +4254,7 @@ local DAY_LENGTH = 600
 local START_CASH = 100
 local WALK_SPEED = 16
 local SCOOTER_SPEED = 30
-local VERSION = "v188"
+local VERSION = "v191"
 
 -- ==============================================================================================
 -- LIGHTING, DYNAMIC SUNSET & STARRY NIGHT SKY SYSTEM
@@ -8844,6 +8844,14 @@ task.spawn(function()
 				face.Face = Enum.NormalId.Front
 				face.Texture = faceTexture(c.face or "Smile")
 				face.Parent = head
+				local TALK = {
+					Grr = "Roar", Slickfang = "Fang", HappyWink = "OpenO", Stare = "OpenO", JoyousSurprise = "Smile",
+					CheckIt = "JoyfulSmile", Smile = "OpenO", Skeptic = "OpenO",
+				}
+				model:SetAttribute("FaceKey", c.face or "Smile")
+				model:SetAttribute("TalkKey", TALK[c.face or "Smile"] or "OpenO")
+				model:SetAttribute("FaceTex", face.Texture)
+				model:SetAttribute("TalkTex", faceTexture(TALK[c.face or "Smile"] or "OpenO"))
 			end
 			model.Parent = folder
 		else
@@ -8851,6 +8859,21 @@ task.spawn(function()
 		end
 	end
 	folder.Parent = ReplicatedStorage
+	-- faces still downloading at startup: fill them in as they arrive (the TV clones the cast fresh
+	-- every episode, so the next episode has them)
+	for _ = 1, 90 do
+		task.wait(2)
+		for _, m in ipairs(folder:GetChildren()) do
+			local fv = faces and faces:FindFirstChild(m:GetAttribute("FaceKey") or "")
+			local tv = faces and faces:FindFirstChild(m:GetAttribute("TalkKey") or "")
+			if fv and fv.Value ~= "" and m:GetAttribute("FaceTex") ~= fv.Value then
+				m:SetAttribute("FaceTex", fv.Value)
+				local d = m:FindFirstChild("Head") and m.Head:FindFirstChild("face")
+				if d then d.Texture = fv.Value end
+			end
+			if tv and tv.Value ~= "" and m:GetAttribute("TalkTex") ~= tv.Value then m:SetAttribute("TalkTex", tv.Value) end
+		end
+	end
 end)
 ]]></string>
       </Properties>
@@ -8880,7 +8903,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 
-local VERSION = "v188"
+local VERSION = "v191"
 local SPEED_PASS_ID = 0 -- paste the real Game Pass ID here (same one as in DiscoveryBayShop)
 local RunService = game:GetService("RunService")
 local Lighting = game:GetService("Lighting")
@@ -15200,7 +15223,7 @@ end
 -- Only the TV nearest you plays. E on it = watch full-screen (channel buttons, exit button, the show's
 -- own music + talking / action sounds, and the town music fades out).
 do
-	local function clock() return os.clock() * (_G.TVSpeed or 1) end
+	local function clock() return os.clock() * (plr:GetAttribute("TVSpeed") or 1) end
 	local TV_RANGE = 45
 	-- picture resolution, in pixels per stud of screen (the screen is 5.6 x 3 studs):
 	-- ~1440p while you watch, light while it's just on in the background
@@ -15299,7 +15322,7 @@ do
 		local t0 = clock()
 		repeat
 			task.wait()
-			if show == nil or show.dead then error("cut", 0) end
+			if show == nil or show.dead or (show.testing and coroutine.running() == show.director) then error("cut", 0) end
 		until clock() - t0 >= s
 	end
 
@@ -15412,9 +15435,20 @@ do
 			joints = torso and {
 				RS = torso:FindFirstChild("Right Shoulder"), LS = torso:FindFirstChild("Left Shoulder"),
 				RH = torso:FindFirstChild("Right Hip"), LH = torso:FindFirstChild("Left Hip"), N = torso:FindFirstChild("Neck"),
+				RJ = root and root:FindFirstChild("RootJoint"),
 			} or {},
 		}
 		table.insert(show.actors, actor)
+		-- the face: the server gives every cast member a closed-mouth face and an open-mouth one
+		local head = model:FindFirstChild("Head")
+		actor.faceDecal = head and head:FindFirstChild("face")
+		actor.faceTex = model:GetAttribute("FaceTex") or (actor.faceDecal and actor.faceDecal.Texture)
+		actor.talkTex = model:GetAttribute("TalkTex")
+		if actor.talkTex then
+			task.spawn(function()
+				pcall(function() game:GetService("ContentProvider"):PreloadAsync({ actor.talkTex }) end)
+			end)
+		end
 		-- no Animator: it would overwrite the poses written every frame
 		for _, a in ipairs(model:GetDescendants()) do
 			if a:IsA("Animator") then a:Destroy() end
@@ -15461,20 +15495,22 @@ do
 		return { RS = A(rad(-ro), 0, rad(rf)), LS = A(rad(-lo), 0, rad(-lf)) }
 	end
 	local GESTURES = {
-		handsUp = function(t) local p = arms(165 + 6 * math.sin(t * 9), 14, 165 - 6 * math.sin(t * 9), 14) p.N = A(rad(-8), 0, 0) return p end,
-		point = function() return { RS = A(rad(-6), 0, rad(92)), N = A(0, 0, rad(-10)) } end,
+		handsUp = function(t) local p = arms(165 + 6 * math.sin(t * 9), 14, 165 - 6 * math.sin(t * 9), 14) p.N = A(rad(-8), 0, 0) p.lean = -0.1 return p end,
+		point = function() return { RS = A(rad(-6), 0, rad(92)), N = A(0, 0, rad(-10)), RJ = A(0, 0, -0.18), lean = 0.06 } end,
 		cheer = function(t)
 			local bob = 14 * math.sin(t * 14)
 			local p = arms(160 + bob, 28, 160 - bob, 28)
 			p.N = A(rad(-15), 0, 0)
+			p.RJ = CFrame.new(0, 0, math.abs(math.sin(t * 7)) * 0.7) -- jumping for joy
+			p.RH, p.LH = A(0, 0, math.abs(math.sin(t * 7)) * 0.3), A(0, 0, -math.abs(math.sin(t * 7)) * 0.3)
 			return p
 		end,
-		facepalm = function() return { RS = A(rad(28), 0, rad(128)), N = A(rad(22), 0, 0) } end,
-		shrug = function(t) local u = math.min(t * 4, 1) local p = arms(22 * u, 42 * u, 22 * u, 42 * u) p.N = A(0, rad(14), 0) return p end,
-		wave = function(t) return { RS = A(rad(-(150 + 22 * math.sin(t * 11))), 0, rad(10)) } end,
-		carry = function() return arms(72, -12, 72, -12) end,
-		dig = function(t) local v = 60 + 45 * math.sin(t * 9) local p = arms(v, 0, v, 0) p.N = A(rad(20), 0, 0) return p end,
-		lift = function(t) local u = (math.sin(t * 5) + 1) / 2 return arms(95 + 75 * u, 10, 95 + 75 * u, 10) end,
+		facepalm = function(t) return { RS = A(rad(28), 0, rad(128)), N = A(rad(22), 0, math.sin(t * 5) * 0.12), lean = 0.22 } end,
+		shrug = function(t) local u = math.min(t * 4, 1) local p = arms(22 * u, 42 * u, 22 * u, 42 * u) p.N = A(0, rad(14), 0) p.RJ = CFrame.new(0, 0, 0.12 * u) return p end,
+		wave = function(t) return { RS = A(rad(-(150 + 22 * math.sin(t * 11))), 0, rad(10)), RJ = A(0, math.sin(t * 5.5) * 0.06, 0) } end,
+		carry = function() local p = arms(72, -12, 72, -12) p.lean = -0.08 return p end,
+		dig = function(t) local v = 60 + 45 * math.sin(t * 9) local p = arms(v, 0, v, 0) p.N = A(rad(20), 0, 0) p.lean = 0.35 + 0.1 * math.sin(t * 9) return p end,
+		lift = function(t) local u = (math.sin(t * 5) + 1) / 2 local p = arms(95 + 75 * u, 10, 95 + 75 * u, 10) p.RJ = CFrame.new(0, 0, -0.2 * (1 - u)) p.lean = -0.1 * u return p end,
 		binoculars = function() local p = arms(128, -32, 128, -32) p.N = A(rad(-8), 0, 0) return p end,
 		-- talking: one hand moving with the words
 		talk = function(t, actor)
@@ -15497,14 +15533,50 @@ do
 			local amp = run and 1.15 or 0.7
 			pose.RS, pose.LS = A(rad(-4), 0, amp * sw), A(rad(-4), 0, amp * sw)
 			pose.RH, pose.LH = A(0, 0, -amp * 0.9 * sw), A(0, 0, -amp * 0.9 * sw)
-			pose.N = A(run and rad(10) or 0, 0, 0)
+			pose.N = A(run and rad(10) or 0, 0, -sw * 0.05)
+			-- a bounce on every step, the hips turning with the stride, leaning into a run
+			pose.RJ = CFrame.new(0, 0, math.abs(sw) * (run and 0.28 or 0.13)) * A(0, 0, sw * (run and 0.12 or 0.08))
+			pose.lean = run and 0.18 or 0.04
+		elseif mode == "ride" then
+			local sp = actor.moveSpeed or 0
+			pose.RS, pose.LS = A(rad(8), 0, rad(78)), A(rad(8), 0, rad(-78)) -- both hands on the bar
+			pose.N = A(rad(6), 0, math.sin(now * 0.9 + actor.seed) * 0.08)
+			if actor.air then -- knees up, tucked
+				pose.RH, pose.LH = A(0, 0, 0.55), A(0, 0, -0.55)
+				pose.lean = 0.2
+			elseif sp > 1.5 then -- rolling: the back foot reaches forward, plants, and pushes long
+				actor.kick = (actor.kick or 0) + dt * math.clamp(sp / 9, 0.8, 2.2)
+				local k = 0.5 + 0.5 * math.sin(actor.kick * math.pi * 2)
+				pose.RH = A(0, 0, 0.3 - 1.0 * k)
+				pose.LH = A(0, 0, -0.08)
+				pose.RS = pose.RS * A(0, 0, 0.06 * k) -- (the shoulders rock with each push)
+				pose.RJ = CFrame.new(0, 0, -0.06 * k)
+				pose.lean = 0.1 + 0.06 * k
+			end
+			actor.moveSpeed = sp * math.max(0, 1 - dt * 3) -- (fades unless the rider keeps moving)
 		else
 			local br = math.sin(now * 2.2 + actor.seed) * 0.05
 			pose.RS, pose.LS = A(rad(-5), 0, br), A(rad(-5), 0, -br)
 			pose.N = A(0, 0, math.sin(now * 0.6 + actor.seed) * 0.22)
+			-- breathing, and shifting weight from foot to foot
+			local shift = math.sin(now * 0.45 + actor.seed) * 0.04
+			pose.RJ = CFrame.new(0, 0, math.sin(now * 2.2 + actor.seed) * 0.025) * A(0, shift, 0)
+			pose.RH, pose.LH = A(-shift, 0, 0), A(-shift, 0, 0)
 		end
-		if now < (actor.talkUntil or 0) then -- nodding along with the words
+		local talking = now < (actor.talkUntil or 0)
+		if talking then -- nodding along with the words, the body moving as they talk
 			pose.N = (pose.N or NO_POSE) * A(math.sin(now * 11 + actor.seed) * 0.09, 0, 0)
+			pose.RJ = (pose.RJ or NO_POSE) * A(0, 0, math.sin(now * 1.8 + actor.seed) * 0.08)
+			pose.lean = (pose.lean or 0) + 0.04
+		else
+			-- listening: look at whoever is talking
+			local sp = show and show.speaker
+			if sp and sp ~= actor and sp.model.Parent and now < (sp.talkUntil or 0) and mode ~= "ride" then
+				local ok, p = pcall(function() return actor.model:GetPivot():PointToObjectSpace(sp.model:GetPivot().Position) end)
+				if ok and p.Magnitude < 30 then
+					pose.N = A(math.clamp(-p.Y * 0.05, -0.3, 0.3), 0, math.clamp(math.atan2(-p.X, -p.Z), -0.9, 0.9))
+				end
+			end
 		end
 		local g = actor.g
 		if g then
@@ -15515,12 +15587,36 @@ do
 				local w = math.clamp(math.min(t, g.dur - t) / 0.2, 0, 1)
 				local fn = GESTURES[g.name]
 				for key, cf in pairs(fn and fn(t, actor) or {}) do
-					pose[key] = (pose[key] or NO_POSE):Lerp(cf, w)
+					if type(cf) == "number" then
+						pose[key] = (pose[key] or 0) + cf * w
+					else
+						pose[key] = (pose[key] or NO_POSE):Lerp(cf, w)
+					end
 				end
 			end
 		end
+		-- leaning bends at the waist; the legs turn back so the feet stay under the body
+		local lean = pose.lean or 0
+		pose.lean = nil
+		if lean ~= 0 then
+			pose.RJ = (pose.RJ or NO_POSE) * A(lean, 0, 0)
+			pose.RH = (pose.RH or NO_POSE) * A(0, 0, lean)
+			pose.LH = (pose.LH or NO_POSE) * A(0, 0, -lean)
+		end
 		for key, joint in pairs(j) do
 			joint.Transform = pose[key] or NO_POSE
+		end
+		-- the mouth flaps while they talk; it hangs open when they cheer or get a fright
+		local face = actor.faceDecal
+		if face and face.Parent and actor.faceTex then
+			local open = false
+			if talking then
+				open = math.floor(os.clock() / 0.13) % 2 == 0
+			elseif g and (g.name == "cheer" or g.name == "handsUp") then
+				open = true
+			end
+			local want = (open and actor.talkTex) or actor.faceTex
+			if face.Texture ~= want then face.Texture = want end
 		end
 	end
 	return poseActor
@@ -15550,14 +15646,22 @@ do
 		duck((dur or 2) + 0.3)
 		local typing = #text * 0.03
 		actor.talkUntil = clock() + typing
+		show.speaker = actor
 		if not actor.g then actor.gesture("talk", typing + 0.3) end
-		task.spawn(function() -- typewriter + voice
-			for i = 1, #text do
+		task.spawn(function() -- typewriter + voice, on the clock (a slow frame rate can't make it lag)
+			local t0, shown = os.clock(), 0
+			while shown < #text do
 				if not b.Parent then return end
+				local i = math.min(#text, math.floor((os.clock() - t0) / 0.03) + 1)
+				local speak = false
+				for k = shown + 1, i do
+					if k % 3 == 1 and text:sub(k, k):match("%w") then speak = true end
+				end
+				shown = i
 				b.Text = "  " .. who .. text:sub(1, i) .. "  "
-				local ch = text:sub(i, i)
-				if i % 3 == 1 and ch:match("%w") then blip(actor.voice * rng:NextNumber(0.94, 1.08), 0.55) end
-				task.wait(0.03)
+				if speak then blip(actor.voice * rng:NextNumber(0.94, 1.08), 0.55) end
+				actor.talkUntil = clock() + 0.15 -- (the mouth moves for as long as the words are coming)
+				task.wait()
 			end
 		end)
 		hold(math.max(dur or 2, typing + 0.8))
@@ -15571,11 +15675,18 @@ do
 		duck((dur or 2.5) + 0.3)
 		local s = show
 		task.spawn(function() -- (writes only to its own show, even if the channel changes meanwhile)
-			for i = 1, #text do
+			local t0, shown = os.clock(), 0
+			while shown < #text do
 				if s.dead then return end
+				local i = math.min(#text, math.floor((os.clock() - t0) / 0.022) + 1)
+				local speak = false
+				for k = shown + 1, i do
+					if k % 4 == 1 and text:sub(k, k):match("%w") then speak = true end
+				end
+				shown = i
 				s.caption.Text = text:sub(1, i)
-				if i % 4 == 1 and text:sub(i, i):match("%w") then blip(0.8, 0.4) end
-				task.wait(0.022)
+				if speak then blip(0.8, 0.4) end
+				task.wait()
 			end
 		end)
 		hold(math.max(dur or 2.5, #text * 0.022 + 1))
@@ -16483,7 +16594,7 @@ do
 			s = s or 1
 			color = color or C(90, 170, 80)
 			local cf = CF(pos)
-			local m = K.model({
+			local P = {
 				K.box(V(4, 4, 7) * s, color, cf * CF(0, 5 * s, 0)),
 				K.box(V(2, 4, 2) * s, color, cf * CF(0, 8 * s, -3.4 * s) * ANG(-0.3, 0, 0)),
 				K.box(V(2.4, 2, 3.6) * s, color, cf * CF(0, 10.2 * s, -4.8 * s)),
@@ -16495,10 +16606,40 @@ do
 				K.box(V(0.8, 2, 0.8) * s, color, cf * CF(1.6 * s, 5 * s, -3 * s) * ANG(-0.8, 0, 0)),
 				K.ball(0.5 * s, C(20, 20, 20), (cf * CF(0.9 * s, 10.8 * s, -6.5 * s)).Position),
 				K.ball(0.5 * s, C(20, 20, 20), (cf * CF(-0.9 * s, 10.8 * s, -6.5 * s)).Position),
-			})
+			}
+			local m = K.model(P)
 			local d = { model = m }
+			local body = P[1]
+			local base = {}
+			for i = 2, 11 do base[i] = body.CFrame:ToObjectSpace(P[i].CFrame) end
+			local sh = show
+			task.spawn(function() -- stomping legs, a swinging tail, little arms, the head bobbing (and roaring)
+				local ph = 0
+				while m.Parent and not sh.dead do
+					local dt = task.wait()
+					ph += dt * (d.moving and 9 or 0)
+					local now = os.clock()
+					for i = 6, 7 do
+						local sw = d.moving and math.sin(ph + (i == 7 and math.pi or 0)) * 0.5 or 0
+						P[i].CFrame = body.CFrame * base[i] * CF(0, 1.75 * s, 0) * ANG(sw, 0, 0) * CF(0, -1.75 * s, 0)
+					end
+					for i = 8, 9 do
+						P[i].CFrame = body.CFrame * base[i] * CF(0, 1 * s, 0) * ANG(math.sin(now * 6 + i) * 0.3, 0, 0) * CF(0, -1 * s, 0)
+					end
+					P[5].CFrame = body.CFrame * base[5] * CF(0, 0, -3.5 * s) * ANG(0, math.sin(now * (d.moving and 6 or 2)) * 0.35, 0) * CF(0, 0, 3.5 * s)
+					local roar = d.roaring and math.sin(now * 30) * 0.08 or 0
+					local nod = CF(0, 0, -3.4 * s) * ANG((d.roaring and -0.35 or math.sin(now * 1.5) * 0.06) + roar, 0, 0) * CF(0, 0, 3.4 * s)
+					for _, i in ipairs({ 2, 3, 4, 10, 11 }) do P[i].CFrame = body.CFrame * nod * base[i] end
+				end
+			end)
 			function d.pos() return m:GetPivot().Position end
 			function d.walk(to, t)
+				d.moving = true
+				local ok = pcall(d.walkRaw, to, t)
+				d.moving = false
+				if not ok then error("cut", 0) end
+			end
+			function d.walkRaw(to, t)
 				local from = m:GetPivot()
 				local goal = CF(to + V(0, 5 * s, 0)) * (from - from.Position)
 				local t0, last = clock(), 0
@@ -16515,16 +16656,19 @@ do
 			end
 			function d.face(yaw) m:PivotTo(CF(m:GetPivot().Position) * ANG(0, yaw, 0)) end
 			function d.roar()
+				d.roaring = true
 				sfx(SFX.boo, 0.45, 0.45, 2)
 				shake(0.35, 0.7)
-				hold(0.8)
+				local ok = pcall(hold, 0.8)
+				d.roaring = false
+				if not ok then error("cut", 0) end
 			end
 			return d
 		end
 		function K.dog(pos, color)
 			color = color or C(200, 150, 90)
 			local cf = CF(pos)
-			local m = K.model({
+			local P = {
 				K.box(V(1.2, 1.1, 2.4), color, cf * CF(0, 1.4, 0)),
 				K.box(V(1, 1, 1.1), color, cf * CF(0, 2.2, -1.4)),
 				K.box(V(0.3, 0.5, 0.3), C(60, 40, 30), cf * CF(-0.35, 2.85, -1.3)),
@@ -16535,13 +16679,33 @@ do
 				K.box(V(0.3, 0.9, 0.3), color, cf * CF(0.4, 0.45, 0.9)),
 				K.box(V(0.2, 0.2, 0.9), color, cf * CF(0, 2, 1.4) * ANG(0.6, 0, 0)),
 				K.ball(0.25, C(10, 10, 10), (cf * CF(0, 2.2, -1.98)).Position),
-			})
+			}
+			local m = K.model(P)
 			local d = { model = m }
+			local body = P[1]
+			local base = {}
+			for i = 5, 9 do base[i] = body.CFrame:ToObjectSpace(P[i].CFrame) end
+			local sh = show
+			task.spawn(function() -- trotting legs (diagonal pairs), a wagging tail
+				local ph = 0
+				while m.Parent and not sh.dead do
+					local dt = task.wait()
+					ph += dt * (d.moving and 16 or 0)
+					for i = 5, 8 do
+						local sw = d.moving and math.sin(ph + ((i == 6 or i == 7) and math.pi or 0)) * 0.7 or 0
+						P[i].CFrame = body.CFrame * base[i] * CF(0, 0.45, 0) * ANG(sw, 0, 0) * CF(0, -0.45, 0)
+					end
+					P[9].CFrame = body.CFrame * base[9] * CF(0, 0, -0.45) * ANG(0, math.sin(os.clock() * (d.moving and 22 or 12)) * 0.7, 0) * CF(0, 0, 0.45)
+				end
+			end)
 			function d.go(x, z, t)
 				local from = m:GetPivot().Position
 				local to = V(x, from.Y, z)
 				if (to - from).Magnitude < 0.1 then return end
-				K.glide(m, CFrame.lookAt(to, to + (to - from).Unit), t or 1.5, true)
+				d.moving = true
+				local ok = pcall(K.glide, m, CFrame.lookAt(to, to + (to - from).Unit), t or 1.5, true)
+				d.moving = false
+				if not ok then error("cut", 0) end
 			end
 			function d.goAsync(x, z, t) task.spawn(function() pcall(d.go, x, z, t) end) end
 			function d.bark()
@@ -16554,7 +16718,18 @@ do
 		function K.ghost(pos)
 			local g = K.egg(pos, 3, C(250, 250, 255))
 			g.Transparency = 0.35
-			return K.model({ g, K.ball(0.5, C(10, 10, 10), pos + V(-0.6, 2.6, -1.45)), K.ball(0.5, C(10, 10, 10), pos + V(0.6, 2.6, -1.45)) })
+			local m = K.model({ g, K.ball(0.5, C(10, 10, 10), pos + V(-0.6, 2.6, -1.45)), K.ball(0.5, C(10, 10, 10), pos + V(0.6, 2.6, -1.45)) })
+			local sh = show
+			task.spawn(function()
+				local last = 0
+				while m.Parent and not sh.dead do
+					task.wait()
+					local bob = math.sin(os.clock() * 3) * 0.6
+					m:PivotTo(m:GetPivot() + V(0, bob - last, 0))
+					last = bob
+				end
+			end)
+			return m
 		end
 
 		-- actors ------------------------------------------------------------------------------------
@@ -17855,12 +18030,26 @@ do
 				wc.Part0, wc.Part1 = root, p
 				wc.Parent = p
 			end
-			r.lift = 0.4
+			r.lift = 0.65
 			r.anim("ride")
-			function r.at(x, y, z, rot, yaw) -- (facing +X unless told otherwise)
-				r.model:PivotTo(CF(x, y + r.height + r.lift, z) * ANG(0, yaw or -math.pi / 2, 0) * (rot or CF()))
-				r.pos = V(x, y, z)
+			local mid = r.height * 0.45
+			-- (x, y, z) = where the wheels touch. rot tilts about the wheels (ramps, walls, leaning);
+			-- spin turns about the middle of the body (tricks). Facing +X unless told otherwise.
+			function r.at(x, y, z, rot, yaw, spin)
+				local cf = CF(x, y, z) * ANG(0, yaw or -math.pi / 2, 0) * (rot or CF()) * CF(0, r.lift, 0)
+				if spin then cf = cf * CF(0, mid, 0) * spin * CF(0, -mid, 0) end
+				r.model:PivotTo(cf * CF(0, r.height, 0))
+				local p, t = V(x, y, z), os.clock()
+				if r._t and t > r._t then r.moveSpeed = math.min((p - r._p).Magnitude / (t - r._t), 80) end
+				r._p, r._t = p, t
+				r.pos = p
 			end
+			function r.lie(x, y, z) -- wiped out: lying on the ground on one side
+				r.air = false
+				r.at(x, (y or 0) + 0.5, z, ANG(0, 0, math.rad(90)))
+				r.moveSpeed = 0
+			end
+			r.at(0, -60, 0) -- (out of sight until a plot puts them somewhere)
 			return r
 		end
 		function K.rider(name) return K.onScooter(K.who("Rider", name or pick(ROSTER))) end
@@ -17899,21 +18088,23 @@ do
 			t0 = clock()
 			repeat
 				local u = math.min((clock() - t0) / 0.42, 1)
-				r.at(top - len + u * len, u * h, z, ANG(math.rad(-18) * u, 0, 0))
+				r.at(top - len + u * len, u * h, z, ANG(math.atan2(h, len) * math.min(u * 4, 1), 0, 0))
 				hold(0)
 			until u >= 1
 			sfx(SFX.whoosh, 0.4, rng:NextNumber(0.9, 1.15), 1.5)
 			if trick == "no-hander" or trick == "superman" then r.gesture(trick == "superman" and "handsUp" or "cheer", airT) end
+			r.air = true
 			t0 = clock()
 			repeat
 				local u = math.min((clock() - t0) / airT, 1)
-				r.at(top + u * dist, h + (landY - h) * u + math.sin(u * math.pi) * (o.height or 7), z, TRICKS[trick] and TRICKS[trick](u) or CF())
+				r.at(top + u * dist, h + (landY - h) * u + math.sin(u * math.pi) * (o.height or 7), z, nil, nil, TRICKS[trick] and TRICKS[trick](u) or nil)
 				hold(0)
 			until u >= 1
+			r.air = false
 			local landX = top + dist
 			if o.bail then
 				sfx(SFX.thud, 0.45, 0.8, 1)
-				r.at(landX + 1.5, landY - r.height - r.lift + 0.6, z, ANG(0, 0, math.rad(90)))
+				r.lie(landX + 1.5, landY, z)
 				burst("dust", V(landX + 1.5, landY + 0.5, z), 8)
 				shake(0.25, 0.4)
 				return false
@@ -17928,12 +18119,12 @@ do
 			until u >= 1
 			return true
 		end
-		function K.roll(r, x1, t, z, y, wobble) -- ride along to x1
+		function K.roll(r, x1, t, z, y, wobble, rot) -- ride along to x1
 			local x0 = r.pos and r.pos.X or 0
 			local t0 = clock()
 			repeat
 				local u = math.min((clock() - t0) / t, 1)
-				r.at(x0 + (x1 - x0) * u, y or 0, (z or 0) + (wobble and math.sin(u * 18) * wobble or 0), wobble and ANG(0, 0, math.sin(u * 23) * 0.25) or nil)
+				r.at(x0 + (x1 - x0) * u, y or 0, (z or 0) + (wobble and math.sin(u * 18) * wobble or 0), rot or (wobble and ANG(0, 0, math.sin(u * 23) * 0.25)) or nil)
 				hold(0)
 			until u >= 1
 		end
@@ -17986,7 +18177,10 @@ do
 		local function team(n)
 			local names = table.clone(ROSTER)
 			local list = {}
-			for i = 1, n do list[i] = K.rider(table.remove(names, rng:NextInteger(1, #names))) end
+			for i = 1, n do
+				list[i] = K.rider(table.remove(names, rng:NextInteger(1, #names)))
+				list[i].at(-26 + i * 5, 0, 6, nil, 0)
+			end
 			return list
 		end
 		local function score(landed, base)
@@ -18055,13 +18249,12 @@ do
 				SET.skatepark()
 				K.ramp(-4, 0, 4, 8)
 				K.car("bus", 13, 0)
-				K.ramp(28, 0, 4, 8, C(255, 140, 40)).CFrame *= ANG(0, math.pi, 0)
 				local r = K.rider()
 				K.open(V(6, 10, -36), V(8, 4, 0))
 				K.cap("Today " .. r.name .. " jumps... a SCHOOL BUS.", 2)
 				K.follow(r, V(-4, 7, -26))
-				local ok = K.jump(r, { rampX = -4, len = 8, h = 4, dist = 22, height = 6, landY = 0, trick = "superman", bail = rng:NextNumber() < 0.3 })
-				if not ok then K.boom(V(20, 3, 0)) K.cap("Into the side of the bus! He's OK! The bus is not.", 2.2) else K.cheer() K.cap("OVER THE BUS!", 1.6) K.points(r.name, 15) end
+				local ok = K.jump(r, { rampX = -4, len = 8, h = 4, dist = 30, height = 10, air = 1.8, trick = "superman", bail = rng:NextNumber() < 0.3 })
+				if not ok then K.boom(V(24, 3, 0)) K.cap("Into the side of the bus! He's OK! The bus is not.", 2.2) else K.cheer() K.cap("OVER THE BUS!", 1.6) K.points(r.name, 15) end
 			end },
 			{ "THE SHARK TANK", function()
 				SET.skatepark()
@@ -18082,14 +18275,14 @@ do
 				SET.skatepark()
 				K.sky(K.DUSK)
 				K.ramp(-3.5, 0, 3, 7)
-				K.ring(V(5.5, 7.5, 0), 3.5)
+				K.ring(V(5.5, 10, 0), 4.2)
 				local list = team(2)
 				K.open(V(4, 9, -26), V(4, 5, 0))
 				K.cap("Through the RING OF FIRE. Don't touch the sides!", 2)
 				for _, r in ipairs(list) do
 					K.follow(r, V(-4, 6, -22))
 					local ok = K.jump(r, { trick = "no-hander", dist = 13, height = 6, bail = rng:NextNumber() < 0.3 })
-					burst("spark", V(5.5, 7.5, 0), 14)
+					burst("spark", V(5.5, 10, 0), 14)
 					K.cut(V(4, 9, -26), V(4, 5, 0))
 					score(ok, 7)
 					r.hide()
@@ -18155,7 +18348,7 @@ do
 			end },
 			{ "SLALOM SHOWDOWN", function()
 				SET.skatepark()
-				for i = 0, 7 do K.cone(-28 + i * 8, (i % 2 == 0) and -1.5 or 1.5) end
+				for i = 0, 7 do K.cone(-31.5 + i * 9, (i % 2 == 0) and -1.6 or 1.6) end -- (opposite side to the rider)
 				local list = team(2)
 				K.open(V(0, 14, -30), V(0, 0, 0))
 				K.cap("The slalom! Weave through the cones. Fastest time wins.", 2)
@@ -18202,7 +18395,8 @@ do
 							K.cap(r.name .. " clips the bar!", 1.2)
 							r.hide()
 						else
-							K.roll(r, 20, 0.8)
+							K.roll(r, 6, 0.5, 0, 0, nil, ANG(lean, 0, 0))
+							K.roll(r, 20, 0.5)
 							alive[r] = round
 							r.hide()
 						end
@@ -18222,13 +18416,19 @@ do
 				local best, bestH = list[1], 0
 				for round, hgt in ipairs({ 8, 10, 12 }) do
 					bar.CFrame = CF(5, hgt, 0)
+					hold(0.5)
 					K.cap("Round " .. round .. ": " .. hgt .. " feet!", 1.2)
 					for _, r in ipairs(list) do
 						if r.model.Parent then
 							K.follow(r, V(-4, 6, -26))
 							local pow = rng:NextNumber(6, 13)
 							local ok = K.jump(r, { trick = "superman", height = pow, dist = 13, bail = pow < hgt - 1 })
-							if ok then if hgt > bestH then best, bestH = r, hgt end else r.model.Parent = nil end
+							if ok then
+								if hgt > bestH then best, bestH = r, hgt end
+							else
+								r.model.Parent = nil
+								K.glideAsync(bar, CF(6, 0.3, 0) * ANG(0, 0, 0.3), 0.4)
+							end
 							K.cut(WIDE, LOOK)
 						end
 					end
@@ -18267,7 +18467,7 @@ do
 					for i, r in ipairs(list) do r.at(-34 + u * (6 + i), 0, -3 + i * 3, ANG(0, 0, math.sin(clock() * 4 + i) * 0.2)) end
 					hold(0)
 				until u >= 1
-				fell.at(-28, -fell.height - fell.lift + 0.6, fell.pos.Z, ANG(0, 0, math.rad(90)))
+				fell.lie(-28, 0, fell.pos.Z)
 				sfx(SFX.thud, 0.4, 1, 0.6)
 				K.cap(fell.name .. " tips over! Disqualified!", 1.8)
 				local w = list[1] == fell and list[2] or list[1]
@@ -18354,12 +18554,12 @@ do
 			{ "THE COLA CAN JUMP", function()
 				SET.skatepark()
 				K.ramp(-3.5, 0, 3.5, 7)
-				for i = 0, 3 do K.can(V(5 + i * 3.2, 0, 0), 5) end
+				for i = 0, 2 do K.can(V(7 + i * 3.2, 0, 0), 5) end
 				local r = K.rider()
 				K.open(V(6, 9, -30), V(8, 3, 0))
-				K.cap("Sponsored by Bloxy Cola: jump FOUR giant cans!", 2)
+				K.cap("Sponsored by Bloxy Cola: jump THREE giant cans!", 2)
 				K.follow(r, V(-4, 6, -24))
-				local ok = K.jump(r, { h = 3.5, dist = 16, height = 7, trick = "backflip", bail = rng:NextNumber() < 0.25 })
+				local ok = K.jump(r, { h = 3.5, dist = 22, height = 9, air = 1.5, trick = "backflip", bail = rng:NextNumber() < 0.25 })
 				if ok then K.points(r.name, 12) K.cap("Refreshing!", 1.4) else burst("food", V(14, 4, 0), 20) K.cap("He crashes into the cans! Cola EVERYWHERE!", 2) end
 			end },
 			{ "THE MEGA RAMP", function()
@@ -18556,7 +18756,7 @@ do
 				K.cap("Scooter BOWLING! " .. r.name .. " is the ball.", 1.8)
 				r.at(-30, 0, 0)
 				K.follow(r, V(-4, 5, -18))
-				K.roll(r, 22, 1.6)
+				K.roll(r, 20, 1.6)
 				sfx(SFX.thud, 0.6, 1.2, 1)
 				local knocked = rng:NextInteger(6, 10)
 				for i = 1, knocked do
@@ -18593,8 +18793,15 @@ do
 				until u >= 1
 				K.boom(V(0, 3, 0))
 				local loser = rng:NextNumber() < 0.5 and a or b
-				loser.at(loser.pos.X, 3, loser.pos.Z, ANG(0, 0, 1.6))
-				K.fly(loser, V(loser.pos.X + (loser == a and -8 or 8), 0, 6), 0.8)
+				local lx, lz, dir = loser.pos.X, loser.pos.Z, loser == a and -1 or 1
+				local t1 = clock()
+				repeat
+					local u = math.min((clock() - t1) / 0.7, 1)
+					loser.at(lx + dir * 8 * u, math.sin(u * math.pi) * 4, lz, nil, loser == a and -math.pi / 2 or math.pi / 2, ANG(-u * 4, 0, 0))
+					hold(0)
+				until u >= 1
+				loser.lie(lx + dir * 9, 0, lz)
+				sfx(SFX.thud, 0.5, 0.8, 1)
 				local w = loser == a and b or a
 				winner(w, 10)
 			end },
@@ -18621,7 +18828,7 @@ do
 			end },
 			{ "THE OBSTACLE COURSE", function()
 				SET.skatepark()
-				for i = 1, 4 do K.cone(-26 + i * 4, (i % 2 == 0) and 1.5 or -1.5) end
+				for i = 0, 3 do K.cone(-26.5 + i * 7, (i % 2 == 0) and -1.6 or 1.6) end
 				K.crate(-2, 3)
 				K.crate(-2, -3)
 				K.ramp(10.5, 0, 3, 7)
@@ -18664,7 +18871,10 @@ do
 			end },
 			{ "LOOP DE LOOP", function()
 				SET.skatepark()
-				K.ring(V(0, 7, 0), 7, C(80, 160, 255))
+				for i = 1, 24 do -- the loop's track, its inside surface 7 studs from the middle
+					local a = i / 24 * math.pi * 2
+					K.box(V(1.95, 0.6, 4), C(80, 160, 255), CF(0, 7, 0) * ANG(0, 0, a) * CF(0, -7.3, 0), NEON)
+				end
 				local r = K.rider()
 				K.open(V(0, 8, -30), V(0, 6, 0))
 				K.cap("The LOOP DE LOOP. Speed is everything.", 1.8)
@@ -18675,7 +18885,7 @@ do
 				repeat
 					local u = math.min((clock() - t0) / 1, 1)
 					local a = u * math.pi * 2 * (fast and 1 or 0.5)
-					r.at(math.sin(a) * 6.3, 7 - math.cos(a) * 6.3 - 0.7, 0, ANG(-a, 0, 0))
+					r.at(math.sin(a) * 7, 7 - math.cos(a) * 7, 0, ANG(a, 0, 0))
 					hold(0)
 				until u >= 1
 				if fast then
@@ -18684,9 +18894,9 @@ do
 					K.cap("All the way around!", 1.6)
 					K.points(r.name, 12)
 				else
-					r.at(0, 12, 0, ANG(math.pi, 0, 0))
-					K.fly(r, V(1, 0, 0), 0.5)
+					r.lie(0, 0, 0)
 					sfx(SFX.thud, 0.5, 0.8, 1)
+					shake(0.3, 0.4)
 					K.cap("Not enough speed... upside down... and DOWN.", 2)
 				end
 			end },
@@ -18701,7 +18911,7 @@ do
 				local t0 = clock()
 				repeat
 					local u = math.min((clock() - t0) / 1.6, 1)
-					r.at(-14 + u * 28, math.sin(u * math.pi) * 6, 2 + math.sin(u * math.pi) * 1.8, ANG(0, 0, -math.sin(u * math.pi) * 1.4))
+					r.at(-14 + u * 28, math.sin(u * math.pi) * 6, 2 + math.sin(u * math.pi) * 2.4, ANG(0, 0, math.sin(u * math.pi) * 1.4))
 					hold(0)
 				until u >= 1
 				K.roll(r, 30, 0.8, 2)
@@ -18722,7 +18932,7 @@ do
 				local t0 = clock()
 				repeat
 					local u = math.min((clock() - t0) / 1.8, 1)
-					r.at(-15 + u * 30, 2.6, 0, ANG(0, 0.6, 0))
+					r.at(-15 + u * 30, 2.75, 0, ANG(0, 0.6, 0))
 					if math.random() < 0.6 then burst("spark", V(-15 + u * 30, 2.6, 0), 2) end
 					hold(0)
 				until u >= 1
@@ -18744,7 +18954,7 @@ do
 				if rng:NextNumber() < 0.5 then
 					K.roll(r, -15, 1.4, 0, 0, 1.6)
 					K.boom(V(-14, 2, 2))
-					r.at(-15, -r.height - r.lift + 0.6, 0, ANG(0, 0, math.rad(90)))
+					r.lie(-15, 0, 0)
 					K.cap("He felt the CRATE.", 1.6)
 				else
 					K.jump(r, { from = -34, trick = "backflip" })
@@ -18793,7 +19003,7 @@ do
 			{ "TRAFFIC WEAVE", function()
 				SET.street(false)
 				local cars = {}
-				for i = 1, 4 do cars[i] = K.car(pick({ "car", "taxi", "van" }), 40 + i * 20, -8 + (i % 2) * 5) end
+				for i = 1, 4 do cars[i] = K.car(pick({ "car", "taxi", "van" }), 40 + i * 20, (i % 2 == 0) and -11 or 3) end
 				local r = K.rider()
 				K.open(V(-20, 8, -30), V(0, 2, -6))
 				K.cap(r.name .. " vs RUSH HOUR. (Do NOT try this at home.)", 2)
@@ -18803,7 +19013,7 @@ do
 				local t0 = clock()
 				repeat
 					local u = math.min((clock() - t0) / 4, 1)
-					r.at(-50 + u * 110, 0, -6 + math.sin(u * math.pi * 5) * 3, ANG(0, 0, math.cos(u * math.pi * 5) * 0.35))
+					r.at(-50 + u * 110, 0, -4 + math.sin(u * math.pi * 5) * 2, ANG(0, 0, math.cos(u * math.pi * 5) * 0.3))
 					hold(0)
 				until u >= 1
 				K.cheer()
@@ -19636,17 +19846,51 @@ do
 			if rng:NextNumber() < 0.45 then K.say(anchor, "Tomorrow's weather: " .. pick(WEATHER)) end
 			K.say(anchor, pick(SIGNOFF), "wave")
 		end
+		-- ONE broadcast a day, on the real calendar (the viewer's own midnight): Day 1 is launch day,
+		-- and each day's news carries on the story from the day before. Once today's is over, the
+		-- channel goes dark until tomorrow.
+		local LAUNCH_DAY = 20762 -- (Nov 5 2026, in days since 1970)
+		local function today() -- (the day number, and the seconds left until midnight)
+			local t = os.time()
+			local offset = os.time(os.date("*t", t)) - os.time(os.date("!*t", t))
+			local localT = t + offset
+			return math.floor(localT / 86400), 86400 - localT % 86400
+		end
+		local function offAir(day)
+			show.fade.BackgroundTransparency = 0
+			show.letterbox.Visible, show.ticker.Visible = false, false
+			show.label.Text = "<font color=\"#888888\">&#9679;</font> OFF AIR   CH 9 - BAY NEWS"
+			show.titleScale.Scale = 1
+			show.title.Visible = true
+			while true do
+				local d, left = today()
+				if d ~= day then break end -- midnight: a new day's news
+				show.titleBig.Text = "BACK TOMORROW!"
+				show.titleTop.Text = string.format("THAT'S ALL FOR TODAY  -  NEXT NEWS IN %dH %02dM", left // 3600, (left % 3600) // 60)
+				if show.music then show.music.Playing = false end -- (dead air)
+				hold(1)
+			end
+			show.title.Visible = false
+			if show.music then show.music.Playing = true end
+		end
 		function plots.news()
 			show.cinematic = true
 			show.fade.BackgroundTransparency = 0
-			story.newsDay = (story.newsDay or 0) + 1
+			local day = today()
+			if story.newsSeen == day then -- already watched today's: the screen stays dark till tomorrow
+				offAir(day)
+				return
+			end
+			story.newsDay = math.max(1, day - LAUNCH_DAY + 1)
 			local d = NEWS[(story.newsDay - 1) % #NEWS + 1]
 			show.label.Text = show.label.Text .. "  |  Day " .. story.newsDay
 			show.ticker.Text = "BREAKING: " .. d[1] .. "   +++   " .. table.concat(HEADLINES, "   +++   ")
 			titleCard("BAY NEWS  -  DAY " .. story.newsDay, d[1])
 			plots.newsDay(d)
+			story.newsSeen = day
 			hold(0.4)
 			fade(true, 0.5)
+			offAir(day)
 		end
 		return plots
 	end)()
@@ -19826,7 +20070,7 @@ do
 			label.Text = "<font color=\"#ff4040\">&#9679;</font> LIVE   " .. CHANNELS[channel].name
 		end
 		s.director = task.spawn(function()
-			while show == s and not s.dead do
+			while show == s and not s.dead and not s.testing do
 				s.reset()
 				local ok, err = pcall(CHANNELS[channel].episode)
 				if not ok and err ~= "cut" then
@@ -19837,10 +20081,11 @@ do
 		end)
 	end
 	-- developer self-test: every plot of a channel back to back at high speed, errors collected.
-	-- (in the command bar, while a TV show is on: _G.TVSpeed = 25; print(_G.TVSelfTest("news")))
-	_G.TVSelfTest = function(which, from, to)
+	-- (while a TV show is on, set the player attributes TVSpeed = 20 and TVSelfTest = "heist" / "scooter"
+	-- / "news"; the report appears in the attribute TVSelfTestResult)
+	local function selfTest(which, from, to)
 		if not show then return 0, { "no show on" } end
-		if show.director then pcall(task.cancel, show.director) end
+		show.testing = true -- (the regular episode stops at its next beat)
 		local s = show
 		local list = {}
 		if which == "heist" then
@@ -19872,6 +20117,16 @@ do
 		end
 		return n, errs
 	end
+	plr:GetAttributeChangedSignal("TVSelfTest"):Connect(function()
+		local which = plr:GetAttribute("TVSelfTest")
+		if not which then return end
+		task.spawn(function()
+			local t0 = os.clock()
+			local ok, n, errs = pcall(selfTest, which)
+			plr:SetAttribute("TVSelfTestResult", ok and (which .. ": ran " .. n .. " in " .. math.floor(os.clock() - t0) .. "s, errors " .. #errs .. " | " .. table.concat(errs, " | ")) or ("test crashed: " .. tostring(n)))
+			plr:SetAttribute("TVSelfTest", nil)
+		end)
+	end)
 	local lastChannel = 1
 
 	-- full-screen watching: channel buttons + exit, the HUD hides, walking pauses, town music fades

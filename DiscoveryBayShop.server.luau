@@ -36,7 +36,7 @@ local DAY_LENGTH = 600
 local START_CASH = 100
 local WALK_SPEED = 16
 local SCOOTER_SPEED = 30
-local VERSION = "v188"
+local VERSION = "v191"
 
 -- ==============================================================================================
 -- LIGHTING, DYNAMIC SUNSET & STARRY NIGHT SKY SYSTEM
@@ -4626,6 +4626,14 @@ task.spawn(function()
 				face.Face = Enum.NormalId.Front
 				face.Texture = faceTexture(c.face or "Smile")
 				face.Parent = head
+				local TALK = {
+					Grr = "Roar", Slickfang = "Fang", HappyWink = "OpenO", Stare = "OpenO", JoyousSurprise = "Smile",
+					CheckIt = "JoyfulSmile", Smile = "OpenO", Skeptic = "OpenO",
+				}
+				model:SetAttribute("FaceKey", c.face or "Smile")
+				model:SetAttribute("TalkKey", TALK[c.face or "Smile"] or "OpenO")
+				model:SetAttribute("FaceTex", face.Texture)
+				model:SetAttribute("TalkTex", faceTexture(TALK[c.face or "Smile"] or "OpenO"))
 			end
 			model.Parent = folder
 		else
@@ -4633,4 +4641,19 @@ task.spawn(function()
 		end
 	end
 	folder.Parent = ReplicatedStorage
+	-- faces still downloading at startup: fill them in as they arrive (the TV clones the cast fresh
+	-- every episode, so the next episode has them)
+	for _ = 1, 90 do
+		task.wait(2)
+		for _, m in ipairs(folder:GetChildren()) do
+			local fv = faces and faces:FindFirstChild(m:GetAttribute("FaceKey") or "")
+			local tv = faces and faces:FindFirstChild(m:GetAttribute("TalkKey") or "")
+			if fv and fv.Value ~= "" and m:GetAttribute("FaceTex") ~= fv.Value then
+				m:SetAttribute("FaceTex", fv.Value)
+				local d = m:FindFirstChild("Head") and m.Head:FindFirstChild("face")
+				if d then d.Texture = fv.Value end
+			end
+			if tv and tv.Value ~= "" and m:GetAttribute("TalkTex") ~= tv.Value then m:SetAttribute("TalkTex", tv.Value) end
+		end
+	end
 end)
