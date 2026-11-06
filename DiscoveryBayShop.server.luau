@@ -36,7 +36,7 @@ local DAY_LENGTH = 600
 local START_CASH = 100
 local WALK_SPEED = 16
 local SCOOTER_SPEED = 30
-local VERSION = "v191"
+local VERSION = "v196"
 
 -- ==============================================================================================
 -- LIGHTING, DYNAMIC SUNSET & STARRY NIGHT SKY SYSTEM
@@ -335,6 +335,13 @@ local CLASSIC_FACE_CATALOG = {
 	JoyfulSmile     = 209995366,
 	Fang            = 7075142,
 	TongueOut       = 14861743,  -- ":P"
+	-- more marketplace faces, for the TV cast's emotions
+	SuperHappy      = 494291269, -- blushing, beaming
+	BigEyes         = 30394850,  -- wide-eyed, mouth open: shocked
+	AngryO          = 7076224,   -- angry brows, shouting
+	SadOpen         = 14812981,  -- wailing
+	Smirk           = 7075469,   -- brows up, flat mouth: hmm...
+	Mouthy          = 16132514,  -- "D" mouth
 }
 local classicFacesFolder = remotes:FindFirstChild("ClassicFaces")
 if not classicFacesFolder then
@@ -4568,9 +4575,9 @@ task.spawn(function()
 	local BLACK, DARK = Color3.fromRGB(25, 25, 28), Color3.fromRGB(35, 35, 40)
 	local CAST = {
 		-- robbers: black heads = ski masks
-		{ role = "Robber", head = DARK, torso = BLACK, legs = Color3.fromRGB(30, 30, 34), face = "Grr" },
-		{ role = "Robber", head = DARK, torso = Color3.fromRGB(60, 60, 66), legs = Color3.fromRGB(30, 30, 34), face = "Slickfang" },
-		{ role = "Robber", head = DARK, torso = Color3.fromRGB(70, 40, 30), legs = Color3.fromRGB(30, 30, 34), face = "HappyWink" },
+		{ role = "Robber", torso = BLACK, legs = Color3.fromRGB(30, 30, 34), face = "Grr" },
+		{ role = "Robber", torso = Color3.fromRGB(60, 60, 66), legs = Color3.fromRGB(30, 30, 34), face = "Slickfang" },
+		{ role = "Robber", torso = Color3.fromRGB(70, 40, 30), legs = Color3.fromRGB(30, 30, 34), face = "HappyWink" },
 		{ role = "Cop", torso = Color3.fromRGB(30, 50, 120), legs = Color3.fromRGB(25, 30, 60), hair = "62234425", face = "Stare" },
 		{ role = "Rider", shirt = 607785314, pants = 129458426, hair = "12270336", face = "JoyousSurprise" },
 		{ role = "Rider", shirt = 144076358, pants = 398633812, hair = "13477818", face = "CheckIt" },

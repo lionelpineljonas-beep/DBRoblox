@@ -11,7 +11,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 
-local VERSION = "v191"
+local VERSION = "v196"
 local SPEED_PASS_ID = 0 -- paste the real Game Pass ID here (same one as in DiscoveryBayShop)
 local RunService = game:GetService("RunService")
 local Lighting = game:GetService("Lighting")
@@ -6538,6 +6538,7 @@ do
 		if leg then height = model:GetPivot().Position.Y - (leg.Position.Y - leg.Size.Y / 2) end
 		local actor = {
 			model = model, height = height,
+			legLen = leg and leg.Size.Y or 2,
 			voice = rng:NextNumber(0.85, 1.5), -- everyone talks at their own pitch
 			seed = rng:NextNumber(0, 100), talkHand = rng:NextInteger(0, 1) == 0 and "RS" or "LS",
 			joints = torso and {
@@ -6547,21 +6548,19 @@ do
 			} or {},
 		}
 		table.insert(show.actors, actor)
-		-- the face: the server gives every cast member a closed-mouth face and an open-mouth one
-		local head = model:FindFirstChild("Head")
-		actor.faceDecal = head and head:FindFirstChild("face")
-		actor.faceTex = model:GetAttribute("FaceTex") or (actor.faceDecal and actor.faceDecal.Texture)
-		actor.talkTex = model:GetAttribute("TalkTex")
-		if actor.talkTex then
-			task.spawn(function()
-				pcall(function() game:GetService("ContentProvider"):PreloadAsync({ actor.talkTex }) end)
-			end)
-		end
+		-- how they carry themselves (see GAITS and EMOTIONS below)
+		if role == "Cop" then actor.gait, actor.runGait, actor.mood = "march", "sprint", "stern"
+		elseif role == "Judge" then actor.gait, actor.runGait, actor.mood = "waddle", "panic", "tired"
+		elseif role == "Anchor" then actor.gait, actor.runGait, actor.mood = "waddle", "panic", "happy"
+		elseif role == "Robber" then actor.gait, actor.runGait = "tough", "getaway"
+		else actor.gait, actor.runGait = pick({ "strut", "strut", "skip" }), "sprint" end
+		function actor.feel(name, seconds) actor.feeling, actor.feelUntil = name, clock() + (seconds or 2) end
 		-- no Animator: it would overwrite the poses written every frame
 		for _, a in ipairs(model:GetDescendants()) do
 			if a:IsA("Animator") then a:Destroy() end
 		end
 		function actor.anim(name) -- "idle" / "walk" / "run": the body poser reads this every frame
+			if actor.current ~= name then actor.animPrev, actor.animT = actor.current, clock() end
 			actor.current = name
 		end
 		function actor.place(pos, lookAt)
@@ -6596,7 +6595,7 @@ do
 	end
 	-- R6 body poses. Shoulders and hips swing forward/back about their Z axis (mirrored: + lifts the
 	-- right arm forward, - lifts the left); X tilts the arm out to the side (negative = outward).
-	local poseActor = (function() -- (own function: the TV code is near Luau's 200-locals limit)
+	local poseActor, moodOf = (function() -- (own function: the TV code is near Luau's 200-locals limit)
 	local A = CFrame.Angles
 	local rad = math.rad
 	local function arms(rf, ro, lf, lo)
@@ -6628,6 +6627,118 @@ do
 		end,
 	}
 	local NO_POSE = CFrame.new()
+	-- WALKS AND RUNS, hand-keyed the way an animator blocks a cycle: four key poses per step (contact,
+	-- down, passing, up), mirrored for the other leg, with smooth curves between the keys.
+	-- Angles in degrees; legs and arms: + is forward. air = lift off the ground, lean = forward,
+	-- twist = shoulders turning, roll = side to side, nod = head.
+	local function key(r, l, ra, la, air, lean, twist, roll, nod)
+		return { r = r, l = l, ra = ra, la = la, air = air, lean = lean, twist = twist, roll = roll, nod = nod }
+	end
+	local function cycle(contact, down, passing, up)
+		local list = { contact, down, passing, up }
+		for i = 1, 4 do -- the same step on the other foot
+			local k = list[i]
+			list[i + 4] = key(k.l, k.r, k.la, k.ra, k.air, k.lean, -k.twist, -k.roll, k.nod)
+		end
+		return list
+	end
+	local RUN_KEYS = cycle(
+		key(52, -48, -58, 72, 0, 17, 14, 0, -3), -- contact: long stride, opposite arm flung forward
+		key(20, -62, -30, 48, 0, 22, 8, 5, 3), -- down: the weight lands, the body dips and leans in
+		key(-18, 14, 8, 14, 0.05, 19, 0, 3, 0), -- passing: the legs swap under the body
+		key(-58, 58, 62, -52, 0.55, 15, -11, 0, -3) -- up: the push-off, both feet in the air
+	)
+	local WALK_KEYS = cycle(
+		key(38, -34, -38, 42, 0, 6, 16, -3, -3), -- contact: heel out in front, shoulders turned against the hips
+		key(20, -36, -22, 26, 0, 9, 10, 7, 5), -- down: the weight drops onto that foot, the head dips
+		key(-8, 10, 4, 6, 0.16, 5, 0, 9, 0), -- passing: rising over the foot, hips pushed out to the side
+		key(-28, 30, 30, -26, 0.24, 3, -10, 3, -4) -- up: pushing off the toes, head high
+	)
+	-- each kind of character performs a cycle their own way (scales on top of the keys)
+	local GAITS = {
+		strut = { keys = WALK_KEYS, hz = 1.55, speed = 8, leg = 1, arm = 1.25, out = 14, roll = 1.5, twist = 1.5, air = 1.3, lean = -2 }, -- bouncy, hips swinging
+		tough = { keys = WALK_KEYS, hz = 1.15, speed = 8, leg = 0.95, arm = 0.8, out = 32, roll = 1.9, twist = 2.3, air = 0.7, lean = -5 }, -- slow, wide arms, shoulders rolling
+		skip = { keys = WALK_KEYS, hz = 2, speed = 8, leg = 1.3, arm = 1.7, out = 12, roll = 1, twist = 0.8, air = 3.2, lean = 0 }, -- big bounces
+		march = { keys = WALK_KEYS, hz = 1.9, speed = 8, leg = 1.6, arm = 1.9, out = 2, roll = 0, twist = 0, air = 0.15, lean = -6 }, -- stiff, high knees, straight back
+		sneak = { keys = WALK_KEYS, hz = 0.95, speed = 8, leg = 0.8, arm = 0.25, fwd = 55, out = -8, roll = 1.6, twist = 0.5, air = 1.1, lean = 24, look = 0.8 }, -- tiptoe, bent over, hands up
+		shuffle = { keys = WALK_KEYS, hz = 2.6, speed = 8, leg = 0.32, arm = 0.2, fwd = 18, out = -6, roll = 1.1, twist = 0.5, air = 0.15, lean = 11 }, -- tiny chained steps, hunched
+		waddle = { keys = WALK_KEYS, hz = 1.5, speed = 8, leg = 0.55, arm = 0.15, fwd = -24, out = 20, roll = 2.6, twist = 0.4, air = 0.3, lean = -4 }, -- side to side like a penguin
+		stomp = { keys = WALK_KEYS, hz = 0.9, speed = 8, leg = 1.15, arm = 1.5, out = 22, roll = 2.4, twist = 2.4, air = 1.2, lean = 16 }, -- huge, slow, heavy
+		robot = { keys = WALK_KEYS, hz = 1.2, speed = 8, leg = 0.9, arm = 0.9, out = 0, roll = 0, twist = 0, air = 0, lean = 0, stepped = true },
+		hover = { keys = WALK_KEYS, hz = 0.8, speed = 8, leg = 0.12, arm = 0.2, out = 40, roll = 1.2, twist = 0.5, air = 0, lean = 3, float = 0.7 },
+		sprint = { keys = RUN_KEYS, hz = 2.3, speed = 15, leg = 1, arm = 1, out = 6, roll = 1, twist = 1, air = 1, lean = 0 },
+		getaway = { keys = RUN_KEYS, hz = 2.5, speed = 15, leg = 1, arm = 0.8, fwd = 12, out = 2, roll = 1.2, twist = 0.8, air = 1, lean = 7, back = true },
+		panic = { keys = RUN_KEYS, hz = 2.8, speed = 15, leg = 0.95, arm = 0.6, fwd = 150, out = 24, roll = 1.6, twist = 1, air = 1, lean = -10, shake = 0.2 },
+	}
+	-- a smooth curve through the keys (Catmull-Rom, so moves ease and slightly overshoot like hand animation)
+	local function sample(keys, name, p)
+		local n = #keys
+		local f = (p % 1) * n
+		local i = math.floor(f)
+		local u = f - i
+		local k0, k1, k2, k3 = keys[(i - 1) % n + 1][name], keys[i % n + 1][name], keys[(i + 1) % n + 1][name], keys[(i + 2) % n + 1][name]
+		return 0.5 * (2 * k1 + (k2 - k0) * u + (2 * k0 - 5 * k1 + 4 * k2 - k3) * u * u + (3 * k1 - k0 - 3 * k2 + k3) * u * u * u)
+	end
+	-- FACES: real marketplace faces, one pair per emotion { mouth closed, mouth open }.
+	-- (no entry = the character's own face and its open-mouth twin)
+	local FACE_FOR = {
+		happy = { "Smile", "JoyfulSmile" }, joy = { "SuperHappy", "JoyousSurprise" }, angry = { "Grr", "Roar" },
+		stern = { "Stare", "AngryO" }, sad = { "Sniffles", "SadOpen" }, shocked = { "BigEyes", "Disbelief" },
+		scared = { "BigEyes", "Disbelief" }, smug = { "MrChuckles", "JoyousSurprise" }, sneaky = { "Slickfang", "ItsGoTime" },
+		confused = { "Smirk", "Mouthy" }, tired = { "Chill", "OpenO" },
+	}
+	local GESTURE_MOOD = { cheer = "joy", handsUp = "scared", facepalm = "tired", shrug = "confused", wave = "happy", lift = "angry", dig = "tired", binoculars = "sneaky" }
+	-- what a line of dialogue feels like
+	local function moodOf(text)
+		local t = " " .. text:lower() .. " "
+		local function has(list)
+			for _, w in ipairs(list) do
+				if t:find(w, 1, true) then return true end
+			end
+			return false
+		end
+		if has({ "psst", "tiptoe", "act natural", "shh", "nobody touch", "you thinking" }) then return "sneaky" end
+		if has({ "run!", "aaa", "help", "oh no", "nooo", "fire!", "escaping" }) then return "scared" end
+		if has({ "?!", "what?", "wait", "no way", "it hatched", "impossible", "...how", "ten-eighty" }) then return "shocked" end
+		if has({ "arrest", "freeze", "traitor", "objection", "guilty", "hey!", "denied", "get you", "my truck", "banned", "move it", "going down", "order in" }) then return "angry" end
+		if has({ "sorry", "aw man", "miss my", "broke", "sniff", "hungry", "can't eat", "my neck", "...fine", "not again" }) then return "sad" end
+		if has({ "easy", "catch me", "too easy", "i told you", "you're welcome", "surprise" }) then return "smug" end
+		if has({ "love", "best", "great", "got it", "cool", "we're in", "rich", "win", "thanks", "beautiful", "ready", "happy", "welcome", "yes!", "i'm in", "awesome" }) then return "happy" end
+		if text:sub(-1) == "?" then return "confused" end
+		return nil
+	end
+	local preloaded = false
+	local function poseFace(actor, now, dt, talking, g)
+		local head = actor.model:FindFirstChild("Head")
+		if not head then return end
+		local decal = head:FindFirstChild("face")
+		if actor.noFace then -- (aliens and robots have their own)
+			if decal then decal:Destroy() end
+			return
+		end
+		if not decal then return end
+		-- every face downloaded ahead of time, so a change of mood never blinks blank
+		if not preloaded and getClassicFaceTex("BigEyes"):find("rbxassetid") then
+			preloaded = true
+			local list = {}
+			for _, pair in pairs(FACE_FOR) do
+				table.insert(list, getClassicFaceTex(pair[1]))
+				table.insert(list, getClassicFaceTex(pair[2]))
+			end
+			task.spawn(function()
+				pcall(function() game:GetService("ContentProvider"):PreloadAsync(list) end)
+			end)
+		end
+		-- how do they feel? (a line or a plot beat > what they're doing > who they are)
+		local name = (now < (actor.feelUntil or 0) and actor.feeling) or (g and GESTURE_MOOD[g.name]) or actor.mood
+		local pair = FACE_FOR[name or ""]
+		local closed = pair and pair[1] or actor.model:GetAttribute("FaceKey") or "Smile"
+		local open = pair and pair[2] or actor.model:GetAttribute("TalkKey") or "OpenO"
+		-- the mouth flaps while they talk
+		local key = (talking and math.floor(os.clock() / 0.13) % 2 == 0) and open or closed
+		local tex = getClassicFaceTex(key)
+		if decal.Texture ~= tex then decal.Texture = tex end
+	end
 	-- every frame: the base body motion (walk / run swing, idle breathing, head looking about, nodding
 	-- while talking) with any gesture blended over it
 	local function poseActor(actor, now, dt)
@@ -6636,15 +6747,36 @@ do
 		local pose = {}
 		if mode == "walk" or mode == "run" then
 			local run = mode == "run"
-			actor.phase = (actor.phase or 0) + dt * (run and 13 or 8) * math.clamp((actor.speed or 8) / (run and 16 or 8), 0.7, 1.4)
-			local sw = math.sin(actor.phase)
-			local amp = run and 1.15 or 0.7
-			pose.RS, pose.LS = A(rad(-4), 0, amp * sw), A(rad(-4), 0, amp * sw)
-			pose.RH, pose.LH = A(0, 0, -amp * 0.9 * sw), A(0, 0, -amp * 0.9 * sw)
-			pose.N = A(run and rad(10) or 0, 0, -sw * 0.05)
-			-- a bounce on every step, the hips turning with the stride, leaning into a run
-			pose.RJ = CFrame.new(0, 0, math.abs(sw) * (run and 0.28 or 0.13)) * A(0, 0, sw * (run and 0.12 or 0.08))
-			pose.lean = run and 0.18 or 0.04
+			local name = run and (actor.runGait or "sprint") or (actor.gait or "strut")
+			if run and actor.feeling == "scared" and now < (actor.feelUntil or 0) then name = "panic" end
+			local G = GAITS[name] or GAITS.strut
+			actor.cycle = (actor.cycle or 0) + dt * G.hz * math.clamp((actor.speed or G.speed) / G.speed, 0.7, 1.4)
+			local p = actor.cycle
+			if G.stepped then p = math.floor(p * 8) / 8 end -- (a robot snaps from pose to pose)
+			local keys = G.keys
+			-- overlap: the arms and head trail the body a little
+			local rLeg, lLeg = sample(keys, "r", p) * G.leg, sample(keys, "l", p) * G.leg
+			local rArm, lArm = sample(keys, "ra", p - 0.035) * G.arm, sample(keys, "la", p - 0.035) * G.arm
+			local twist, roll = sample(keys, "twist", p) * G.twist, sample(keys, "roll", p) * G.roll
+			local out, fwd = rad(-(G.out or 0)), G.fwd or 0
+			pose.RS, pose.LS = A(out, 0, rad(fwd + rArm)), A(out, 0, -rad(fwd + lArm))
+			local counter = rad(roll) * 0.85 -- (the hips sway; the legs stay under the body)
+			pose.RH, pose.LH = A(counter, 0, rad(rLeg)), A(-counter, 0, -rad(lLeg))
+			-- the head stays looking where they're going while the shoulders turn under it
+			local yaw = rad(-twist * 0.7)
+			if G.look then yaw = math.sin(now * 1.6 + actor.seed) * G.look end -- (creeping, checking both ways)
+			if G.back and math.sin(now * 1.2 + actor.seed) > 0.72 then yaw = 1.2 end -- (a look over the shoulder)
+			if G.shake then yaw += math.sin(now * 17) * G.shake end
+			pose.N = A(rad(sample(keys, "nod", p - 0.06)), 0, yaw)
+			-- the body drops so the lower foot is ON the ground (a straight leg swung out lifts its foot)
+			local legLen = actor.legLen or 2
+			local drop = G.float and 0 or legLen * (1 - math.cos(rad(math.min(math.abs(rLeg), math.abs(lLeg)))))
+			local lift = (G.float and (G.float + math.sin(now * 2.5) * 0.15) or 0) + sample(keys, "air", p) * G.air * legLen * 0.5 - drop
+			pose.RJ = CFrame.new(0, 0, lift) * A(0, rad(roll), rad(twist))
+			pose.lean = rad(sample(keys, "lean", p) + G.lean)
+			-- getting going: a hard lean into the first push
+			local since = now - (actor.animT or 0)
+			if run and actor.animPrev == "idle" and since < 0.22 then pose.lean += 0.3 * (1 - since / 0.22) end
 		elseif mode == "ride" then
 			local sp = actor.moveSpeed or 0
 			pose.RS, pose.LS = A(rad(8), 0, rad(78)), A(rad(8), 0, rad(-78)) -- both hands on the bar
@@ -6662,6 +6794,17 @@ do
 				pose.lean = 0.1 + 0.06 * k
 			end
 			actor.moveSpeed = sp * math.max(0, 1 - dt * 3) -- (fades unless the rider keeps moving)
+			-- squash: the legs splay fore and aft and the body sinks onto the deck, then springs back up
+			local sq = (actor.squash or 0) * math.exp(-dt * 5)
+			actor.squash = sq
+			if sq > 0.03 then
+				local legLen = actor.legLen or 2
+				local d = sq * 0.5
+				local bend = math.acos(math.clamp(1 - d / legLen, -1, 1))
+				pose.RH, pose.LH = A(0, 0, bend), A(0, 0, bend)
+				pose.RJ = CFrame.new(0, 0, -d)
+				pose.lean = (pose.lean or 0) + sq * 0.3
+			end
 		else
 			local br = math.sin(now * 2.2 + actor.seed) * 0.05
 			pose.RS, pose.LS = A(rad(-5), 0, br), A(rad(-5), 0, -br)
@@ -6670,6 +6813,10 @@ do
 			local shift = math.sin(now * 0.45 + actor.seed) * 0.04
 			pose.RJ = CFrame.new(0, 0, math.sin(now * 2.2 + actor.seed) * 0.025) * A(0, shift, 0)
 			pose.RH, pose.LH = A(-shift, 0, 0), A(-shift, 0, 0)
+			local since = now - (actor.animT or 0)
+			if since < 0.8 and (actor.animPrev == "run" or actor.animPrev == "walk") then
+				pose.lean = (actor.animPrev == "run" and 0.28 or 0.1) * math.exp(-5 * since) * math.cos(11 * since)
+			end
 		end
 		local talking = now < (actor.talkUntil or 0)
 		if talking then -- nodding along with the words, the body moving as they talk
@@ -6692,7 +6839,9 @@ do
 			if t > g.dur then
 				actor.g = nil
 			else
-				local w = math.clamp(math.min(t, g.dur - t) / 0.2, 0, 1)
+				-- in fast with a little overshoot, out smoothly
+				local x = math.min(t / 0.22, 1) - 1
+				local w = math.min(1 + 2.2 * x * x * x + 1.2 * x * x, math.clamp((g.dur - t) / 0.2, 0, 1))
 				local fn = GESTURES[g.name]
 				for key, cf in pairs(fn and fn(t, actor) or {}) do
 					if type(cf) == "number" then
@@ -6711,23 +6860,17 @@ do
 			pose.RH = (pose.RH or NO_POSE) * A(0, 0, lean)
 			pose.LH = (pose.LH or NO_POSE) * A(0, 0, -lean)
 		end
+		actor.cur = actor.cur or {}
+		local follow = 1 - math.exp(-dt * 26)
 		for key, joint in pairs(j) do
-			joint.Transform = pose[key] or NO_POSE
+			local want = pose[key] or NO_POSE
+			local c = (actor.cur[key] or want):Lerp(want, follow)
+			actor.cur[key] = c
+			joint.Transform = c
 		end
-		-- the mouth flaps while they talk; it hangs open when they cheer or get a fright
-		local face = actor.faceDecal
-		if face and face.Parent and actor.faceTex then
-			local open = false
-			if talking then
-				open = math.floor(os.clock() / 0.13) % 2 == 0
-			elseif g and (g.name == "cheer" or g.name == "handsUp") then
-				open = true
-			end
-			local want = (open and actor.talkTex) or actor.faceTex
-			if face.Texture ~= want then face.Texture = want end
-		end
+		poseFace(actor, now, dt, talking, g)
 	end
-	return poseActor
+	return poseActor, moodOf
 	end)()
 
 	-- speech: a bubble over the head, the text typing itself out with blips at the speaker's pitch;
@@ -6755,6 +6898,8 @@ do
 		local typing = #text * 0.03
 		actor.talkUntil = clock() + typing
 		show.speaker = actor
+		local mood = moodOf(text)
+		if mood then actor.feel(mood, typing + 0.8) end
 		if not actor.g then actor.gesture("talk", typing + 0.3) end
 		task.spawn(function() -- typewriter + voice, on the clock (a slow frame rate can't make it lag)
 			local t0, shown = os.clock(), 0
@@ -6840,8 +6985,11 @@ do
 			for i, g in ipairs(story.gang) do
 				local a = cast("Robber", g.template)
 				a.name = g.name
+				if jumpsuits then a.gait, a.mood = "shuffle", "tired"
+				elseif masked then a.gait, a.mood = "sneak", "sneaky" end
 				local head = a.model:FindFirstChild("Head")
-				if head and not masked then head.Color = SKIN[(i - 1) % #SKIN + 1] end
+				if head then head.Color = SKIN[(i - 1) % #SKIN + 1] end
+				if masked then PLOTS.K.beanie(a) end
 				if jumpsuits then -- prison orange (the robbers wear body colours, not clothing)
 					for _, p in ipairs(a.model:GetChildren()) do
 						if p:IsA("BasePart") and p.Name ~= "Head" and p.Name ~= "HumanoidRootPart" then p.Color = ORANGE end
@@ -6855,43 +7003,26 @@ do
 		local function headPos(actor) return actor.model:GetPivot().Position end
 
 		-- sets ------------------------------------------------------------------------------------------
-		local function street(night)
-			local w = show.world
-			show.vf.BackgroundColor3 = night and NIGHT or DAY
-			part(w, Vector3.new(140, 1, 50), Color3.fromRGB(70, 70, 76)).CFrame = CFrame.new(0, -0.5, 6)
-			part(w, Vector3.new(140, 0.2, 5), Color3.fromRGB(150, 150, 150)).CFrame = CFrame.new(0, -0.04, -1)
-			for i = -5, 5 do -- a row of buildings behind
-				part(w, Vector3.new(11, rng:NextInteger(9, 16), 6), Color3.fromHSV(rng:NextNumber(), 0.25, night and 0.45 or 0.85)).CFrame = CFrame.new(i * 12, 6, 18)
-			end
-			for x = -48, 48, 24 do -- streetlights
-				part(w, Vector3.new(0.4, 9, 0.4), Color3.fromRGB(60, 60, 66)).CFrame = CFrame.new(x, 4.5, 1.5)
-				part(w, Vector3.new(1.2, 1.2, 1.2), Color3.fromRGB(255, 230, 160), Enum.PartType.Ball, Enum.Material.Neon).CFrame = CFrame.new(x, 9.2, 1.5)
-			end
-			if night then
-				part(w, Vector3.new(5, 5, 5), Color3.fromRGB(240, 240, 220), Enum.PartType.Ball, Enum.Material.Neon).CFrame = CFrame.new(-22, 26, 40)
-			end
-		end
+		local function street(night) PLOTS.K.SET.street(night) end
 		local function shopFront(x, target)
 			local w = show.world
-			part(w, Vector3.new(16, 11, 8), target.wall).CFrame = CFrame.new(x, 5.5, 5)
+			part(w, Vector3.new(16, 11, 34), target.wall, nil, Enum.Material.Concrete).CFrame = CFrame.new(x, 5.5, 18) -- (right back into the row)
+			part(w, Vector3.new(5, 3.4, 0.2), Color3.fromRGB(150, 192, 216), nil, Enum.Material.Glass).CFrame = CFrame.new(x - 4.8, 3.6, 0.9)
+			part(w, Vector3.new(5, 3.4, 0.2), Color3.fromRGB(150, 192, 216), nil, Enum.Material.Glass).CFrame = CFrame.new(x + 4.8, 3.6, 0.9)
 			part(w, Vector3.new(4, 6.5, 0.3), Color3.fromRGB(60, 40, 30)).CFrame = CFrame.new(x, 3.25, 0.9)
 			part(w, Vector3.new(9, 2, 0.4), target.sign, nil, Enum.Material.Neon).CFrame = CFrame.new(x, 9, 0.8)
 			local alarm = part(w, Vector3.new(1.4, 1.4, 1.4), Color3.fromRGB(90, 20, 20), Enum.PartType.Ball, Enum.Material.Neon)
 			alarm.CFrame = CFrame.new(x + 6.5, 10, 0.6)
 			return alarm
 		end
-		local function room(floorColor, wallColor, bg)
-			show.vf.BackgroundColor3 = bg or Color3.fromRGB(10, 10, 14)
-			part(show.world, Vector3.new(60, 1, 30), floorColor).CFrame = CFrame.new(0, -0.5, 6)
-			part(show.world, Vector3.new(60, 20, 1), wallColor).CFrame = CFrame.new(0, 10, 10)
-		end
+		local function room(floorColor, wallColor, bg) PLOTS.K.SET.room(floorColor, wallColor, bg, nil, nil, 10) end
 		-- a vehicle: drives along x; police ones flash
 		local function vehicle(kind, x, z)
 			local car = Instance.new("Model")
 			local police = kind == "police"
 			local bodyColor = police and Color3.fromRGB(245, 245, 250) or kind == "van" and Color3.fromRGB(50, 52, 60) or Color3.fromRGB(80, 160, 220)
 			local body = part(car, Vector3.new(kind == "van" and 10 or 9, kind == "van" and 3.6 or 2.6, 4), bodyColor)
-			body.CFrame = CFrame.new(x, kind == "van" and 2.5 or 2, z or -8)
+			body.CFrame = CFrame.new(x, kind == "van" and 2.7 or 2.2, z or -8)
 			car.PrimaryPart = body
 			part(car, Vector3.new(4.5, 1.6, 3.6), Color3.fromRGB(30, 30, 40)).CFrame = body.CFrame * CFrame.new(kind == "van" and 2.5 or -0.5, kind == "van" and 2.2 or 2.1, 0)
 			local red, blue
@@ -6969,7 +7100,7 @@ do
 
 		-- the chapters -----------------------------------------------------------------------------
 		local function chapterPlan()
-			room(Color3.fromRGB(70, 55, 45), Color3.fromRGB(90, 80, 70), Color3.fromRGB(8, 8, 10))
+			PLOTS.K.SET.room(Color3.fromRGB(70, 55, 45), Color3.fromRGB(92, 66, 54), Color3.fromRGB(8, 8, 10), Enum.Material.WoodPlanks, Enum.Material.Brick, 10)
 			local board = part(show.world, Vector3.new(12, 6, 0.3), Color3.fromRGB(240, 240, 235))
 			board.CFrame = CFrame.new(-4, 6, 9.3)
 			for i = 1, 3 do -- the plan: red lines + an X on the target
@@ -7037,6 +7168,7 @@ do
 			say(cop, "FREEZE! Discovery Bay PD!", 1.8)
 			if caught then
 				for _, r in ipairs(crew) do r.face(headPos(cop)) end
+				PLOTS.K.twist(cop, "angry")
 				say(crew[1], pick({ "Aw man.", "It was HIS idea!", "Can I at least keep the snacks?" }), 2)
 				arrest(crew, cop, 12)
 				story.news = story.gangName .. " ARRESTED robbing " .. target.name .. "! Court date set."
@@ -7101,7 +7233,7 @@ do
 		end
 
 		local function chapterHideout()
-			room(Color3.fromRGB(70, 55, 45), Color3.fromRGB(90, 80, 70), Color3.fromRGB(8, 8, 10))
+			PLOTS.K.SET.room(Color3.fromRGB(70, 55, 45), Color3.fromRGB(92, 66, 54), Color3.fromRGB(8, 8, 10), Enum.Material.WoodPlanks, Enum.Material.Brick, 10)
 			part(show.world, Vector3.new(10, 3, 5), Color3.fromRGB(110, 75, 45)).CFrame = CFrame.new(0, 1.5, 3)
 			for i = 1, 8 do
 				part(show.world, Vector3.new(1.4, 0.5, 0.8), Color3.fromRGB(110, 190, 90)).CFrame = CFrame.new(-4 + i, 3.25 + (i % 2) * 0.5, 3)
@@ -7137,7 +7269,7 @@ do
 
 		local function chapterStakeout()
 			street(true)
-			part(show.world, Vector3.new(16, 12, 8), Color3.fromRGB(90, 80, 70)).CFrame = CFrame.new(14, 6, 5) -- the hideout
+			part(show.world, Vector3.new(16, 12, 34), Color3.fromRGB(90, 80, 70), nil, Enum.Material.Brick).CFrame = CFrame.new(14, 6, 18) -- the hideout
 			local window = part(show.world, Vector3.new(3, 2.5, 0.3), Color3.fromRGB(255, 220, 140), nil, Enum.Material.Neon)
 			window.CFrame = CFrame.new(14, 8, 0.8)
 			part(show.world, Vector3.new(4, 6.5, 0.3), Color3.fromRGB(50, 35, 25)).CFrame = CFrame.new(10, 3.25, 0.9)
@@ -7174,16 +7306,7 @@ do
 		end
 
 		local function chapterBeach()
-			show.vf.BackgroundColor3 = DAY
-			part(show.world, Vector3.new(140, 1, 20), Color3.fromRGB(240, 220, 160)).CFrame = CFrame.new(0, -0.5, -2)
-			local sea = part(show.world, Vector3.new(140, 1, 40), Color3.fromRGB(60, 160, 220))
-			sea.CFrame = CFrame.new(0, -0.7, 28)
-			part(show.world, Vector3.new(6, 6, 6), Color3.fromRGB(255, 240, 160), Enum.PartType.Ball, Enum.Material.Neon).CFrame = CFrame.new(30, 30, 80)
-			for _, ux in ipairs({ -8, 6 }) do -- umbrellas
-				part(show.world, Vector3.new(0.3, 7, 0.3), Color3.fromRGB(240, 240, 240)).CFrame = CFrame.new(ux, 3.5, 3)
-				part(show.world, Vector3.new(7, 0.6, 7), ux < 0 and Color3.fromRGB(240, 80, 90) or Color3.fromRGB(80, 160, 240), Enum.PartType.Cylinder).CFrame =
-					CFrame.new(ux, 7, 3) * CFrame.Angles(0, 0, math.pi / 2)
-			end
+			PLOTS.K.SET.beach()
 			local boat = part(show.world, Vector3.new(6, 1.4, 2.6), Color3.fromRGB(250, 200, 40))
 			boat.CFrame = CFrame.new(20, 0.2, 11)
 			local crew = castGang(false)
@@ -7223,7 +7346,7 @@ do
 		end
 
 		local function chapterCourt()
-			room(Color3.fromRGB(120, 85, 55), Color3.fromRGB(150, 120, 90), Color3.fromRGB(10, 8, 6))
+			PLOTS.K.SET.room(Color3.fromRGB(120, 85, 55), Color3.fromRGB(150, 120, 90), Color3.fromRGB(10, 8, 6), Enum.Material.WoodPlanks, Enum.Material.WoodPlanks, 10)
 			part(show.world, Vector3.new(10, 5, 3), Color3.fromRGB(90, 55, 30)).CFrame = CFrame.new(0, 2.5, 6)
 			local gavelHead = part(show.world, Vector3.new(1.2, 0.6, 0.6), Color3.fromRGB(70, 40, 20))
 			local function gavel()
@@ -7252,8 +7375,7 @@ do
 			say(cop, "They robbed " .. (story.target and story.target.name or "the whole bay") .. ", your honor!", 2.2)
 			crew[1].gesture("shrug", 2.2)
 			say(crew[1], pick({ "It was HIS idea!", "I was just holding the bag!", "I've never seen these people in my life." }), 2.2)
-			setShot(closeUp(judge), true)
-			hold(0.8)
+			PLOTS.K.twist(judge, "stern")
 			if rng:NextNumber() < 0.85 then
 				local years = rng:NextInteger(2, 30)
 				story.years += years
@@ -7274,14 +7396,7 @@ do
 			end
 		end
 
-		local function cellSet()
-			room(Color3.fromRGB(110, 110, 115), Color3.fromRGB(140, 140, 145), Color3.fromRGB(6, 6, 8))
-			for x = -12, 12, 2 do
-				part(show.world, Vector3.new(0.35, 12, 0.35), Color3.fromRGB(50, 50, 55), nil, Enum.Material.Metal).CFrame = CFrame.new(x, 6, -1)
-			end
-			part(show.world, Vector3.new(26, 0.5, 0.5), Color3.fromRGB(50, 50, 55), nil, Enum.Material.Metal).CFrame = CFrame.new(0, 11.5, -1)
-			part(show.world, Vector3.new(6, 1.2, 3), Color3.fromRGB(160, 160, 165)).CFrame = CFrame.new(7, 0.6, 7)
-		end
+		local function cellSet() PLOTS.K.SET.cell(10) end
 		local function chapterJail()
 			cellSet()
 			story.jailDays += 1
@@ -7314,15 +7429,7 @@ do
 			end
 		end
 
-		local function yardSet(night)
-			show.vf.BackgroundColor3 = night and NIGHT or DAY
-			part(show.world, Vector3.new(80, 1, 40), Color3.fromRGB(150, 145, 140)).CFrame = CFrame.new(0, -0.5, 6)
-			for x = -36, 36, 3 do -- the fence
-				part(show.world, Vector3.new(0.2, 9, 0.2), Color3.fromRGB(120, 120, 125), nil, Enum.Material.Metal).CFrame = CFrame.new(x, 4.5, 14)
-			end
-			part(show.world, Vector3.new(76, 0.2, 0.2), Color3.fromRGB(120, 120, 125), nil, Enum.Material.Metal).CFrame = CFrame.new(0, 9, 14)
-			part(show.world, Vector3.new(30, 14, 10), Color3.fromRGB(130, 130, 135)).CFrame = CFrame.new(-28, 7, 24) -- the jail
-		end
+		local function yardSet(night) PLOTS.K.SET.yard(night) end
 		local function chapterYard()
 			yardSet(false)
 			local bar = part(show.world, Vector3.new(4, 0.25, 0.25), Color3.fromRGB(60, 60, 66), nil, Enum.Material.Metal)
@@ -7404,6 +7511,7 @@ do
 				local guard = named(cast("Cop"), "Guard Dan")
 				guard.place(Vector3.new(-14, 0, 6), Vector3.new(8, 0, 12))
 				pcall(guard.go, Vector3.new(0, 0, 10), 12, "run")
+				PLOTS.K.twist(guard, "smug")
 				say(guard, "Nice try. Five MORE years.", 2.2)
 				story.years += 5
 				story.news = "Breakout FAILS. " .. story.gangName .. " caught in the searchlight."
@@ -7416,6 +7524,7 @@ do
 			plan = chapterPlan, job = chapterJob, chase = chapterChase, hideout = chapterHideout, stakeout = chapterStakeout,
 			beach = chapterBeach, court = chapterCourt, jail = chapterJail, yard = chapterYard, breakout = chapterBreakout,
 		}
+		story.ctx.chapters = CHAPTER
 		local CHAPTER_TITLE = {
 			plan = "THE PLAN", job = "THE JOB", chase = "THE CAR CHASE", hideout = "THE HIDEOUT", stakeout = "THE STAKEOUT",
 			beach = "THE BEACH", court = "THE COURT", jail = "BAY JAIL", yard = "THE YARD", breakout = "THE BREAKOUT",
@@ -7487,7 +7596,7 @@ do
 		function K.sky(c) show.vf.BackgroundColor3 = c end
 		function K.ground(color, mat, sky)
 			K.sky(sky or DAY)
-			return K.box(V(220, 1, 130), color, CF(0, -0.5, 35), mat)
+			return K.box(V(2000, 1, 2000), color, CF(0, -0.5, 0), mat)
 		end
 		function K.tree(x, z, s)
 			s = s or 1
@@ -7507,27 +7616,17 @@ do
 			end
 		end
 		function K.lamp(x, z)
-			K.box(V(0.4, 9, 0.4), C(60, 60, 66), CF(x, 4.5, z))
-			K.ball(1.2, C(255, 230, 160), V(x, 9.2, z), true)
-		end
-		function K.buildings(z, night, n)
-			for i = -(n or 6), n or 6 do
-				local h = rng:NextInteger(9, 18)
-				K.box(V(11, h, 7), Color3.fromHSV(rng:NextNumber(), 0.25, night and 0.45 or 0.85), CF(i * 12, h / 2, z))
-				if night then -- lit windows
-					for _ = 1, 3 do
-						K.box(V(1.4, 1.4, 0.2), C(255, 220, 120), CF(i * 12 + rng:NextNumber(-4, 4), rng:NextNumber(2, h - 1), z - 3.55), NEON)
-					end
-				end
-			end
+			K.box(V(0.4, 11, 0.4), C(60, 60, 66), CF(x, 5.5, z), METAL)
+			K.box(V(0.3, 0.3, 3), C(60, 60, 66), CF(x, 11, z - 1.5), METAL)
+			K.box(V(1.2, 0.4, 1.6), C(255, 232, 170), CF(x, 10.8, z - 2.8), NEON)
 		end
 		function K.stars(n)
 			for _ = 1, n or 30 do
-				K.ball(rng:NextNumber(0.2, 0.5), C(255, 255, 240), V(rng:NextNumber(-90, 90), rng:NextNumber(14, 60), rng:NextNumber(40, 90)), true)
+				K.ball(rng:NextNumber(2, 6), C(255, 255, 240), V(rng:NextNumber(-1100, 1100), rng:NextNumber(140, 700), rng:NextNumber(1000, 1150)), true)
 			end
 		end
-		function K.sun(color) K.ball(6, color or C(255, 240, 160), V(30, 30, 80), true) end
-		function K.moon() K.ball(5, C(240, 240, 220), V(-22, 26, 60), true) end
+		function K.sun(color) K.ball(70, color or C(255, 240, 160), V(280, 300, 1000), true) end
+		function K.moon() K.ball(60, C(240, 240, 220), V(-240, 280, 1000), true) end
 		function K.bench(x, z)
 			K.box(V(5, 0.4, 1.6), C(140, 95, 55), CF(x, 1.4, z))
 			K.box(V(5, 1.4, 0.3), C(140, 95, 55), CF(x, 2.2, z + 0.8))
@@ -7541,10 +7640,12 @@ do
 		function K.cone(x, z) return K.box(V(1, 1.6, 1), C(255, 120, 30), CF(x, 0.8, z)) end
 		function K.crate(x, z, s)
 			s = s or 2
-			return K.box(V(s, s, s), C(160, 120, 70), CF(x, s / 2, z) * ANG(0, rng:NextNumber(-0.3, 0.3), 0))
+			return K.box(V(s, s, s), C(160, 120, 70), CF(x, s / 2, z) * ANG(0, rng:NextNumber(-0.3, 0.3), 0), Enum.Material.WoodPlanks)
 		end
 		function K.ramp(x, z, h, len, color) -- rises toward +X; the top edge is at x + len / 2
-			return K.wedge(V(4, h, len), color or C(255, 140, 40), CF(x, h / 2, z) * ANG(0, math.pi / 2, 0))
+			local r = K.wedge(V(4, h, len), color or C(255, 140, 40), CF(x, h / 2, z) * ANG(0, math.pi / 2, 0))
+			r.Material = Enum.Material.DiamondPlate
+			return r
 		end
 		function K.cake(x, z)
 			K.cyl(1.6, 4, C(250, 220, 230), CF(x, 3.6, z) * ANG(0, 0, math.pi / 2))
@@ -7618,7 +7719,7 @@ do
 			local big = kind == "van" or kind == "icecream" or kind == "armored" or kind == "bus" or kind == "fire"
 			local len = kind == "bus" and 16 or big and 10 or 9
 			local hgt = big and 3.6 or 2.6
-			local body = K.box(V(len, hgt, 4), color or CAR_COLORS[kind] or CAR_COLORS.car, CF(x, hgt / 2 + 0.7, z))
+			local body = K.box(V(len, hgt, 4), color or CAR_COLORS[kind] or CAR_COLORS.car, CF(x, hgt / 2 + 0.9, z), METAL)
 			local parts = { body }
 			local lights
 			table.insert(parts, K.box(V(4.5, 1.6, 3.6), C(30, 30, 40), body.CFrame * CF(big and (len / 2 - 2.5) or -0.5, hgt / 2 + 0.8, 0)))
@@ -7888,6 +7989,7 @@ do
 			stick(a, V(0.12, 1, 0.12), C(120, 220, 110), CF(0, 0.9, 0))
 			stick(a, V(0.35, 0.35, 0.35), C(255, 240, 120), CF(0, 1.45, 0), NEON)
 			a.voice = rng:NextNumber(1.7, 2.1)
+			a.noFace, a.gait, a.runGait = true, "hover", "hover"
 			return a
 		end
 		function K.robot(name)
@@ -7896,19 +7998,31 @@ do
 			stick(a, V(0.35, 0.2, 0.1), C(255, 60, 60), CF(0.28, 0.15, -0.66), NEON)
 			stick(a, V(0.1, 0.8, 0.1), C(90, 90, 95), CF(0, 0.85, 0))
 			a.voice = 0.6
+			a.noFace, a.gait, a.runGait = true, "robot", "robot"
 			return a
 		end
 		function K.big(a, f) -- (Bigfoot, a giant...)
 			a.model:ScaleTo(f)
 			a.height *= f
+			a.legLen = (a.legLen or 2) * f
 			return a
 		end
 		function K.bigfoot()
 			local a = K.big(K.bald(K.paint(K.who("Rider", "Bigfoot"), C(100, 70, 45), C(120, 85, 55))), 1.6)
 			a.voice = 0.55
+			a.gait, a.runGait, a.mood = "stomp", "stomp", "neutral"
 			return a
 		end
-		function K.mustache(a) stick(a, V(0.8, 0.18, 0.1), C(40, 25, 15), CF(0, -0.18, -0.66)) return a end
+		function K.beanie(a) -- the burglar's woolly hat, pulled down snug
+			local cap = stick(a, V(1.38, 0.82, 1.38), C(24, 24, 28), CF(0, 0.5, 0), Enum.Material.Fabric)
+			if cap then
+				local mesh = Instance.new("SpecialMesh")
+				mesh.MeshType = Enum.MeshType.Sphere
+				mesh.Parent = cap
+			end
+			return a
+		end
+		function K.mustache(a) stick(a, V(0.8, 0.14, 0.1), C(40, 25, 15), CF(0, -0.12, -0.67)) return a end
 		function K.hat(a, color, tall)
 			stick(a, V(1.3, tall and 1.2 or 0.35, 1.3), color or C(30, 30, 30), CF(0, tall and 1.1 or 0.75, 0))
 			return a
@@ -7964,6 +8078,59 @@ do
 			K.glide(a.model, CF(to + V(0, a.height, 0)) * (a.model:GetPivot() - a.model:GetPivot().Position), t)
 			a.pos = to
 		end
+		-- A PLOT TWIST: a sting on the soundtrack and one of three zooms onto the reveal. target = an actor
+		-- (their face gets the emotion) or a position. Then the shot goes back to what it was.
+		function K.twist(target, emotion, style)
+			if not (show and show.cam) then return end
+			style = style or pick({ "crash", "crash", "vertigo", "snap" })
+			K.open()
+			local isActor = type(target) == "table"
+			local head = isActor and target.model:FindFirstChild("Head")
+			if isActor and not (head and target.model.Parent) then return end
+			if isActor then target.feel(emotion or "shocked", 3.5) end
+			local function at() return head and head.Position or target end
+			local before = show.shot
+			local camPos = show.cam.CFrame.Position
+			local dir = head and target.model:GetPivot().LookVector or (camPos - at()).Unit
+			duck(2.6)
+			sfx(SFX.thud, 0.6, 0.55, 1.6)
+			sfx(SFX.whoosh, 0.5, 0.7, 1.2)
+			if style == "crash" then -- from where the camera is, the lens slams in on the face
+				local dist = (camPos - at()).Magnitude
+				show.fovRate = 11
+				show.fovWant = math.clamp(math.deg(2 * math.atan(1.5 / math.max(dist, 1))), 5, 50)
+				setShot({ fn = function() return CFrame.lookAt(camPos, at()) end, speed = 14 }, false)
+				shake(0.06, 0.5)
+				hold(1.2)
+			elseif style == "vertigo" then -- the camera pulls back as the lens closes: the world stretches
+				local D0, D1 = 6, 18
+				local width = D0 * math.tan(math.rad(25))
+				show.fovWant = nil
+				local t0 = clock()
+				repeat
+					local u = math.min((clock() - t0) / 1.4, 1)
+					local e = u * u * (3 - 2 * u)
+					local D = D0 + (D1 - D0) * e
+					show.cam.FieldOfView = math.deg(2 * math.atan(width / D))
+					show.shot = { cf = CFrame.lookAt(at() + dir * D, at()), speed = 60 }
+					show.snap = true
+					hold(0)
+				until u >= 1
+				hold(0.3)
+			else -- three hard cuts, each closer: BAM BAM BAM
+				for i, d in ipairs({ 16, 8, 3.4 }) do
+					setShot({ cf = CFrame.lookAt(at() + dir * d, at()), speed = 60 }, true)
+					sfx(SFX.thud, 0.45, 0.8 + i * 0.15, 0.6)
+					flash(C(255, 255, 255), 0.2)
+					shake(0.1, 0.15)
+					hold(0.3)
+				end
+				hold(0.5)
+			end
+			show.fovWant = nil
+			show.cam.FieldOfView = 50
+			setShot(before, true)
+		end
 		function K.clear()
 			for _, c in ipairs(show.world:GetChildren()) do c:Destroy() end
 			table.clear(show.actors)
@@ -7975,91 +8142,240 @@ do
 		function K.alarm(t) sfx(SFX.alarm, 0.4, 1, t or 3) end
 
 		-- sets --------------------------------------------------------------------------------------
+		-- Everything is built to leave no holes: the ground runs to the horizon, building rows touch,
+		-- rooms are closed boxes, and a two-layer skyline stands behind the outdoor city sets.
+		local M = {
+			brick = Enum.Material.Brick, concrete = Enum.Material.Concrete, asphalt = Enum.Material.Asphalt,
+			pavement = Enum.Material.Pavement, cobble = Enum.Material.Cobblestone, wood = Enum.Material.WoodPlanks,
+			marble = Enum.Material.Marble, granite = Enum.Material.Granite, slate = Enum.Material.Slate,
+			plate = Enum.Material.DiamondPlate, glass = Enum.Material.Glass, fabric = Enum.Material.Fabric,
+			grass = Enum.Material.Grass, sand = Enum.Material.Sand, snow = Enum.Material.Snow, metal = METAL,
+		}
+		K.M = M
 		local SET = {}
 		K.SET = SET
+		local function darker(c, a) return c:Lerp(C(0, 0, 0), a) end
+		-- a solid row of city buildings between x0 and x1, their fronts at z = front
+		function K.cityRow(front, night, x0, x1, tall)
+			local PAL = {
+				{ C(150, 78, 62), M.brick }, { C(118, 62, 52), M.brick }, { C(186, 176, 156), M.concrete }, { C(146, 146, 150), M.concrete },
+				{ C(205, 195, 172), M.pavement }, { C(72, 86, 104), M.concrete }, { C(92, 96, 102), M.slate },
+			}
+			local x = x0
+			while x < x1 do
+				local w = rng:NextInteger(15, 24)
+				local floors = rng:NextInteger(3, tall or 6)
+				local h = 5.4 + floors * 4
+				local style = pick(PAL)
+				local col = night and darker(style[1], 0.5) or style[1]
+				local cx = x + w / 2
+				K.box(V(w, h, 18), col, CF(cx, h / 2, front + 9), style[2])
+				for f = 0, floors - 1 do -- a band of windows on every floor
+					local lit = night and rng:NextNumber() < 0.6
+					K.box(V(w - 1.4, 2.3, 0.2), lit and C(255, 214, 130) or (night and C(20, 28, 46) or C(104, 140, 172)), CF(cx, 7.2 + f * 4, front - 0.05), lit and NEON or M.glass)
+				end
+				local cols = math.floor(w / 5)
+				for c = 1, cols do -- the columns between the windows
+					K.box(V(0.8, h - 5.4, 0.4), col, CF(x + c * w / (cols + 1), 5.4 + (h - 5.4) / 2, front - 0.12), style[2])
+				end
+				K.box(V(w - 2, 3.3, 0.2), night and C(255, 226, 160) or C(150, 192, 216), CF(cx, 2.05, front - 0.05), night and NEON or M.glass) -- shop window
+				K.box(V(2.8, 3.8, 0.3), C(52, 36, 26), CF(x + 3, 1.9, front - 0.12), M.wood) -- door
+				K.box(V(w - 1, 0.3, 2.4), Color3.fromHSV(rng:NextNumber(), 0.65, night and 0.5 or 0.85), CF(cx, 4.2, front - 1.1) * ANG(-0.25, 0, 0), M.fabric) -- awning
+				K.box(V(w * 0.55, 0.9, 0.3), Color3.fromHSV(rng:NextNumber(), 0.75, 1), CF(cx, 5.1, front - 0.2), NEON) -- shop sign
+				K.box(V(w + 0.3, 0.7, 18.3), darker(col, 0.3), CF(cx, h + 0.35, front + 9), M.concrete) -- roof edge
+				if rng:NextNumber() < 0.5 then
+					K.box(V(3, 2, 3), C(150, 152, 156), CF(cx + rng:NextNumber(-3, 3), h + 1.7, front + 6), M.metal) -- rooftop unit
+				end
+				x += w
+			end
+		end
+		-- far-off towers, two layers deep
+		function K.skyline(z, night)
+			for layer = 1, 2 do
+				local x = -460
+				while x < 460 do
+					local w = rng:NextInteger(26, 48)
+					local h = rng:NextInteger(34, 90) * (layer == 1 and 1 or 1.5)
+					local v = night and (layer == 1 and 0.17 or 0.11) or (layer == 1 and 0.56 or 0.7)
+					K.box(V(w, h, 30), Color3.fromHSV(0.6, 0.18, v), CF(x + w / 2, h / 2, z + (layer - 1) * 80), M.concrete)
+					for _ = 1, layer == 1 and 3 or 1 do
+						K.box(V(w * 0.8, 1.2, 0.3), night and C(255, 214, 130) or Color3.fromHSV(0.58, 0.25, v * 0.72), CF(x + w / 2, rng:NextNumber(8, h - 3), z + (layer - 1) * 80 - 15.2), night and NEON or nil)
+					end
+					if rng:NextNumber() < 0.25 then
+						K.box(V(0.6, 12, 0.6), C(90, 90, 96), CF(x + w / 2, h + 6, z + (layer - 1) * 80)) -- antenna
+					end
+					x += w
+				end
+			end
+		end
+		function K.clouds(n)
+			for _ = 1, n or 7 do
+				local at = V(rng:NextNumber(-500, 500), rng:NextNumber(150, 300), rng:NextNumber(500, 800))
+				for i = 0, 2 do
+					local s = rng:NextNumber(40, 80)
+					local c = K.box(V(s * 1.6, s * 0.4, s), C(250, 250, 252), CF(at + V(i * s * 0.8, rng:NextNumber(-6, 6), 0)), NEON)
+					local mesh = Instance.new("SpecialMesh")
+					mesh.MeshType = Enum.MeshType.Sphere
+					mesh.Parent = c
+				end
+			end
+		end
+		function K.hills(color, z)
+			for i = -4, 4 do
+				K.ball(rng:NextNumber(140, 240), color, V(i * 130 + rng:NextNumber(-30, 30), -40, z or 340))
+			end
+		end
+		function K.planter(x, z)
+			K.box(V(3, 1.2, 3), C(130, 128, 122), CF(x, 0.6, z), M.concrete)
+			K.box(V(0.6, 4, 0.6), C(100, 70, 45), CF(x, 3, z))
+			K.ball(4, C(58, 128, 60), V(x, 6, z))
+		end
+		function K.hydrant(x, z)
+			K.box(V(0.9, 1.8, 0.9), C(210, 40, 40), CF(x, 0.9, z), M.metal)
+			K.box(V(1.5, 0.4, 0.4), C(210, 40, 40), CF(x, 1.2, z), M.metal)
+		end
+		function K.trash(x, z)
+			K.box(V(1.6, 2.6, 1.6), C(50, 70, 56), CF(x, 1.3, z), M.metal)
+			K.box(V(1.8, 0.3, 1.8), C(36, 50, 40), CF(x, 2.75, z), M.metal)
+		end
+		function K.bin(x, z, color) K.box(V(5, 3.4, 3), color or C(40, 90, 150), CF(x, 1.7, z), M.metal) end -- a dumpster
+		function K.flatSky(night) -- haze low on the horizon, clouds by day
+			K.box(V(4000, 110, 2), night and C(40, 46, 86) or C(205, 225, 240), CF(0, 45, 1200), NEON).Transparency = 0.25
+			if night then K.moon() K.stars(46) else K.sun() K.clouds(7) end
+		end
 		function SET.street(night)
-			K.ground(C(70, 70, 76), nil, night and NIGHT or DAY)
-			K.box(V(220, 0.2, 5), C(150, 150, 150), CF(0, -0.04, -1))
-			K.buildings(18, night)
-			for x = -48, 48, 24 do K.lamp(x, 1.5) end
-			if night then K.moon() K.stars(20) end
+			K.ground(C(58, 58, 62), M.asphalt, night and NIGHT or DAY)
+			K.box(V(2000, 0.06, 22), C(166, 163, 156), CF(0, -0.01, 5), M.pavement) -- the sidewalk, right up to the buildings
+			K.box(V(2000, 0.1, 0.5), C(208, 208, 202), CF(0, 0, -6), M.concrete) -- curb
+			K.box(V(2000, 0.04, 0.35), C(232, 190, 50), CF(0, 0.01, -14.4))
+			K.box(V(2000, 0.04, 0.35), C(232, 190, 50), CF(0, 0.01, -15.2))
+			for _, cx in ipairs({ -24, 46 }) do -- crosswalks
+				for i = 0, 4 do K.box(V(1.8, 0.04, 9), C(226, 226, 222), CF(cx + i * 3.2, 0.01, -10.5)) end
+			end
+			K.cityRow(15, night, -150, 150)
+			for x = -120, 120, 40 do
+				K.lamp(x, 12.5)
+				K.planter(x + 20, 12.5)
+			end
+			K.hydrant(-6, 13)
+			K.trash(16, 13)
+			K.trash(-36, 13)
+			K.skyline(70, night)
+			K.flatSky(night)
 		end
 		function SET.plaza(night)
-			K.ground(C(185, 180, 170), nil, night and NIGHT or DAY)
+			K.ground(C(176, 172, 164), M.cobble, night and NIGHT or DAY)
 			local SHOPS = {
 				{ C(240, 240, 240), C(230, 40, 40) }, { C(250, 200, 220), C(150, 60, 160) },
 				{ C(250, 240, 200), C(255, 170, 60) }, { C(200, 225, 250), C(40, 120, 230) },
 			}
 			for i, s in ipairs(SHOPS) do
 				local x = -30 + (i - 1) * 20
-				K.box(V(16, 11, 8), s[1], CF(x, 5.5, 16))
-				K.box(V(9, 2, 0.4), s[2], CF(x, 9, 11.8), NEON)
-				K.box(V(4, 6.5, 0.3), C(60, 40, 30), CF(x, 3.25, 11.9))
-				K.box(V(5, 3, 0.2), C(150, 200, 230), CF(x + 4.5, 4, 11.9), Enum.Material.Glass)
+				local wall = night and darker(s[1], 0.45) or s[1]
+				K.box(V(20, 12, 20), wall, CF(x, 6, 22), M.concrete)
+				K.box(V(10, 2, 0.4), s[2], CF(x, 9.4, 11.8), NEON)
+				K.box(V(4, 6.5, 0.3), C(60, 40, 30), CF(x - 5, 3.25, 11.9), M.wood)
+				K.box(V(11, 5, 0.2), night and C(255, 226, 160) or C(150, 200, 230), CF(x + 3, 3.4, 11.9), night and NEON or M.glass)
+				K.box(V(19, 0.3, 2.4), s[2], CF(x, 6.6, 10.8) * ANG(-0.25, 0, 0), M.fabric)
+				K.box(V(20.3, 0.7, 20.3), darker(wall, 0.3), CF(x, 12.35, 22), M.concrete)
 			end
-			K.palm(-44, 6)
-			K.palm(44, 6)
-			if night then K.moon() K.stars(20) end
+			K.cityRow(12, night, -160, -40)
+			K.cityRow(12, night, 40, 160)
+			K.cityRow(32, night, -40, 40, 8)
+			K.palm(-46, 6)
+			K.palm(46, 6)
+			K.planter(-40, 9)
+			K.planter(40, 9)
+			K.skyline(90, night)
+			K.flatSky(night)
 		end
-		function SET.park()
-			K.ground(C(90, 180, 70), Enum.Material.Grass, DAY)
-			for _, t in ipairs({ { -30, 18 }, { -16, 24 }, { 14, 22 }, { 32, 16 }, { 44, 28 } }) do K.tree(t[1], t[2]) end
+		function SET.park(night)
+			K.ground(night and C(40, 84, 40) or C(84, 168, 66), M.grass, night and NIGHT or DAY)
+			K.box(V(2000, 0.05, 9), C(190, 182, 166), CF(0, 0, -4), M.pavement) -- the path
+			for _, t in ipairs({ { -30, 18 }, { -16, 24 }, { 14, 22 }, { 32, 16 }, { 44, 28 }, { -48, 26 }, { 60, 20 }, { -66, 16 }, { 2, 34 } }) do K.tree(t[1], t[2]) end
 			K.bench(-10, 8)
 			K.bench(12, 8)
-			K.disc(22, C(70, 150, 220), V(-36, 0.02, 4))
-			K.sun()
+			K.disc(22, C(70, 150, 220), V(-36, 0.03, 4))
+			K.lamp(-22, 9)
+			K.lamp(24, 9)
+			K.cityRow(60, night, -180, 180, 9)
+			K.skyline(120, night)
+			K.flatSky(night)
 		end
-		function SET.beach()
-			K.sky(DAY)
-			K.box(V(220, 1, 30), C(240, 220, 160), CF(0, -0.5, -5))
-			K.box(V(220, 1, 90), C(60, 160, 220), CF(0, -0.8, 55))
-			K.sun()
+		function SET.beach(night)
+			K.sky(night and NIGHT or DAY)
+			K.box(V(2000, 1, 1000), C(236, 216, 160), CF(0, -0.5, -490), M.sand)
+			K.box(V(2000, 1, 12), C(120, 205, 225), CF(0, -0.75, 16))
+			K.box(V(2000, 1, 2000), C(52, 150, 214), CF(0, -0.85, 1020))
 			for _, ux in ipairs({ -14, 10 }) do
 				K.box(V(0.3, 7, 0.3), C(240, 240, 240), CF(ux, 3.5, 6))
 				K.disc(7, ux < 0 and C(240, 80, 90) or C(80, 160, 240), V(ux, 7, 6), 0.6)
 			end
 			K.palm(-30, 4)
 			K.palm(30, 2)
+			K.palm(-52, 0)
+			K.palm(56, 3)
+			K.skyline(230, night) -- the city, across the bay
+			K.flatSky(night)
 		end
-		function SET.dock(night)
+		function SET.dock(night, endX) -- (endX: where the dock stops, for jumping off the end)
 			K.sky(night and NIGHT or DUSK)
-			K.box(V(220, 1, 130), C(50, 120, 180), CF(0, -1.6, 35))
-			K.box(V(90, 0.6, 8), C(150, 110, 70), CF(0, -0.3, 0))
-			for x = -42, 42, 6 do K.box(V(0.8, 4, 0.8), C(110, 80, 50), CF(x, -1.5, 4)) end
-			if night then K.moon() K.stars(20) else K.sun(C(255, 170, 90)) end
+			K.box(V(3000, 1, 3000), night and C(26, 58, 96) or C(50, 120, 176), CF(0, -1.6, 0))
+			local x0, x1 = -500, endX or 500
+			K.box(V(x1 - x0, 0.6, 8), C(150, 110, 70), CF((x0 + x1) / 2, -0.3, 0), M.wood)
+			for x = math.max(x0, -60), math.min(x1, 60), 6 do K.box(V(0.8, 4, 0.8), C(110, 80, 50), CF(x, -1.5, 4), M.wood) end
+			K.skyline(180, night)
+			K.box(V(4000, 110, 2), night and C(40, 46, 86) or C(255, 190, 130), CF(0, 45, 1200), NEON).Transparency = 0.25
+			if night then K.moon() K.stars(46) else K.sun(C(255, 170, 90)) end
 		end
 		function SET.studio()
-			K.sky(C(20, 40, 90))
-			K.box(V(30, 14, 1), C(30, 60, 130), CF(0, 7, 4))
-			K.box(V(10, 1.2, 0.5), C(255, 200, 60), CF(-6, 9.5, 3.4), NEON)
-			K.box(V(6, 4, 0.3), C(20, 20, 26), CF(7, 7.5, 3.4))
-			K.box(V(9, 3, 3), C(235, 235, 240), CF(0, 1.5, -1.5))
-			K.box(V(9.4, 0.4, 3.4), C(40, 90, 200), CF(0, 3.2, -1.5))
+			K.sky(C(12, 18, 44))
+			K.box(V(200, 80, 1), C(26, 36, 70), CF(0, 30, 6), M.metal) -- the studio wall
+			K.box(V(28, 12, 0.4), C(14, 22, 54), CF(0, 8, 5.2), NEON) -- the window: the city at night
+			for i = -6, 6 do
+				local h = rng:NextNumber(3, 9.5)
+				K.box(V(2, h, 0.2), C(22, 34, 80), CF(i * 2.1, 2 + h / 2, 5), NEON)
+				K.box(V(1.2, 0.3, 0.1), C(255, 214, 130), CF(i * 2.1, 2 + h * rng:NextNumber(0.3, 0.9), 4.85), NEON)
+			end
+			K.box(V(200, 1, 40), C(38, 40, 50), CF(0, -0.5, 0), M.marble) -- the floor
+			K.box(V(10, 1.2, 0.5), C(255, 200, 60), CF(-6, 10.2, 4.6), NEON)
+			K.box(V(9, 3, 3), C(226, 228, 234), CF(0, 1.5, -1.5), M.marble)
+			K.box(V(9.4, 0.4, 3.4), C(40, 90, 200), CF(0, 3.2, -1.5), M.metal)
+			K.box(V(9.1, 0.5, 3.1), C(255, 200, 60), CF(0, 0.3, -1.5), NEON)
 		end
-		function SET.room(floor, wall, bg)
+		-- a closed room: floor, walls and ceiling all around, lights on the ceiling
+		function SET.room(floor, wall, bg, floorMat, wallMat, wallZ)
+			wallZ = wallZ or 12
 			K.sky(bg or C(10, 10, 14))
-			K.box(V(70, 1, 34), floor or C(150, 120, 90), CF(0, -0.5, 4))
-			K.box(V(70, 22, 1), wall or C(200, 190, 170), CF(0, 11, 12))
-			K.ball(1.2, C(255, 230, 160), V(0, 12, 4), true)
+			floor, wall = floor or C(150, 120, 90), wall or C(200, 190, 170)
+			K.box(V(100, 1, wallZ + 80), floor, CF(0, -0.5, (wallZ - 80) / 2), floorMat or M.wood)
+			K.box(V(100, 26, 1), wall, CF(0, 13, wallZ), wallMat or M.concrete)
+			for _, x in ipairs({ -50.5, 50.5 }) do K.box(V(1, 26, wallZ + 80), wall, CF(x, 13, (wallZ - 80) / 2), wallMat or M.concrete) end
+			K.box(V(100, 1, 2), darker(wall, 0.4), CF(0, 0.5, wallZ - 0.9), M.wood) -- skirting board
+			K.box(V(100, 1, wallZ + 80), darker(wall, 0.25), CF(0, 25.5, (wallZ - 80) / 2), M.concrete) -- ceiling
+			for _, x in ipairs({ -24, 0, 24 }) do K.box(V(8, 0.3, 2), C(255, 245, 215), CF(x, 24.9, 2), NEON) end
 		end
 		function SET.lab()
-			SET.room(C(220, 225, 230), C(235, 240, 245), C(10, 12, 16))
+			SET.room(C(220, 225, 230), C(235, 240, 245), C(10, 12, 16), M.marble)
 			for _, x in ipairs({ -10, 10 }) do
 				K.table(x, 7)
 				for i = 1, 3 do K.box(V(0.6, 1.2, 0.6), Color3.fromHSV(rng:NextNumber(), 0.8, 1), CF(x - 2 + i, 3.4, 7), NEON) end
 			end
+			K.box(V(6, 8, 2), C(170, 176, 186), CF(-24, 4, 10), M.metal)
+			K.box(V(6, 8, 2), C(170, 176, 186), CF(24, 4, 10), M.metal)
 		end
 		function SET.museum()
-			SET.room(C(230, 225, 215), C(200, 190, 175), C(8, 8, 10))
+			SET.room(C(230, 225, 215), C(200, 190, 175), C(8, 8, 10), M.marble, M.marble)
 			for _, x in ipairs({ -14, 14 }) do
-				K.box(V(3, 4, 3), C(245, 245, 245), CF(x, 2, 8))
+				K.box(V(3, 4, 3), C(245, 245, 245), CF(x, 2, 8), M.marble)
 				K.box(V(4, 6, 0.3), Color3.fromHSV(rng:NextNumber(), 0.5, 0.8), CF(x, 8, 11.4))
+				K.box(V(4.6, 6.6, 0.2), C(190, 150, 70), CF(x, 8, 11.48), M.metal)
 			end
-			K.box(V(3, 4, 3), C(245, 245, 245), CF(0, 2, 7))
+			K.box(V(3, 4, 3), C(245, 245, 245), CF(0, 2, 7), M.marble)
 			return K.box(V(1.4, 1.4, 1.4), C(120, 220, 255), CF(0, 5, 7) * ANG(0.6, 0.6, 0), NEON)
 		end
 		function SET.vault()
-			SET.room(C(120, 120, 130), C(150, 150, 160), C(6, 6, 8))
+			SET.room(C(120, 120, 130), C(150, 150, 160), C(6, 6, 8), M.plate, M.metal)
 			for i = 1, 12 do
 				K.box(V(1.6, 0.6, 0.8), C(250, 200, 60), CF(-6 + (i % 4) * 1.8, 0.3 + math.floor((i - 1) / 4) * 0.62, 8), METAL)
 			end
@@ -8067,99 +8383,136 @@ do
 		end
 		function SET.space()
 			K.sky(C(0, 0, 4))
-			K.box(V(220, 1, 130), C(150, 150, 155), CF(0, -0.5, 35), Enum.Material.Slate)
-			K.stars(60)
-			K.ball(14, C(60, 130, 220), V(-30, 34, 90))
-			for _ = 1, 8 do K.disc(rng:NextNumber(3, 7), C(120, 120, 125), V(rng:NextNumber(-40, 40), 0.02, rng:NextNumber(8, 40))) end
+			K.box(V(2000, 1, 2000), C(150, 150, 155), CF(0, -0.5, 0), M.slate)
+			K.stars(70)
+			K.ball(120, C(60, 130, 220), V(-260, 300, 900))
+			for _ = 1, 10 do K.disc(rng:NextNumber(3, 9), C(120, 120, 125), V(rng:NextNumber(-60, 60), 0.03, rng:NextNumber(8, 60)), 0.2, M.slate) end
 		end
 		function SET.forest(night)
-			K.ground(C(50, 100, 50), Enum.Material.Grass, night and NIGHT or DUSK)
-			for _ = 1, 16 do K.pine(rng:NextNumber(-60, 60), rng:NextNumber(10, 50)) end
-			if night then K.moon() K.stars(30) end
+			K.ground(C(50, 100, 50), M.grass, night and NIGHT or DUSK)
+			for _ = 1, 26 do K.pine(rng:NextNumber(-80, 80), rng:NextNumber(10, 70)) end
+			K.hills(C(30, 66, 38), 300)
+			if night then K.moon() K.stars(46) else K.sun(C(255, 170, 90)) end
 		end
 		function SET.farm()
-			K.ground(C(110, 170, 70), Enum.Material.Grass, DAY)
-			K.box(V(16, 12, 12), C(180, 40, 40), CF(-20, 6, 26))
+			K.ground(C(106, 164, 66), M.grass, DAY)
+			K.box(V(16, 12, 12), C(180, 40, 40), CF(-20, 6, 26), M.wood)
 			K.wedge(V(16, 5, 6), C(120, 30, 30), CF(-20, 14.5, 23))
 			K.wedge(V(16, 5, 6), C(120, 30, 30), CF(-20, 14.5, 29) * ANG(0, math.pi, 0))
-			for x = -40, 40, 4 do K.box(V(0.4, 3, 0.4), C(200, 180, 140), CF(x, 1.5, 13)) end
-			K.box(V(80, 0.3, 0.3), C(200, 180, 140), CF(0, 2.6, 13))
-			for i = 1, 4 do K.cyl(3, 3, C(230, 200, 100), CF(8 + i * 4, 1.5, 18)) end
-			K.sun()
+			for x = -60, 60, 4 do K.box(V(0.4, 3, 0.4), C(200, 180, 140), CF(x, 1.5, 13), M.wood) end
+			K.box(V(120, 0.3, 0.3), C(200, 180, 140), CF(0, 2.6, 13), M.wood)
+			for i = 1, 4 do K.cyl(3, 3, C(230, 200, 100), CF(8 + i * 4, 1.5, 18), M.fabric) end
+			K.hills(C(92, 150, 80), 300)
+			K.flatSky(false)
 		end
 		function SET.desert()
-			K.ground(C(230, 190, 130), Enum.Material.Sand, C(250, 180, 110))
-			for _ = 1, 8 do
-				local x, z = rng:NextNumber(-50, 50), rng:NextNumber(12, 40)
+			K.ground(C(230, 190, 130), M.sand, C(250, 180, 110))
+			for _ = 1, 12 do
+				local x, z = rng:NextNumber(-70, 70), rng:NextNumber(12, 60)
 				K.box(V(1.2, 6, 1.2), C(60, 140, 70), CF(x, 3, z))
 				K.box(V(0.8, 2.5, 0.8), C(60, 140, 70), CF(x + 1.2, 4, z))
 			end
+			for i = -3, 3 do -- red rock mesas
+				local h = rng:NextNumber(30, 70)
+				K.box(V(rng:NextNumber(40, 90), h, 40), C(176, 96, 66), CF(i * 90 + rng:NextNumber(-20, 20), h / 2, 260), M.slate)
+			end
+			K.hills(C(214, 164, 110), 400)
 			K.sun(C(255, 220, 120))
 		end
 		function SET.snow()
-			K.ground(C(240, 245, 250), Enum.Material.Snow, C(190, 210, 230))
-			for _ = 1, 10 do K.pine(rng:NextNumber(-60, 60), rng:NextNumber(14, 50), true) end
+			K.ground(C(240, 245, 250), M.snow, C(190, 210, 230))
+			for _ = 1, 18 do K.pine(rng:NextNumber(-80, 80), rng:NextNumber(14, 70), true) end
 			K.ball(3, C(250, 250, 255), V(18, 1.5, 12))
 			K.ball(2.2, C(250, 250, 255), V(18, 4, 12))
 			K.ball(1.6, C(250, 250, 255), V(18, 5.8, 12))
+			K.hills(C(226, 234, 244), 300)
+			K.clouds(5)
 		end
 		function SET.stadium(night)
-			K.ground(C(70, 160, 70), Enum.Material.Grass, night and NIGHT or DAY)
-			for row = 0, 3 do
-				K.box(V(130, 1.5, 3), C(150, 150, 160), CF(0, 0.75 + row * 1.5, 22 + row * 3))
-				for _ = 1, 16 do
-					K.box(V(1, 2, 0.8), Color3.fromHSV(rng:NextNumber(), 0.6, 0.9), CF(rng:NextNumber(-60, 60), 2.5 + row * 1.5, 22 + row * 3))
+			K.ground(C(64, 150, 64), M.grass, night and NIGHT or DAY)
+			K.box(V(2000, 0.04, 10), C(196, 90, 66), CF(0, 0.01, 0), M.pavement) -- the track
+			for row = 0, 5 do
+				K.box(V(500, 1.5, 3), C(150, 150, 160), CF(0, 0.75 + row * 1.5, 22 + row * 3), M.concrete)
+				for _ = 1, 26 do
+					K.box(V(1, 2, 0.8), Color3.fromHSV(rng:NextNumber(), 0.6, 0.9), CF(rng:NextNumber(-110, 110), 2.5 + row * 1.5, 22 + row * 3))
 				end
 			end
-			for _, x in ipairs({ -50, 50 }) do
-				K.box(V(1, 22, 1), C(80, 80, 85), CF(x, 11, 34))
-				K.box(V(6, 3, 1), C(255, 250, 220), CF(x, 22, 34), NEON)
+			K.box(V(500, 20, 3), C(70, 72, 84), CF(0, 16, 42), M.concrete)
+			for _, x in ipairs({ -60, 60 }) do
+				K.box(V(1, 34, 1), C(80, 80, 85), CF(x, 17, 40), M.metal)
+				K.box(V(10, 4, 1), C(255, 250, 220), CF(x, 34, 40), NEON)
 			end
-			if night then K.stars(20) end
+			K.skyline(120, night)
+			K.flatSky(night)
 		end
-		function SET.skatepark()
-			K.ground(C(90, 180, 70), Enum.Material.Grass, DAY)
-			K.box(V(160, 0.2, 9), C(200, 200, 205), CF(0, -0.05, 0))
-			K.buildings(40)
-			K.sun()
+		function SET.skatepark(night)
+			K.ground(night and C(70, 70, 78) or C(150, 150, 152), M.concrete, night and NIGHT or DAY)
+			K.box(V(2000, 0.04, 9), C(186, 186, 190), CF(0, 0, 0), M.pavement) -- the run
+			K.box(V(2000, 0.05, 0.3), C(240, 200, 50), CF(0, 0.01, -4.6))
+			K.box(V(2000, 0.05, 0.3), C(240, 200, 50), CF(0, 0.01, 4.6))
+			-- the back of the park: a graffiti wall and quarter pipes
+			K.box(V(600, 7, 1), C(150, 148, 146), CF(0, 3.5, 26), M.brick)
+			for i = -6, 6 do
+				K.box(V(rng:NextNumber(5, 9), rng:NextNumber(2, 4), 0.2), Color3.fromHSV(rng:NextNumber(), 0.85, 1), CF(i * 14 + rng:NextNumber(-3, 3), rng:NextNumber(2, 5), 25.4))
+			end
+			for x = -60, 60, 40 do
+				K.wedge(V(12, 3.5, 5), C(120, 124, 130), CF(x, 1.75, 22))
+				K.lamp(x + 20, 18)
+			end
+			K.cityRow(50, night, -180, 180, 9)
+			K.skyline(110, night)
+			K.flatSky(night)
 		end
 		function SET.rooftop()
 			K.sky(NIGHT)
-			K.box(V(70, 1, 30), C(90, 90, 95), CF(0, -0.5, 4))
-			K.stars(30)
-			K.moon()
-			for i = -8, 8 do
-				local h = rng:NextInteger(10, 40)
-				K.box(V(10, h, 10), Color3.fromHSV(0.62, 0.2, 0.3), CF(i * 12, h / 2 - 16, 40))
+			K.box(V(3000, 1, 3000), C(26, 28, 38), CF(0, -60, 0), M.asphalt) -- the street, far below
+			K.box(V(70, 60, 44), C(66, 68, 76), CF(0, -30.5, 11), M.brick) -- this building
+			K.box(V(70, 1, 44), C(90, 90, 95), CF(0, -0.5, 11), M.slate)
+			K.box(V(70, 2, 1), C(70, 72, 80), CF(0, 1, 33), M.concrete) -- the wall at the back
+			K.box(V(2, 3, 2), C(120, 120, 125), CF(-20, 1.5, 22), M.metal)
+			K.box(V(3, 2.4, 3), C(130, 132, 136), CF(12, 1.2, 24), M.metal)
+			for i = -9, 9 do -- the towers all around
+				local h = rng:NextInteger(24, 70)
+				K.box(V(18, h, 18), Color3.fromHSV(0.62, 0.2, 0.26), CF(i * 22, h / 2 - 34, 90), M.concrete)
+				for _ = 1, 3 do K.box(V(14, 1.2, 0.3), C(255, 214, 130), CF(i * 22, rng:NextNumber(-20, h - 36), 80.8), NEON) end
 			end
-			K.box(V(2, 3, 2), C(120, 120, 125), CF(-20, 1.5, 12))
+			K.skyline(180, true)
+			K.flatSky(true)
 		end
 		function SET.sewer()
 			K.sky(C(6, 8, 6))
-			K.box(V(130, 1, 8), C(90, 95, 90), CF(0, -0.5, 0))
-			K.box(V(130, 1, 10), C(80, 140, 60), CF(0, -1.2, 9), NEON)
-			K.box(V(130, 1, 30), C(70, 75, 70), CF(0, 14, 6))
-			K.box(V(130, 20, 1), C(70, 75, 70), CF(0, 5, 15))
-			for x = -40, 40, 20 do K.ball(0.8, C(255, 220, 120), V(x, 10, 12), true) end
+			K.box(V(1000, 1, 8), C(90, 95, 90), CF(0, -0.5, 0), M.cobble)
+			K.box(V(1000, 1, 60), C(70, 74, 68), CF(0, -2, -30), M.brick)
+			K.box(V(1000, 1, 10), C(80, 140, 60), CF(0, -1.2, 9), NEON)
+			K.box(V(1000, 1, 100), C(70, 75, 70), CF(0, 14, -30), M.brick)
+			K.box(V(1000, 20, 1), C(70, 75, 70), CF(0, 5, 15), M.brick)
+			for x = -80, 80, 20 do K.ball(0.8, C(255, 220, 120), V(x, 10, 12), true) end
+			for x = -70, 70, 28 do K.cyl(3, 4, C(96, 90, 82), CF(x, 8, 13.6) * ANG(0, math.pi / 2, 0), M.metal) end
 		end
 		function SET.fair(night)
-			K.ground(C(90, 180, 70), Enum.Material.Grass, night and NIGHT or DUSK)
+			K.ground(C(84, 168, 66), M.grass, night and NIGHT or DUSK)
+			K.box(V(2000, 0.05, 9), C(190, 170, 130), CF(0, 0, -2), M.sand) -- the midway
 			local hub = V(18, 14, 30)
 			for i = 1, 12 do
 				local a = i / 12 * math.pi * 2
-				K.box(V(0.4, 10, 0.4), C(230, 230, 240), CF(hub) * ANG(0, 0, a) * CF(0, 5, 0))
+				K.box(V(0.4, 10, 0.4), C(230, 230, 240), CF(hub) * ANG(0, 0, a) * CF(0, 5, 0), M.metal)
 				K.box(V(2, 2, 2), Color3.fromHSV(i / 12, 0.7, 1), CF(hub + V(-math.sin(a) * 10, math.cos(a) * 10, 0)), NEON)
 			end
-			for _, x in ipairs({ -30, -14 }) do
-				K.box(V(10, 6, 8), C(250, 250, 250), CF(x, 3, 20))
+			K.box(V(1, 16, 1), C(200, 200, 210), CF(16, 7, 30) * ANG(0, 0, -0.14), M.metal)
+			K.box(V(1, 16, 1), C(200, 200, 210), CF(20, 7, 30) * ANG(0, 0, 0.14), M.metal)
+			for _, x in ipairs({ -30, -14, -60, 44 }) do
+				K.box(V(10, 6, 8), C(250, 250, 250), CF(x, 3, 20), M.fabric)
 				K.wedge(V(10, 3, 4), C(230, 50, 60), CF(x, 7.5, 18))
 				K.wedge(V(10, 3, 4), C(230, 50, 60), CF(x, 7.5, 22) * ANG(0, math.pi, 0))
 			end
-			if night then K.stars(20) end
+			K.cityRow(70, night, -180, 180, 9)
+			K.skyline(130, night)
+			K.flatSky(night)
 		end
 		function SET.court()
-			SET.room(C(120, 85, 55), C(150, 120, 90), C(10, 8, 6))
-			K.box(V(10, 5, 3), C(90, 55, 30), CF(0, 2.5, 6))
+			SET.room(C(120, 85, 55), C(150, 120, 90), C(10, 8, 6), M.wood, M.wood)
+			K.box(V(10, 5, 3), C(90, 55, 30), CF(0, 2.5, 6), M.wood)
+			K.box(V(16, 0.6, 0.6), C(190, 150, 70), CF(0, 12, 11.2), M.metal)
 			local gh = K.box(V(1.2, 0.6, 0.6), C(70, 40, 20), CF(1.5, 5.3, 5))
 			return function() -- bang the gavel
 				for _ = 1, 2 do
@@ -8178,25 +8531,37 @@ do
 			for x = -12, 12, 8 do K.table(x, 1, C(200, 170, 120)) end
 		end
 		function SET.mall()
-			SET.room(C(235, 235, 230), C(250, 245, 235), C(14, 14, 18))
-			for i = -2, 2 do K.box(V(9, 8, 0.3), Color3.fromHSV(rng:NextNumber(), 0.5, 0.95), CF(i * 11, 4, 11.4), NEON) end
+			SET.room(C(235, 235, 230), C(250, 245, 235), C(14, 14, 18), M.marble)
+			for i = -4, 4 do K.box(V(9, 8, 0.3), Color3.fromHSV(rng:NextNumber(), 0.5, 0.95), CF(i * 11, 4, 11.4), NEON) end
 			K.palm(-26, 6)
+			K.palm(30, 6)
 		end
-		function SET.hideout()
-			SET.room(C(70, 55, 45), C(90, 80, 70), C(8, 8, 10))
+		function SET.hideout(wallZ)
+			SET.room(C(70, 55, 45), C(92, 66, 54), C(8, 8, 10), M.wood, M.brick, wallZ)
 			K.table(0, 4, C(110, 75, 45))
+			K.crate(-16, 8, 3)
+			K.crate(-12, 9, 2)
+			K.bin(22, 9)
 		end
-		function SET.cell()
-			SET.room(C(110, 110, 115), C(140, 140, 145), C(6, 6, 8))
+		function SET.cell(wallZ)
+			SET.room(C(110, 110, 115), C(140, 140, 145), C(6, 6, 8), M.concrete, M.concrete, wallZ)
 			for x = -12, 12, 2 do K.box(V(0.35, 12, 0.35), C(50, 50, 55), CF(x, 6, -1), METAL) end
 			K.box(V(26, 0.5, 0.5), C(50, 50, 55), CF(0, 11.5, -1), METAL)
-			K.box(V(6, 1.2, 3), C(160, 160, 165), CF(7, 0.6, 7))
+			K.box(V(6, 1.2, 3), C(160, 160, 165), CF(7, 0.6, 7), M.metal)
+			-- the walls either side of the bars, and over them, so it's a real cell
+			for _, x in ipairs({ -32, 32 }) do K.box(V(38, 26, 1), C(128, 128, 132), CF(x, 13, -1), M.concrete) end
+			K.box(V(26, 14, 1), C(128, 128, 132), CF(0, 19, -1), M.concrete)
 		end
-		function SET.yard()
-			K.ground(C(150, 145, 140), nil, DAY)
-			for x = -36, 36, 3 do K.box(V(0.2, 9, 0.2), C(120, 120, 125), CF(x, 4.5, 14), METAL) end
-			K.box(V(76, 0.2, 0.2), C(120, 120, 125), CF(0, 9, 14), METAL)
-			K.box(V(30, 14, 10), C(130, 130, 135), CF(-28, 7, 24))
+		function SET.yard(night)
+			K.ground(C(146, 142, 136), M.concrete, night and NIGHT or DAY)
+			for x = -60, 60, 3 do K.box(V(0.2, 9, 0.2), C(120, 120, 125), CF(x, 4.5, 14), METAL) end
+			K.box(V(120, 0.2, 0.2), C(120, 120, 125), CF(0, 9, 14), METAL)
+			K.box(V(2000, 12, 2), C(126, 124, 120), CF(0, 6, 34), M.brick) -- the outer wall
+			K.box(V(30, 14, 10), C(130, 130, 135), CF(-28, 7, 24), M.brick)
+			K.box(V(6, 20, 6), C(120, 120, 125), CF(30, 10, 28), M.concrete) -- guard tower
+			K.box(V(8, 3, 8), C(90, 92, 98), CF(30, 21, 28), M.metal)
+			K.skyline(120, night)
+			K.flatSky(night)
 		end
 		K.DAY, K.NIGHT, K.DUSK = DAY, NIGHT, DUSK
 
@@ -8232,6 +8597,9 @@ do
 			K.siren(3)
 			K.all(crew, function(r) K.walkAsync(r, -44, -4, 7) end)
 			K.walk(cop, -40, -6, 7)
+			fade(true, 0.4)
+			K.all(crew, function(r) r.hide() end)
+			cop.hide()
 		end
 		local function guilty(text) story.news = text story.chapter = "court" end
 		local function free(text, nxt) story.news = text story.chapter = nxt or "hideout" end
@@ -8310,6 +8678,7 @@ do
 					K.say(crew[1], "Nobody move! This is a stick-up!", "point")
 					local driver = K.put(dan(), -4, -4.5, 6, -4)
 					K.say(driver, "Oh no. Anyway.", "shrug")
+					K.twist(driver, "smug")
 					K.say(driver, "It's me, Officer Dan. This truck is FULL of cops.", "point")
 					local cops = {}
 					for i = 1, 2 do cops[i] = K.put(K.who("Cop", "Cop"), -8 - i * 2, -6, 6, -4) end
@@ -8355,6 +8724,7 @@ do
 					sfx(SFX.thud, 0.5, 1.8, 0.6)
 					egg.Transparency = 1
 					local chick = K.ball(1.4, C(255, 230, 80), egg.Position)
+					K.twist(chick.Position, nil, "snap")
 					K.say(crew[#crew], "IT HATCHED?!", "handsUp")
 					K.glide(chick, CF(egg.Position + V(-30, -2, -4)), 1.2)
 					if lucky(0.5) then
@@ -8380,6 +8750,7 @@ do
 					crew[1].gesture("carry", 3)
 					K.say(crew[1], "The secret Bloxy Cola recipe! We're gonna be RICH!")
 					K.say(crew[#crew], "What does it say?")
+					K.twist(crew[1], "shocked")
 					K.say(crew[1], "...'Step 1: add sugar. Step 2: add MORE sugar.'", "facepalm")
 					K.say(crew[#crew], "That's it?!", "shrug")
 					local guard = K.put(K.robot("Security Bot"), 24, 2, 0, 2)
@@ -8452,6 +8823,7 @@ do
 					burst("dust", V(-2, 1, 4), 20)
 					sfx(SFX.thud, 0.5, 0.8, 1)
 					K.say(crew[1], "...This isn't the bank.", "shrug")
+					K.twist(cop, "smug")
 					K.say(cop, "Nope. It's the JAIL. Thanks for saving me the drive.", "point")
 					K.say(crew[#crew], "Who was holding the map?!", "facepalm")
 					story.news = story.gangName .. " digs tunnel into the bank. Ends up IN the jail."
@@ -8487,8 +8859,10 @@ do
 					banana.Transparency = 1
 					crew[1].gesture("cheer", 2)
 					K.say(crew[1], "Easiest job EVER.")
-					local gorilla = K.put(K.big(K.bald(K.paint(K.who("Rider", "Gorilla"), C(40, 40, 44), C(60, 60, 64))), 1.5), 24, 6, 0, 6)
+					local gorilla = K.put(K.big(K.bald(K.paint(K.who("Rider", "Gorilla"), C(40, 40, 44), C(130, 120, 112))), 1.5), 24, 6, 0, 6)
 					gorilla.voice = 0.5
+					gorilla.gait, gorilla.runGait, gorilla.mood = "stomp", "stomp", "angry"
+					K.twist(gorilla, "angry", "vertigo")
 					K.say(gorilla, "OOH OOH. AAH AAH.", "handsUp")
 					K.say(crew[#crew], "That's HIS banana!", "point")
 					K.all(crew, function(r) K.runAsync(r, -40, -3) end)
@@ -8616,6 +8990,7 @@ do
 						local cop = K.put(dan(), 0, 4, 0, -10)
 						burst("food", V(0, 5, 4), 24)
 						sfx(SFX.thud, 0.5, 1.2, 0.8)
+						K.twist(cop, "joy", "crash")
 						K.say(cop, "SURPRISE! You're under arrest!", "handsUp")
 						K.say(crew[1], "He was IN the cake?!", "facepalm")
 						busted(crew, cop, "Happy birthday. Your present: handcuffs.")
@@ -8640,6 +9015,7 @@ do
 					K.say(crew[1], "That's us! Hey... do I know you?", "point")
 					if lucky(0.5) then
 						K.say(guy, "Nope! Just a regular pizza guy. Named... Dan.", "shrug")
+						K.twist(guy, "smug", "snap")
 						K.say(crew[#crew], "IT'S OFFICER DAN!", "handsUp")
 						busted(crew, guy, "Extra cheese, extra handcuffs.")
 						guilty("Fake pizza guy Officer Dan arrests " .. story.gangName .. ".")
@@ -8659,6 +9035,7 @@ do
 					burst("money", V(0, 4, 4), 24)
 					crew[1].gesture("carry", 2)
 					K.say(crew[1], "Wait... why is this money PINK?")
+					K.twist(crew[1], "shocked")
 					if crew[2] then K.say(crew[2], "It says 'Bay-opoly'. It's board game money.", "facepalm") end
 					K.say(crew[#crew], "So we're... broke?", "shrug")
 					story.loot = 0
@@ -8682,6 +9059,7 @@ do
 					hold(2.6)
 					local cop = K.put(dan(), -24, 0, 0, 4)
 					K.walk(cop, -14, 1, 8)
+					K.twist(cop, "smug", "crash")
 					K.say(cop, "Two gangs. One room. My lucky day.", "point")
 					busted(crew, cop, "ALL of you, out!")
 					guilty("Police break up gang DANCE-OFF. " .. story.gangName .. " arrested.")
@@ -8733,6 +9111,7 @@ do
 					K.cap("Splitting the loot. $" .. story.loot .. ".", 1.6)
 					local traitor = crew[#crew]
 					traitor.gesture("carry", 3)
+					K.twist(traitor, "smug", "vertigo")
 					K.say(traitor, "Actually... I'll take ALL of it. Bye!", "wave")
 					K.runAsync(traitor, 40, -4)
 					hold(1)
@@ -8748,7 +9127,7 @@ do
 					SET.street(true)
 					K.ramp(16, -4, 2.5, 6)
 					local robber = K.rider(story.gang[1].name)
-					K.paint(robber, C(30, 30, 34), C(30, 30, 34))
+					K.paint(robber, C(30, 30, 34), C(234, 184, 146))
 					local cop = K.rider("Officer Dan")
 					K.paint(cop, C(30, 50, 120), C(234, 184, 146))
 					robber.at(-40, 0, -4)
@@ -8836,6 +9215,7 @@ do
 					K.open(V(0, 8, -22), V(0, 4, 4))
 					K.cap(story.gangName .. " on trial. The prosecution calls a SURPRISE witness.", 2.4)
 					gavel()
+					K.twist(cop, "smug")
 					K.say(cop, "I call... Sir Barks-a-Lot!", "point")
 					local dog = K.dog(V(4, 0, 2))
 					dog.bark()
@@ -8861,6 +9241,7 @@ do
 					K.cap("The gang has a lawyer. A VERY familiar-looking lawyer.", 2.2)
 					gavel()
 					K.say(lawyer, "Your honor, my clients are innocent. Especially the handsome one.", "point")
+					K.twist(judge, "confused")
 					K.say(judge, "Isn't the handsome one... YOU?")
 					K.say(lawyer, "I have never met me in my life.", "shrug")
 					if lucky(0.3) then
@@ -9024,6 +9405,7 @@ do
 					lineUp(crew, -10, 0, 0, 4)
 					K.cut(V(0, 7, -18), V(0, 3, 4))
 					burst("dust", V(-8, 1, 0), 16)
+					K.twist(guard, "smug", "snap")
 					K.say(guard, "...Hello. This is my office.", "wave")
 					K.say(crew[1], "We'll just... go back down.", "shrug")
 					story.news = story.gangName .. " digs tunnel with spoon. Comes out in guard's office."
@@ -9100,6 +9482,7 @@ do
 					K.cap("A new cellmate. From... very far away.", 2)
 					K.say(zorp, "Greetings. I was arrested for parking my saucer on the beach.", "wave")
 					K.say(crew[1], "You got a way out of here?", "point")
+					K.twist(zorp)
 					K.say(zorp, "Hold still, earthlings.", "handsUp")
 					flash(C(170, 255, 170), 0.8)
 					sfx(SFX.whoosh, 0.5, 0.6, 2)
@@ -9122,9 +9505,9 @@ do
 		local ROSTER = { "Zippy", "Kickflip Kim", "Big Wheel Bo", "Turbo Tia", "Rad Rick", "Scoot McGee", "Nova", "Lil Wheelie" }
 		function K.onScooter(r) -- a scooter welded under anyone's feet (it flips with them)
 			local root = r.model:FindFirstChild("HumanoidRootPart")
-			local deckCf = root.CFrame * CF(0, -r.height + 0.15, 0)
+			local deckCf = r.model:GetPivot() * CF(0, -r.height - 0.125, 0) -- (the top of the deck at the soles of the feet)
 			for _, spec in ipairs({
-				{ V(1, 0.25, 3.4), CF(), C(30, 30, 34) },
+				{ V(1.8, 0.25, 3.6), CF(), C(30, 30, 34) },
 				{ V(0.25, 3.6, 0.25), CF(0, 1.8, -1.5), C(200, 200, 205) },
 				{ V(2.2, 0.25, 0.25), CF(0, 3.5, -1.5), C(30, 30, 34) },
 				{ V(0.3, 0.7, 0.7), CF(0, -0.15, -1.45), C(20, 20, 20) },
@@ -9193,6 +9576,7 @@ do
 				r.at(startX + u * (top - len - startX), 0, z)
 				hold(0)
 			until u >= 1
+			r.squash = 0.7 -- (crouching into the ramp)
 			t0 = clock()
 			repeat
 				local u = math.min((clock() - t0) / 0.42, 1)
@@ -9202,6 +9586,7 @@ do
 			sfx(SFX.whoosh, 0.4, rng:NextNumber(0.9, 1.15), 1.5)
 			if trick == "no-hander" or trick == "superman" then r.gesture(trick == "superman" and "handsUp" or "cheer", airT) end
 			r.air = true
+			r.feel(o.bail and "scared" or "joy", airT + 0.4)
 			t0 = clock()
 			repeat
 				local u = math.min((clock() - t0) / airT, 1)
@@ -9213,11 +9598,13 @@ do
 			if o.bail then
 				sfx(SFX.thud, 0.45, 0.8, 1)
 				r.lie(landX + 1.5, landY, z)
+				r.feel("tired", 4)
 				burst("dust", V(landX + 1.5, landY + 0.5, z), 8)
 				shake(0.25, 0.4)
 				return false
 			end
 			sfx(SFX.thud, 0.3, 1.4, 1)
+			r.squash = 1 -- (absorbing the landing)
 			burst("dust", V(landX, landY + 0.3, z), 5)
 			t0 = clock()
 			repeat
@@ -9445,13 +9832,14 @@ do
 			end },
 			{ "THE ROOFTOP GAP", function()
 				SET.rooftop()
-				K.box(V(40, 1, 30), C(90, 90, 95), CF(54, -0.5, 4))
+				K.box(V(40, 60, 44), C(66, 68, 76), CF(64, -30.5, 11), K.M.brick) -- the other building, across the gap
+				K.box(V(40, 1, 44), C(90, 90, 95), CF(64, -0.5, 11), K.M.slate)
 				K.ramp(28, 0, 2.5, 6)
 				local r = K.rider()
 				K.open(V(20, 10, -26), V(30, 0, 0))
 				K.cap("Midnight. Two rooftops. ONE gap. " .. r.name .. " is crazy.", 2.2)
 				K.follow(r, V(-6, 6, -22))
-				local ok = K.jump(r, { rampX = 28, len = 6, h = 2.5, dist = 12, height = 5, trick = "360", bail = rng:NextNumber() < 0.2 })
+				local ok = K.jump(r, { rampX = 28, len = 6, h = 2.5, dist = 18, height = 6, rollOut = 8, trick = "360", bail = rng:NextNumber() < 0.2 })
 				if ok then K.cheer() K.cap("HE MAKES IT!", 1.6) K.points(r.name, 15) else K.cap("He lands on the edge... and hangs on! Phew.", 2) end
 			end },
 			{ "SLALOM SHOWDOWN", function()
@@ -9625,6 +10013,7 @@ do
 				K.jump(g, { trick = "1080", height = 9, air = 2 })
 				K.cut(WIDE, LOOK)
 				K.cheer()
+				K.twist(g, "smug", "crash")
 				K.say(kid, "...She did a TEN-EIGHTY.", "facepalm")
 				K.points("Granny Gwen", 20)
 			end },
@@ -9644,6 +10033,7 @@ do
 				K.jump(z, { trick = "corkscrew", height = 26, air = 3, dist = 20 })
 				K.cut(WIDE, LOOK)
 				K.cheer()
+				K.twist(z, nil, "snap")
 				K.cap("The judges give it an 11. Out of 10. Out of THIS WORLD.", 2)
 				K.points("Zorp", 25)
 			end },
@@ -9755,9 +10145,7 @@ do
 				K.points("Big Wheel Bo", 15)
 			end },
 			{ "NIGHT GLOW SESSION", function()
-				SET.skatepark()
-				K.sky(K.NIGHT)
-				K.stars(30)
+				SET.skatepark(true)
 				K.ramp(-3.5, 0, 3, 7, C(80, 255, 160)).Material = NEON
 				for x = -30, 30, 10 do K.box(V(0.3, 0.1, 9), Color3.fromHSV((x + 30) / 60, 0.8, 1), CF(x, 0.03, 0), NEON) end
 				local list = team(3)
@@ -9959,7 +10347,7 @@ do
 				K.points(r.name, 8)
 			end },
 			{ "THE WATER JUMP", function()
-				SET.dock(false)
+				SET.dock(false, 6)
 				K.ramp(-3.5, 0, 3, 7, C(150, 110, 70))
 				local list = team(3)
 				K.open(V(4, 8, -26), V(10, 0, 4))
@@ -9967,7 +10355,8 @@ do
 				local best = list[1]
 				for _, r in ipairs(list) do
 					K.follow(r, V(-4, 6, -24))
-					K.jump(r, { trick = K.anyTrick(), landY = -1.6, bail = true, dist = 14 })
+					K.jump(r, { trick = K.anyTrick(), landY = -1.2, bail = true, dist = 14 })
+					r.model.Parent = nil -- (under the water)
 					burst("dust", V(12, -1, 0), 24)
 					sfx(SFX.thud, 0.5, 0.5, 1)
 					K.cut(V(4, 8, -26), V(10, 0, 4))
@@ -10053,7 +10442,7 @@ do
 				SET.skatepark()
 				K.ramp(-3.5, 0, 3, 7)
 				local r = K.rider("Rad Rick")
-				K.stick(r, V(1.3, 0.35, 1.3), C(20, 20, 20), CF(0, 0.15, 0))
+				K.stick(r, V(1.45, 0.5, 1.45), C(20, 20, 20), CF(0, 0.15, 0))
 				K.crate(-14, 2)
 				K.open(WIDE, LOOK)
 				K.say(r, "I don't need to SEE the ramp. I FEEL the ramp.", "handsUp")
@@ -10068,6 +10457,7 @@ do
 					K.jump(r, { from = -34, trick = "backflip" })
 					K.cut(WIDE, LOOK)
 					K.cheer()
+					K.twist(r, "joy", "crash")
 					K.cap("WHAT?! Blindfolded BACKFLIP!", 1.8)
 					K.points("Rad Rick", 15)
 				end
@@ -10150,6 +10540,7 @@ do
 				K.cap("...wait. What's THAT behind him?!", 1.4)
 				sfx(SFX.boo, 0.4, 0.6, 2)
 				hold(1.4)
+				K.twist(ghost:GetPivot().Position, nil, "vertigo")
 				K.cap("The ghost is FASTER! The ghost wins the race!", 2)
 				K.points("The Ghost", 10)
 			end },
@@ -10226,6 +10617,7 @@ do
 				K.cut(V(0, 4, -14), V(0, 20, 30))
 				ufo.move(V(90, 34, 50), 2.6)
 				K.cut(V(-2, 6, -16), V(0, 5, 4))
+				K.twist(guy, "shocked")
 				K.say(guy, "...yeah. Exactly like that one.", "shrug")
 			end, "Experts say it was 'probably a plane'. Probably." },
 			{ "ALIEN INVASION", "BREAKING: the saucer has LANDED in Bay Park.", function()
@@ -10241,6 +10633,7 @@ do
 				local z = K.put(K.alien("Zorp"), 4, 6)
 				hold(1)
 				ufo.beam(false)
+				K.twist(z, nil, "vertigo")
 				K.say(z, "Greetings, earthlings. Take me to your leader.", "wave")
 				K.say(r, "Our leader? Uh... Bob? He's at the plaza.", "shrug")
 				K.say(z, "Also. Do you have... the fizzy red drink?", "point")
@@ -10288,6 +10681,7 @@ do
 				dan.gesture("handsUp", 3)
 				K.fly(dan, V(4, 20, -2), 2)
 				ufo.beam(false)
+				K.twist(r, "shocked", "crash")
 				K.say(r, "...Officer Dan has been BEAMED UP.", "handsUp")
 				ufo.move(V(10, 40, 60), 1.6)
 			end, "Police say Officer Dan is 'probably fine'." },
@@ -10336,6 +10730,7 @@ do
 				end
 				egg.CFrame = CF(4, 3.9, 4)
 				K.box(V(0.2, 2.5, 0.1), C(60, 50, 40), CF(4, 4.5, 0.9) * ANG(0, 0, 0.4))
+				K.twist(V(4, 4, 2), nil, "snap")
 				K.say(r, "And a CRACK! Something is coming out!", "handsUp")
 			end, "We'll be watching that egg all night." },
 			{ "THE GIANT EGG", "BREAKING: the egg hatched. It's a DINOSAUR.", function()
@@ -10346,6 +10741,7 @@ do
 				local fleeing = { K.put(K.who("Rider", "Shopper"), 0, 0), K.put(K.who("Rider", "Shopper"), 6, 2) }
 				K.open(V(-10, 8, -24), V(6, 4, 2))
 				live("Discovery Bay Plaza")
+				K.twist(d.pos() + V(0, 4, -3), nil, "vertigo")
 				K.say(r, "A BABY DINOSAUR is loose in the plaza!", "handsUp")
 				d.roar()
 				K.all(fleeing, function(a) K.runAsync(a, -40, -4) end)
@@ -10430,6 +10826,7 @@ do
 				live("Bay Beach (closed)")
 				K.say(finn, "Thirty years at sea. I've never seen a shark THIS big.", "binoculars", 3)
 				K.say(r, "Is it dangerous?", "point")
+				K.twist(finn, "shocked")
 				K.say(finn, "...It waved at me.", "shrug")
 			end, "The beach will stay closed. Sunscreen sales are DOWN." },
 			{ "SHARK IN THE BAY", "Captain Finn is going after the shark. With a very big net.", function()
@@ -10456,6 +10853,7 @@ do
 				K.open(V(-2, 6, -16), V(2, 4, 4))
 				live("Bay Beach")
 				K.say(finn, "We caught the shark. Its name is... GARY.", "point")
+				K.twist(guy, "sad", "snap")
 				K.say(guy, "I just wanted the beach to myself, okay?!", "facepalm")
 				costume.Transparency = 0.5
 				K.say(r, "A man in a fin costume. For a WEEK.", "shrug")
@@ -10510,6 +10908,7 @@ do
 				K.say(bot, "I. WILL. PET. FOREV-", "handsUp")
 				sfx(SFX.thud, 0.4, 0.4, 1)
 				bot.place(bot.pos, bot.pos + V(0, -1, -10))
+				K.twist(r, "confused")
 				K.say(r, "...It ran out of battery.", "shrug")
 				K.say(r, "Somebody forgot to charge it. That's the whole story.", "facepalm")
 			end, "The Auto-Petter will be charged, and put back on dog duty." },
@@ -10572,6 +10971,7 @@ do
 				local dog = K.dog(V(0, 1, 6), C(250, 250, 250))
 				local bob = K.put(K.who("Rider", "Bob"), -8, 2, 0, 6)
 				K.open(V(0, 6, -16), V(0, 3, 4))
+				K.twist(dog.model:GetPivot().Position, nil, "snap")
 				K.cap("...SIR BARKS-A-LOT! The DOG wins!", 2)
 				burst("spark", V(0, 6, 6), 30)
 				K.cheer()
@@ -10617,6 +11017,7 @@ do
 				K.boom(V(10, 2, 10), true)
 				rock:Destroy()
 				K.can(V(10, 0, 10), 7)
+				K.twist(V(10, 4, 10), nil, "vertigo")
 				K.say(r, "...It's a GIANT CAN OF BLOXY COLA.", "facepalm")
 				local terry = K.put(K.who("Rider", "Thirsty Terry"), 20, 4, 10, 10)
 				K.say(terry, "I'll handle this.", "point")
@@ -10661,6 +11062,7 @@ do
 				local r = rita(-6, 0)
 				K.open(V(-2, 6, -12), V(2, 3, 2))
 				live("The Marina")
+				K.twist(kid, "sad", "crash")
 				K.say(r, "The marina ghost was... Lil Wheelie. In a bedsheet.", "point")
 				K.say(kid, "I was practicing night riding! The sheet kept me warm!", "shrug")
 				K.say(r, "Case closed.", "wave")
@@ -10691,6 +11093,7 @@ do
 				K.say(bf, "Mmmf. Crunchy.", "cheer")
 				hold(0.6)
 				bf.face(V(-2, 0, -10))
+				K.twist(bf, "shocked", "crash")
 				K.say(bf, "...Is that a camera?", "point")
 				fade(true, 0.2)
 			end, "Bigfoot ate an entire box of Bay Snacks. Flavor: 'Cool Ranch'." },
@@ -10720,6 +11123,7 @@ do
 				burst("spark", V(4, 3, -2), 20)
 				K.say(t, "What year is it?! QUICK!", "handsUp")
 				K.say(r, "It's... now?", "shrug")
+				K.twist(t, "scared")
 				K.say(t, "Oh no. I'm too EARLY.", "facepalm")
 			end, "The man says his name is Zeke. He is 'from 2099'." },
 			{ "THE TIME TRAVELER", "Zeke from the future has WARNINGS for us.", function()
@@ -10822,9 +11226,7 @@ do
 				K.say(r, "Please stay calm, Discovery Bay.", "point")
 			end, "Power company says a seagull 'sat on the wrong thing'." },
 			{ "THE BLACKOUT", "Something beautiful happened during the blackout.", function()
-				SET.park()
-				K.sky(C(6, 8, 24))
-				K.stars(80)
+				SET.park(true)
 				local folks = {}
 				for i = 1, 4 do folks[i] = K.put(K.who("Rider", "Neighbor"), -12 + i * 5, 4, -12 + i * 5, 40) end
 				local r = rita(-16, -3)
@@ -10893,9 +11295,7 @@ do
 				K.say(r, "No treasure yet. But lots of shoes.", "shrug")
 			end, "Shoe count: 47. Treasure count: zero." },
 			{ "THE TREASURE MAP", "Diggers say a PIRATE GHOST appeared on the beach.", function()
-				SET.beach()
-				K.sky(K.NIGHT)
-				K.stars(30)
+				SET.beach(true)
 				local ghost = K.ghost(V(6, 0.5, 4))
 				K.box(V(2.6, 0.5, 2.6), C(20, 20, 20), CF(6, 4.4, 4))
 				local r = rita(-8, -3)
@@ -10916,6 +11316,7 @@ do
 				live("Bay Beach, under the big palm")
 				K.say(finn, "Here it is! Open it up!", "point")
 				burst("spark", V(-28, 2.5, 6), 20)
+				K.twist(finn, "shocked", "snap")
 				K.say(finn, "It's... COUPONS. 'Buy one Bloxy Cola, get one free.'", "facepalm")
 				K.say(r, "From 1802?", "shrug")
 				K.say(finn, "...Do you think they still work?", "shrug")
@@ -11171,6 +11572,8 @@ do
 			s.caption.Visible = false
 			s.ticker.Visible = false
 			s.shot, s.cinematic, s.snap = nil, false, false
+			s.fovWant, s.speaker = nil, nil
+			cam.FieldOfView = 50
 			s.letterbox.Visible, s.title.Visible = false, false
 			s.fade.BackgroundTransparency, s.flash.BackgroundTransparency = 1, 1
 			table.clear(s.actors)
@@ -11196,7 +11599,11 @@ do
 		show.testing = true -- (the regular episode stops at its next beat)
 		local s = show
 		local list = {}
-		if which == "heist" then
+		if which == "saga" then -- the saga's own ten chapters
+			for _, name in ipairs({ "plan", "job", "chase", "hideout", "stakeout", "beach", "court", "jail", "yard", "breakout" }) do
+				table.insert(list, { name, story.ctx.chapters[name] })
+			end
+		elseif which == "heist" then
 			for _, hub in ipairs({ "job", "plan", "hideout", "chase", "court", "jail" }) do
 				for _, v in ipairs(PLOTS.HEIST[hub]) do table.insert(list, v) end
 			end
@@ -11211,7 +11618,7 @@ do
 			n += 1
 			local item = list[i]
 			local ok, err = pcall(function()
-				if which == "heist" then
+				if which == "heist" or which == "saga" then
 					if not story.gang then story.ctx.newGang() end
 					item[2](story.ctx)
 				elseif which == "news" then
@@ -11228,9 +11635,11 @@ do
 	plr:GetAttributeChangedSignal("TVSelfTest"):Connect(function()
 		local which = plr:GetAttribute("TVSelfTest")
 		if not which then return end
+		local only = tonumber(which:match(":(%d+)$"))
+		which = which:match("^%a+")
 		task.spawn(function()
 			local t0 = os.clock()
-			local ok, n, errs = pcall(selfTest, which)
+			local ok, n, errs = pcall(selfTest, which, only, only)
 			plr:SetAttribute("TVSelfTestResult", ok and (which .. ": ran " .. n .. " in " .. math.floor(os.clock() - t0) .. "s, errors " .. #errs .. " | " .. table.concat(errs, " | ")) or ("test crashed: " .. tostring(n)))
 			plr:SetAttribute("TVSelfTest", nil)
 		end)
@@ -11394,7 +11803,10 @@ do
 				end
 			end
 		end
-		if show.shakeUntil and os.clock() < show.shakeUntil then
+		if show.fovWant then
+			show.cam.FieldOfView += (show.fovWant - show.cam.FieldOfView) * (1 - math.exp(-dt * (show.fovRate or 10)))
+		end
+		if show.shakeUntil and clock() < show.shakeUntil then
 			local a = show.shakeAmt or 0.2
 			show.cam.CFrame = show.cam.CFrame * CFrame.new(rng:NextNumber(-a, a), rng:NextNumber(-a, a), 0)
 		end
